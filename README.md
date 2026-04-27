@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# POS System
 
-## Getting Started
+Single-store cafe POS built with Next.js, TypeScript, Prisma, PostgreSQL, TanStack Query, and Zustand.
 
-First, run the development server:
+## Features
+
+- Admin and cashier authentication with session cookies
+- Admin dashboard for users, categories, products, and store settings
+- Cashier POS cart with product variants, discounts, held orders, and cash checkout
+- Order history, order detail, cancellation, and receipt preview
+- Prisma data model for users, sessions, catalog, orders, payments, refunds, stock movements, settings, and activity logs
+- Local PostgreSQL development through Docker Compose
+
+## Requirements
+
+- Node.js 20+
+- npm
+- Docker, for the local PostgreSQL database
+
+## Setup
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start PostgreSQL:
+
+```bash
+docker compose up -d
+```
+
+Create `.env`:
+
+```bash
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pos_system?schema=public"
+AUTH_SESSION_DAYS=7
+```
+
+Run the initial migration and seed data:
+
+```bash
+npm run prisma:migrate
+npm run prisma:seed
+```
+
+Start the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo Accounts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The seed script creates:
 
-## Learn More
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@pos.local` | `admin12345` |
+| Cashier | `cashier@pos.local` | `cashier12345` |
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the local Next.js dev server |
+| `npm run build` | Build the app |
+| `npm run start` | Start the production server after build |
+| `npm run lint` | Run ESLint |
+| `npm run prisma:generate` | Generate Prisma Client |
+| `npm run prisma:migrate` | Run Prisma migrations in development |
+| `npm run prisma:seed` | Seed demo users, catalog data, and app settings |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+```text
+src/app/                 Next.js routes, pages, and API route handlers
+src/features/auth/       Login, sessions, roles, and user management
+src/features/catalog/    Categories, products, variants, and settings
+src/features/checkout/   Cart state, order calculations, checkout, and receipts
+src/lib/                 Shared Prisma, API, axios, and number helpers
+prisma/                  Schema, migrations, and seed script
+docs/                    Product spec, milestone scope, and implementation notes
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- The MVP is online-only and single-store.
+- Roles are limited to `admin` and `cashier`.
+- Product prices are stored before tax and service charge.
+- Tax and service charge are calculated from settings at checkout.
+- Held orders do not reserve or deduct stock.
+- Paid orders deduct tracked stock only after payment is confirmed.
