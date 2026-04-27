@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  cashier
+}
+
+enum OrderStatus {
+  draft
+  held
+  pending_payment
+  paid
+  cancelled
+  refunded
+}
+
+enum PaymentMethod {
+  cash
+  qris
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  expired
+  refunded
+}
+
+enum StockMovementType {
+  sale_deduction
+  adjustment
+  waste
+  refund_restore
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         UserRole
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  sessions       Session[]
+  orders         Order[]         @relation("CashierOrders")
+  refunds        Refund[]        @relation("RefundApprover")
+  stockMovements StockMovement[] @relation("StockMovementCreator")
+  activityLogs   ActivityLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("sessions")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                String   @id @default(cuid())
+  categoryId        String   @map("category_id")
+  name              String
+  sku               String?  @unique
+  description       String?
+  imageUrl          String?  @map("image_url")
+  price             Decimal  @db.Decimal(12, 2)
+  costPrice         Decimal? @map("cost_price") @db.Decimal(12, 2)
+  trackStock        Boolean  @default(false) @map("track_stock")
+  stockQuantity     Decimal? @map("stock_quantity") @db.Decimal(12, 3)
+  lowStockThreshold Decimal? @map("low_stock_threshold") @db.Decimal(12, 3)
+  isAvailable       Boolean  @default(true) @map("is_available")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  category       Category        @relation(fields: [categoryId], references: [id])
+  variants       ProductVariant[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String   @map("product_id")
+  name       String
+  sku        String?  @unique
+  priceDelta Decimal  @default(0) @map("price_delta") @db.Decimal(12, 2)
+  costDelta  Decimal? @map("cost_delta") @db.Decimal(12, 2)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model AppSetting {
+  id                       String   @id @default(cuid())
+  storeName                String   @map("store_name")
+  storeAddress             String?  @map("store_address")
+  storePhone               String?  @map("store_phone")
+  logoUrl                  String?  @map("logo_url")
+  taxEnabled               Boolean  @default(false) @map("tax_enabled")
+  taxRate                  Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  serviceChargeEnabled     Boolean  @default(false) @map("service_charge_enabled")
+  serviceChargeRate        Decimal  @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
+  refundWindowHours        Int?     @map("refund_window_hours")
+  autoRestoreStockOnRefund Boolean  @default(false) @map("auto_restore_stock_on_refund")
+  receiptFooter            String?  @map("receipt_footer")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+model Order {
+  id                  String      @id @default(cuid())
+  orderNumber         String      @unique @map("order_number")
+  cashierId           String      @map("cashier_id")
+  status              OrderStatus @default(draft)
+  subtotalAmount      Decimal     @default(0) @map("subtotal_amount") @db.Decimal(12, 2)
+  discountAmount      Decimal     @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  taxAmount           Decimal     @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  serviceChargeAmount Decimal     @default(0) @map("service_charge_amount") @db.Decimal(12, 2)
+  totalAmount         Decimal     @default(0) @map("total_amount") @db.Decimal(12, 2)
+  notes               String?
+  heldAt              DateTime?   @map("held_at")
+  paidAt              DateTime?   @map("paid_at")
+  cancelledAt         DateTime?   @map("cancelled_at")
+  refundedAt          DateTime?   @map("refunded_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  cashier        User            @relation("CashierOrders", fields: [cashierId], references: [id])
+  items          OrderItem[]
+  payments       Payment[]
+  refunds        Refund[]
+  stockMovements StockMovement[]
+
+  @@index([cashierId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String   @id @default(cuid())
+  orderId             String   @map("order_id")
+  productId           String   @map("product_id")
+  variantId           String?  @map("variant_id")
+  productNameSnapshot String   @map("product_name_snapshot")
+  variantNameSnapshot String?  @map("variant_name_snapshot")
+  quantity            Decimal  @db.Decimal(12, 3)
+  unitPrice           Decimal  @map("unit_price") @db.Decimal(12, 2)
+  discountAmount      Decimal  @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  lineTotal           Decimal  @map("line_total") @db.Decimal(12, 2)
+  notes               String?
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  orderId            String        @map("order_id")
+  method             PaymentMethod
+  status             PaymentStatus @default(pending)
+  amount             Decimal       @db.Decimal(12, 2)
+  cashReceivedAmount Decimal?      @map("cash_received_amount") @db.Decimal(12, 2)
+  changeAmount       Decimal?      @map("change_amount") @db.Decimal(12, 2)
+  provider           String?
+  providerReference  String?       @map("provider_reference")
+  paidAt             DateTime?     @map("paid_at")
+  expiresAt          DateTime?     @map("expires_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Refund {
+  id               String   @id @default(cuid())
+  orderId          String   @map("order_id")
+  paymentId        String   @map("payment_id")
+  approvedByUserId String   @map("approved_by_user_id")
+  amount           Decimal  @db.Decimal(12, 2)
+  reason           String
+  stockRestored    Boolean  @default(false) @map("stock_restored")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  order      Order   @relation(fields: [orderId], references: [id])
+  payment    Payment @relation(fields: [paymentId], references: [id])
+  approvedBy User    @relation("RefundApprover", fields: [approvedByUserId], references: [id])
+
+  @@index([orderId])
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+model StockMovement {
+  id              String            @id @default(cuid())
+  productId       String            @map("product_id")
+  orderId         String?           @map("order_id")
+  type            StockMovementType
+  quantityChange  Decimal           @map("quantity_change") @db.Decimal(12, 3)
+  reason          String?
+  createdByUserId String?           @map("created_by_user_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  product       Product @relation(fields: [productId], references: [id])
+  order         Order?  @relation(fields: [orderId], references: [id])
+  createdByUser User?   @relation("StockMovementCreator", fields: [createdByUserId], references: [id])
+
+  @@index([productId])
+  @@index([orderId])
+  @@map("stock_movements")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@map("activity_logs")
+}
