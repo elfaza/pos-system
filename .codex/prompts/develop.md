@@ -55,9 +55,10 @@ Do not begin implementation until the agreement documents have been read and the
 9. For money, tax, discounts, service charge, refunds, and payments, use integer minor units or the project's existing money helpers. Do not use floating-point arithmetic for persisted financial calculations.
 10. Backend validation errors must map to clear frontend error states without exposing sensitive internals.
 11. Keep commits grouped by logical purpose, such as tests, backend, frontend, QA fixes, and prompt/documentation updates. Do not mix unrelated changes in one commit.
-12. When changing shared utilities, services, stores, schemas, or types, check all call sites and update affected tests.
-13. A task is done only when implementation, tests, QA verification, documentation compliance, and final worktree review are complete.
-14. Use the design guide for every UI change: operational blue and white interface, touch-friendly controls, visible cashier workflow, table-first admin screens, no decorative complexity, and complete loading/empty/error/disabled/offline/success states where relevant.
+12. Use Conventional Commit messages in the form `type(scope): summary` when a scope is useful, or `type: summary` when it is not. Prefer `feat`, `fix`, `test`, `docs`, `refactor`, `chore`, and `style`; keep the summary imperative, lowercase, and under 72 characters.
+13. When changing shared utilities, services, stores, schemas, or types, check all call sites and update affected tests.
+14. A task is done only when implementation, tests, QA verification, documentation compliance, and final worktree review are complete.
+15. Use the design guide for every UI change: operational blue and white interface, touch-friendly controls, visible cashier workflow, table-first admin screens, no decorative complexity, and complete loading/empty/error/disabled/offline/success states where relevant.
 
 ## Development Workflow
 
