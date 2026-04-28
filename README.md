@@ -31,6 +31,10 @@ Start PostgreSQL:
 docker compose up -d
 ```
 
+The Docker Compose database uses PostgreSQL 18.3. If you previously started
+this project with an older PostgreSQL major version, recreate the local database
+volume before starting the container again.
+
 Create `.env`:
 
 ```bash
