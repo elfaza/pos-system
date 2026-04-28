@@ -10,6 +10,16 @@ import {
 import type { LoginPayload, User } from "../types";
 import { AUTH_COOKIE } from "../utils/session";
 
+type LoginActionResult =
+  | {
+      ok: true;
+      user: User;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === `production`,
@@ -29,28 +39,31 @@ function isDatabaseConnectionError(error: unknown): boolean {
   );
 }
 
-export async function login(payload: LoginPayload): Promise<User> {
+export async function login(payload: LoginPayload): Promise<LoginActionResult> {
   try {
     const { sessionToken, user } = await loginRequest(payload);
     const cookieStore = await cookies();
     cookieStore.set(AUTH_COOKIE, sessionToken, COOKIE_OPTIONS);
 
-    return user;
+    return { ok: true, user };
   } catch (error) {
     if (error instanceof AuthServiceError) {
-      throw new Error(error.message);
+      return { ok: false, error: error.message };
     }
 
     console.error("Login failed", error);
     if (isDatabaseConnectionError(error)) {
-      throw new Error(
-        "Database server is not running. Start PostgreSQL on localhost:5432, then run migration and seed.",
-      );
+      return {
+        ok: false,
+        error:
+          "Database server is not reachable. Check the staging DATABASE_URL and run migrations.",
+      };
     }
 
-    throw new Error(
-      "Unable to sign in. Check the database connection and account credentials.",
-    );
+    return {
+      ok: false,
+      error: "Unable to sign in. Check the database connection and account credentials.",
+    };
   }
 }
 

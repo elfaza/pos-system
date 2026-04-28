@@ -29,7 +29,12 @@ export function AuthProvider({
   const login = async (payload: LoginPayload): Promise<void> => {
     setLoading(true);
     try {
-      const authenticatedUser = await loginAction(payload);
+      const result = await loginAction(payload);
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+
+      const authenticatedUser = result.user;
       setCurrentUser(authenticatedUser);
       router.push(authenticatedUser.role === "admin" ? `/dashboard` : `/pos`);
       router.refresh();
