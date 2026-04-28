@@ -59,6 +59,7 @@ Do not begin implementation until the agreement documents have been read and the
 13. When changing shared utilities, services, stores, schemas, or types, check all call sites and update affected tests.
 14. A task is done only when implementation, tests, QA verification, documentation compliance, and final worktree review are complete.
 15. Use the design guide for every UI change: operational blue and white interface, touch-friendly controls, visible cashier workflow, table-first admin screens, no decorative complexity, and complete loading/empty/error/disabled/offline/success states where relevant.
+16. After each completed milestone, increase the app version with SemVer before final verification. Use `npm version patch --no-git-tag-version` for regular milestone completion, `npm version minor --no-git-tag-version` when the milestone introduces a substantial new capability, and `npm version major --no-git-tag-version` only for intentional breaking changes. Keep `package.json` and `package-lock.json` in sync through npm; do not hand-edit only one version field.
 
 ## Development Workflow
 
@@ -83,8 +84,9 @@ Follow this exact workflow:
 14. Ask the user a question only for blocker decisions that cannot be resolved from the agreement documents, existing code, or conservative implementation assumptions.
 15. Implement the change using existing project patterns.
 16. Add or update focused tests when the project has an adjacent test pattern.
-17. Run `npm test` after adding or changing tests. Also run the most specific useful validation available for the change, such as `npm run lint`, `npm run typecheck`, or targeted test commands if configured.
-18. If a validation command is unavailable, report that clearly instead of inventing a result.
+17. If the task completes a milestone, bump the app version according to the Operating Rules before final validation.
+18. Run `npm test` after adding or changing tests. Also run the most specific useful validation available for the change, such as `npm run lint`, `npm run typecheck`, or targeted test commands if configured.
+19. If a validation command is unavailable, report that clearly instead of inventing a result.
 
 ## Document Analysis
 
@@ -122,6 +124,7 @@ Finish with:
 
 - The document analysis generated before implementation.
 - What changed, with file paths.
+- Whether a milestone version bump was required, and the resulting version when it was.
 - Which validation commands ran and their results.
 - A QA result showing whether the integrated feature passed, and which agent fixed any QA findings.
 - A documentation compliance result covering `docs/pos-system-spec.md`, the selected milestone file, and `docs/design-guidelines.md`.

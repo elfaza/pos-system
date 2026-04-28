@@ -3,7 +3,11 @@
 import { useState, SyntheticEvent } from "react";
 import { useAuth } from "../hooks/use-auth";
 
-export default function LoginForm() {
+type LoginFormProps = {
+  appVersion: string;
+};
+
+export default function LoginForm({ appVersion }: LoginFormProps) {
   const { login, loading } = useAuth();
 
   const [email, setEmail] = useState(``);
@@ -74,6 +78,10 @@ export default function LoginForm() {
       >
         {loading ? `Signing in...` : `Sign in`}
       </button>
+
+      <p className="text-center text-xs text-[var(--muted-foreground)]">
+        Version {appVersion}
+      </p>
     </form>
   );
 }
