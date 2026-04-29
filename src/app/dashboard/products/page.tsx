@@ -64,6 +64,41 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function getProductStatus(product: ProductRecord) {
+  if (!product.isAvailable) {
+    return {
+      label: "Hidden",
+      className: "bg-slate-100 text-[var(--muted-foreground)]",
+    };
+  }
+
+  if (!product.canSellOne) {
+    return {
+      label: product.unavailableReason ?? "Unavailable",
+      className: "bg-red-50 text-[var(--danger)]",
+    };
+  }
+
+  const isLowStock =
+    product.trackStock &&
+    product.stockQuantity !== null &&
+    product.lowStockThreshold !== null &&
+    product.stockQuantity > 0 &&
+    product.stockQuantity <= product.lowStockThreshold;
+
+  if (isLowStock) {
+    return {
+      label: "Low stock",
+      className: "bg-orange-50 text-[var(--warning)]",
+    };
+  }
+
+  return {
+    label: "Available",
+    className: "bg-green-50 text-[var(--success)]",
+  };
+}
+
 function toVariantForm(variant: ProductVariantRecord): ProductForm["variants"][number] {
   return {
     id: variant.id,
@@ -339,54 +374,52 @@ export default function ProductsPage() {
                     </td>
                   </tr>
                 ) : (
-                  products.map((product) => (
-                    <tr key={product.id} className="border-b border-[var(--border)]">
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{product.name}</p>
-                        {product.variants.length > 0 ? (
-                          <p className="text-xs text-[var(--muted-foreground)]">
-                            {product.variants.length} variant(s)
-                          </p>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3">{product.categoryName}</td>
-                      <td className="px-4 py-3 text-[var(--muted-foreground)]">
-                        {product.sku ?? "-"}
-                      </td>
-                      <td className="px-4 py-3">{formatCurrency(product.price)}</td>
-                      <td className="px-4 py-3">
-                        {product.trackStock
-                          ? `${product.stockQuantity ?? 0} / low ${product.lowStockThreshold ?? 0}`
-                          : "Not tracked"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {product.ingredientRecipeCount > 0
-                          ? `${product.ingredientRecipeCount} row(s)`
-                          : "No recipe"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`rounded-md px-2 py-1 text-xs font-medium ${
-                            product.isAvailable && product.canSellOne
-                              ? "bg-green-50 text-[var(--success)]"
-                              : "bg-slate-100 text-[var(--muted-foreground)]"
-                          }`}
-                        >
-                          {product.isAvailable && product.canSellOne
-                            ? "Available"
-                            : product.unavailableReason ?? "Hidden"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => setForm(toProductForm(product))}
-                          className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)]"
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  products.map((product) => {
+                    const status = getProductStatus(product);
+
+                    return (
+                      <tr key={product.id} className="border-b border-[var(--border)]">
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{product.name}</p>
+                          {product.variants.length > 0 ? (
+                            <p className="text-xs text-[var(--muted-foreground)]">
+                              {product.variants.length} variant(s)
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3">{product.categoryName}</td>
+                        <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                          {product.sku ?? "-"}
+                        </td>
+                        <td className="px-4 py-3">{formatCurrency(product.price)}</td>
+                        <td className="px-4 py-3">
+                          {product.trackStock
+                            ? `${product.stockQuantity ?? 0} / low ${product.lowStockThreshold ?? 0}`
+                            : "Not tracked"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {product.ingredientRecipeCount > 0
+                            ? `${product.ingredientRecipeCount} row(s)`
+                            : "No recipe"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-md px-2 py-1 text-xs font-medium ${status.className}`}
+                          >
+                            {status.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => setForm(toProductForm(product))}
+                            className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)]"
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
