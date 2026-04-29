@@ -16,6 +16,17 @@ export interface ProductVariantRecord {
   isActive: boolean;
 }
 
+export interface ProductIngredientRecipeRecord {
+  id: string;
+  productId: string;
+  variantId: string | null;
+  ingredientId: string;
+  ingredientName: string;
+  ingredientSku: string | null;
+  unit: string;
+  quantityRequired: number;
+}
+
 export interface ProductRecord {
   id: string;
   categoryId: string;
@@ -30,7 +41,11 @@ export interface ProductRecord {
   stockQuantity: number | null;
   lowStockThreshold: number | null;
   isAvailable: boolean;
+  ingredientRecipeCount: number;
+  canSellOne: boolean;
+  unavailableReason: string | null;
   variants: ProductVariantRecord[];
+  recipes: ProductIngredientRecipeRecord[];
 }
 
 export interface SettingsRecord {

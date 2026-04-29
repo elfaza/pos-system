@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   activityLogCreate: vi.fn(),
   createProduct: vi.fn(),
   findProductById: vi.fn(),
+  ingredientFindMany: vi.fn(),
   listProducts: vi.fn(),
   updateProduct: vi.fn(),
 }));
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     activityLog: { create: mocks.activityLogCreate },
+    ingredient: { findMany: mocks.ingredientFindMany },
   },
 }));
 
@@ -57,6 +59,7 @@ describe("product service", () => {
     mocks.createProduct.mockResolvedValue(productRecord);
     mocks.updateProduct.mockResolvedValue(productRecord);
     mocks.activityLogCreate.mockResolvedValue({});
+    mocks.ingredientFindMany.mockResolvedValue([]);
   });
 
   it("creates products with normalized payload values", async () => {
@@ -101,6 +104,7 @@ describe("product service", () => {
           isActive: false,
         },
       ],
+      recipes: [],
     });
     expect(mocks.activityLogCreate).toHaveBeenCalledWith({
       data: {
@@ -137,6 +141,51 @@ describe("product service", () => {
         actor,
       ),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("rejects duplicate recipe rows for the same product or variant", async () => {
+    await expect(
+      createProductFromPayload(
+        {
+          categoryId: "category-1",
+          name: "Coffee",
+          price: "20000",
+          recipes: [
+            { ingredientId: "ingredient-1", quantityRequired: "10" },
+            { ingredientId: "ingredient-1", quantityRequired: "12" },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        "recipes.1.ingredientId":
+          "This ingredient is already used for the same product or variant.",
+      },
+    });
+  });
+
+  it("rejects inactive ingredients in product recipes", async () => {
+    mocks.ingredientFindMany.mockResolvedValue([
+      { id: "ingredient-1", isActive: false },
+    ]);
+
+    await expect(
+      createProductFromPayload(
+        {
+          categoryId: "category-1",
+          name: "Coffee",
+          price: "20000",
+          recipes: [{ ingredientId: "ingredient-1", quantityRequired: "10" }],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        recipes: "Recipes can only use active ingredients.",
+      },
+    });
+    expect(mocks.createProduct).not.toHaveBeenCalled();
   });
 
   it("returns not found when updating a missing product", async () => {

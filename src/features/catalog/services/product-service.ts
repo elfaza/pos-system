@@ -49,6 +49,49 @@ function parseVariants(value: unknown) {
   });
 }
 
+function parseRecipes(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value.map((rawRecipe, index) => {
+    const recipe =
+      rawRecipe && typeof rawRecipe === "object"
+        ? (rawRecipe as Record<string, unknown>)
+        : {};
+    const ingredientId = optionalString(recipe.ingredientId) ?? "";
+    const variantId = optionalString(recipe.variantId);
+    const quantityRequired = toDecimalString(recipe.quantityRequired, "");
+    const fieldErrors: Record<string, string> = {};
+    const duplicateKey = `${variantId ?? "base"}:${ingredientId}`;
+
+    if (!ingredientId) {
+      fieldErrors[`recipes.${index}.ingredientId`] = "Ingredient is required.";
+    }
+    if (quantityRequired === "" || Number(quantityRequired) <= 0) {
+      fieldErrors[`recipes.${index}.quantityRequired`] =
+        "Recipe quantity must be greater than 0.";
+    }
+    if (ingredientId && seen.has(duplicateKey)) {
+      fieldErrors[`recipes.${index}.ingredientId`] =
+        "This ingredient is already used for the same product or variant.";
+    }
+    seen.add(duplicateKey);
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError("Product recipe validation failed.", fieldErrors);
+    }
+
+    return {
+      ingredientId,
+      variantId,
+      quantityRequired,
+    };
+  });
+}
+
 function parseProductPayload(payload: Record<string, unknown>) {
   const categoryId = optionalString(payload.categoryId) ?? "";
   const name = optionalString(payload.name) ?? "";
@@ -88,7 +131,32 @@ function parseProductPayload(payload: Record<string, unknown>) {
     lowStockThreshold: trackStock ? lowStockThreshold : null,
     isAvailable: toBoolean(payload.isAvailable, true),
     variants: parseVariants(payload.variants),
+    recipes: parseRecipes(payload.recipes),
   };
+}
+
+async function assertRecipesUseActiveIngredients(
+  recipes: Array<{ ingredientId: string }>,
+) {
+  if (recipes.length === 0) return;
+
+  const ingredientIds = [...new Set(recipes.map((recipe) => recipe.ingredientId))];
+  const ingredients = await prisma.ingredient.findMany({
+    where: { id: { in: ingredientIds } },
+    select: { id: true, isActive: true },
+  });
+  const activeIngredientIds = new Set(
+    ingredients
+      .filter((ingredient) => ingredient.isActive)
+      .map((ingredient) => ingredient.id),
+  );
+  const missingIngredient = ingredientIds.find((id) => !activeIngredientIds.has(id));
+
+  if (missingIngredient) {
+    throw new ValidationError("Product recipe validation failed.", {
+      recipes: "Recipes can only use active ingredients.",
+    });
+  }
 }
 
 export async function getProductList(url: URL, includeUnavailable: boolean) {
@@ -105,6 +173,7 @@ export async function createProductFromPayload(
   actor: User,
 ) {
   const data = parseProductPayload(payload);
+  await assertRecipesUseActiveIngredients(data.recipes);
   const product = await createProduct(data);
 
   await prisma.activityLog.create({
@@ -130,6 +199,7 @@ export async function updateProductFromPayload(
   }
 
   const data = parseProductPayload(payload);
+  await assertRecipesUseActiveIngredients(data.recipes);
   const product = await updateProduct(id, data);
 
   await prisma.activityLog.create({
