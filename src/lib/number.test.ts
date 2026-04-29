@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  sanitizeDecimalInput,
   toBoolean,
   toDecimalString,
   toInteger,
@@ -32,5 +33,11 @@ describe("number utilities", () => {
     expect(toInteger("-7")).toBe(-7);
     expect(toInteger("4.5", 1)).toBe(1);
     expect(toInteger(4.5, 1)).toBe(1);
+  });
+
+  it("removes non-numeric characters from decimal input", () => {
+    expect(sanitizeDecimalInput("abc10.5kg")).toBe("10.5");
+    expect(sanitizeDecimalInput("1.2.3")).toBe("1.23");
+    expect(sanitizeDecimalInput("milk")).toBe("");
   });
 });
