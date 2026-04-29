@@ -247,7 +247,7 @@ model OrderItem {
 
 model Payment {
   id                 String        @id @default(cuid())
-  orderId            String        @map("order_id")
+  orderId            String        @unique @map("order_id")
   method             PaymentMethod
   status             PaymentStatus @default(pending)
   amount             Decimal       @db.Decimal(12, 2)
@@ -263,7 +263,6 @@ model Payment {
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   refunds Refund[]
 
-  @@index([orderId])
   @@index([status])
   @@map("payments")
 }
