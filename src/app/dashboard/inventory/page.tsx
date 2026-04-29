@@ -81,6 +81,9 @@ export default function InventoryPage() {
   const lowStockCount = ingredients.filter(
     (ingredient) => ingredient.stockStatus === "low" || ingredient.stockStatus === "out",
   ).length;
+  const activeIngredientCount = ingredients.filter((ingredient) => ingredient.isActive).length;
+  const outOfStockCount = ingredients.filter((ingredient) => ingredient.stockStatus === "out").length;
+  const movementCount = movements.length;
 
   async function loadInventory() {
     setLoading(true);
@@ -218,33 +221,54 @@ export default function InventoryPage() {
 
   return (
     <AdminShell title="Inventory" eyebrow="Admin stock control">
-      <div className="grid gap-4">
+      <div className="grid gap-5">
         {!isOnline ? (
-          <div className="rounded-md border border-[var(--warning)]/30 bg-orange-50 p-3 text-sm text-[var(--warning)]">
+          <div className="rounded-lg border border-[var(--warning)]/30 bg-orange-50 p-3 text-sm text-[var(--warning)] shadow-[0_1px_2px_rgba(20,32,51,0.06)]">
             Connection lost. Inventory changes are disabled until the POS reconnects.
           </div>
         ) : null}
         {message ? (
-          <div className="rounded-md border border-[var(--success)]/30 bg-green-50 p-3 text-sm text-[var(--success)]">
+          <div className="rounded-lg border border-[var(--success)]/30 bg-green-50 p-3 text-sm text-[var(--success)] shadow-[0_1px_2px_rgba(20,32,51,0.06)]">
             {message}
           </div>
         ) : null}
         {error ? (
-          <div className="rounded-md border border-[var(--danger)]/30 bg-red-50 p-3 text-sm text-[var(--danger)]">
+          <div className="rounded-lg border border-[var(--danger)]/30 bg-red-50 p-3 text-sm text-[var(--danger)] shadow-[0_1px_2px_rgba(20,32,51,0.06)]">
             {error}
           </div>
         ) : null}
 
+        <section className="grid gap-3 md:grid-cols-4">
+          {[
+            { label: "Active ingredients", value: activeIngredientCount, tone: "text-[var(--primary)]" },
+            { label: "Low or out", value: lowStockCount, tone: "text-[var(--warning)]" },
+            { label: "Out of stock", value: outOfStockCount, tone: "text-[var(--danger)]" },
+            { label: "History rows", value: movementCount, tone: "text-[var(--foreground)]" },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-lg border border-white/80 bg-white/85 p-4 shadow-[0_10px_30px_rgba(20,32,51,0.08)]"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                {stat.label}
+              </p>
+              <p className={`mt-2 text-3xl font-semibold tracking-tight ${stat.tone}`}>
+                {stat.value}
+              </p>
+            </div>
+          ))}
+        </section>
+
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="rounded-md border border-[var(--border)] bg-[var(--card)]">
-            <div className="grid gap-3 border-b border-[var(--border)] p-4 lg:grid-cols-[1fr_160px_auto_auto]">
+          <section className="overflow-hidden rounded-lg border border-white/80 bg-white shadow-[0_14px_36px_rgba(20,32,51,0.1)]">
+            <div className="grid gap-3 border-b border-[var(--border)] bg-[var(--surface)] p-4 lg:grid-cols-[1fr_160px_auto_auto]">
               <label className="grid gap-1 text-sm font-medium">
                 Search
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Name or SKU"
-                  className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                  className="h-11 rounded-md border border-[var(--border)] bg-white px-3 shadow-inner shadow-slate-100 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 />
               </label>
               <label className="grid gap-1 text-sm font-medium">
@@ -252,14 +276,14 @@ export default function InventoryPage() {
                 <select
                   value={activeFilter}
                   onChange={(event) => setActiveFilter(event.target.value)}
-                  className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                  className="h-11 rounded-md border border-[var(--border)] bg-white px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 >
                   <option value="">All</option>
                   <option value="true">Active</option>
                   <option value="false">Inactive</option>
                 </select>
               </label>
-              <label className="flex h-11 items-center gap-2 self-end rounded-md border border-[var(--border)] px-3 text-sm font-medium">
+              <label className="flex h-11 items-center gap-2 self-end rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={lowStockOnly}
@@ -270,20 +294,20 @@ export default function InventoryPage() {
               <button
                 onClick={() => void loadInventory()}
                 disabled={loading}
-                className="h-11 self-end rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)] disabled:opacity-60"
+                className="h-11 self-end rounded-md bg-[var(--primary)] px-4 font-medium text-white shadow-[0_8px_18px_rgba(37,87,199,0.22)] hover:bg-[var(--primary-hover)] disabled:opacity-60"
               >
                 Apply
               </button>
             </div>
 
-            <div className="border-b border-[var(--border)] bg-slate-50 px-4 py-3 text-sm">
+            <div className="border-b border-[var(--border)] bg-[var(--primary-soft)] px-4 py-3 text-sm text-[var(--primary)]">
               <span className="font-semibold">{lowStockCount}</span>{" "}
               active ingredient(s) are low or out of stock in this view.
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]">
+                <thead className="border-b border-[var(--border)] bg-white text-[var(--muted-foreground)]">
                   <tr>
                     <th className="px-4 py-3 font-medium">Ingredient</th>
                     <th className="px-4 py-3 font-medium">Unit</th>
@@ -312,7 +336,7 @@ export default function InventoryPage() {
                     ingredients.map((ingredient) => (
                       <tr
                         key={ingredient.id}
-                        className={`border-b border-[var(--border)] ${
+                        className={`border-b border-[var(--border)] transition-colors hover:bg-[var(--surface)] ${
                           ingredient.stockStatus === "out"
                             ? "bg-red-50/60"
                             : ingredient.stockStatus === "low"
@@ -338,13 +362,13 @@ export default function InventoryPage() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => setForm(toIngredientForm(ingredient))}
-                              className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)]"
+                              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 font-medium hover:border-[var(--primary)]/35 hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => setSelectedIngredientId(ingredient.id)}
-                              className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)]"
+                              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 font-medium hover:border-[var(--primary)]/35 hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                             >
                               Adjust
                             </button>
@@ -361,16 +385,23 @@ export default function InventoryPage() {
           <div className="grid gap-4">
             <form
               onSubmit={submitIngredient}
-              className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4"
+              className="rounded-lg border border-white/80 bg-white p-4 shadow-[0_14px_36px_rgba(20,32,51,0.1)]"
             >
-              <h2 className="font-semibold">{editing ? "Edit ingredient" : "Add ingredient"}</h2>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
+                  Ingredient setup
+                </p>
+                <h2 className="mt-1 text-lg font-semibold">
+                  {editing ? "Edit ingredient" : "Add ingredient"}
+                </h2>
+              </div>
               <div className="mt-4 grid gap-3">
                 <label className="grid gap-1 text-sm font-medium">
                   Name
                   <input
                     value={form.name}
                     onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     required
                   />
                 </label>
@@ -380,7 +411,7 @@ export default function InventoryPage() {
                     <input
                       value={form.sku}
                       onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))}
-                      className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                      className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     />
                   </label>
                   <label className="grid gap-1 text-sm font-medium">
@@ -388,7 +419,7 @@ export default function InventoryPage() {
                     <select
                       value={form.unit}
                       onChange={(event) => setForm((current) => ({ ...current, unit: event.target.value }))}
-                      className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                      className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                       required
                     >
                       {ingredientUnits.map((unit) => (
@@ -412,7 +443,7 @@ export default function InventoryPage() {
                           currentStock: sanitizeDecimalInput(event.target.value),
                         }))
                       }
-                      className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:bg-slate-100"
+                      className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:bg-slate-100"
                     />
                   </label>
                   <label className="grid gap-1 text-sm font-medium">
@@ -426,7 +457,7 @@ export default function InventoryPage() {
                           lowStockThreshold: sanitizeDecimalInput(event.target.value),
                         }))
                       }
-                      className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                      className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     />
                   </label>
                 </div>
@@ -442,7 +473,7 @@ export default function InventoryPage() {
               <div className="mt-4 flex gap-2">
                 <button
                   disabled={saving || !isOnline}
-                  className="h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:opacity-60"
+                  className="h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] shadow-[0_8px_18px_rgba(37,87,199,0.22)] hover:bg-[var(--primary-hover)] disabled:opacity-60"
                 >
                   {saving ? "Saving..." : editing ? "Save changes" : "Add ingredient"}
                 </button>
@@ -450,7 +481,7 @@ export default function InventoryPage() {
                   <button
                     type="button"
                     onClick={() => setForm(emptyIngredientForm)}
-                    className="h-11 rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]"
+                    className="h-11 rounded-md border border-[var(--border)] bg-white px-4 font-medium hover:bg-[var(--surface)]"
                   >
                     Cancel
                   </button>
@@ -460,9 +491,14 @@ export default function InventoryPage() {
 
             <form
               onSubmit={submitAdjustment}
-              className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4"
+              className="rounded-lg border border-white/80 bg-white p-4 shadow-[0_14px_36px_rgba(20,32,51,0.1)]"
             >
-              <h2 className="font-semibold">Adjust stock</h2>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
+                  Stock action
+                </p>
+                <h2 className="mt-1 text-lg font-semibold">Adjust stock</h2>
+              </div>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                 {selectedIngredient
                   ? `${selectedIngredient.name}: ${selectedIngredient.currentStock} ${selectedIngredient.unit}`
@@ -475,7 +511,7 @@ export default function InventoryPage() {
                     <select
                       value={adjustType}
                       onChange={(event) => setAdjustType(event.target.value as "adjustment" | "waste")}
-                      className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                      className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     >
                       <option value="adjustment">Adjustment</option>
                       <option value="waste">Waste</option>
@@ -487,7 +523,7 @@ export default function InventoryPage() {
                       value={adjustType === "waste" ? "decrease" : adjustDirection}
                       disabled={adjustType === "waste"}
                       onChange={(event) => setAdjustDirection(event.target.value as "increase" | "decrease")}
-                      className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:bg-slate-100"
+                      className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:bg-slate-100"
                     >
                       <option value="increase">Increase</option>
                       <option value="decrease">Decrease</option>
@@ -502,7 +538,7 @@ export default function InventoryPage() {
                     onChange={(event) =>
                       setAdjustQuantity(sanitizeDecimalInput(event.target.value))
                     }
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     required
                   />
                 </label>
@@ -511,14 +547,14 @@ export default function InventoryPage() {
                   <textarea
                     value={adjustReason}
                     onChange={(event) => setAdjustReason(event.target.value)}
-                    className="min-h-20 rounded-md border border-[var(--border)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className="min-h-20 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     required
                   />
                 </label>
               </div>
               <button
                 disabled={adjusting || !isOnline || !selectedIngredientId}
-                className="mt-4 h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:opacity-60"
+                className="mt-4 h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] shadow-[0_8px_18px_rgba(37,87,199,0.22)] hover:bg-[var(--primary-hover)] disabled:opacity-60"
               >
                 {adjusting ? "Saving..." : adjustType === "waste" ? "Record waste" : "Save adjustment"}
               </button>
@@ -526,14 +562,14 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        <section className="rounded-md border border-[var(--border)] bg-[var(--card)]">
-          <div className="grid gap-3 border-b border-[var(--border)] p-4 md:grid-cols-[1fr_220px_auto]">
+        <section className="overflow-hidden rounded-lg border border-white/80 bg-white shadow-[0_14px_36px_rgba(20,32,51,0.1)]">
+          <div className="grid gap-3 border-b border-[var(--border)] bg-[var(--surface)] p-4 md:grid-cols-[1fr_220px_auto]">
             <label className="grid gap-1 text-sm font-medium">
               Ingredient
               <select
                 value={selectedIngredientId}
                 onChange={(event) => setSelectedIngredientId(event.target.value)}
-                className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                className="h-11 rounded-md border border-[var(--border)] bg-white px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
                 <option value="">All ingredients</option>
                 {ingredients.map((ingredient) => (
@@ -548,7 +584,7 @@ export default function InventoryPage() {
               <select
                 value={movementType}
                 onChange={(event) => setMovementType(event.target.value)}
-                className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                className="h-11 rounded-md border border-[var(--border)] bg-white px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
                 <option value="">All types</option>
                 <option value="sale_deduction">Sale deduction</option>
@@ -559,14 +595,14 @@ export default function InventoryPage() {
             <button
               onClick={() => void loadInventory()}
               disabled={loading}
-              className="h-11 self-end rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)] disabled:opacity-60"
+              className="h-11 self-end rounded-md border border-[var(--border)] bg-white px-4 font-medium hover:border-[var(--primary)]/35 hover:bg-[var(--primary-soft)] hover:text-[var(--primary)] disabled:opacity-60"
             >
               Refresh history
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]">
+              <thead className="border-b border-[var(--border)] bg-white text-[var(--muted-foreground)]">
                 <tr>
                   <th className="px-4 py-3 font-medium">Time</th>
                   <th className="px-4 py-3 font-medium">Ingredient</th>
@@ -591,7 +627,7 @@ export default function InventoryPage() {
                   </tr>
                 ) : (
                   movements.map((movement) => (
-                    <tr key={movement.id} className="border-b border-[var(--border)]">
+                    <tr key={movement.id} className="border-b border-[var(--border)] transition-colors hover:bg-[var(--surface)]">
                       <td className="px-4 py-3">{new Date(movement.createdAt).toLocaleString()}</td>
                       <td className="px-4 py-3">{movement.ingredientName ?? "-"}</td>
                       <td className="px-4 py-3 capitalize">{formatMovementType(movement.type)}</td>

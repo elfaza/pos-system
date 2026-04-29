@@ -1,14 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eef2f7;
-  --foreground: #162033;
-  --muted: #e4eaf2;
-  --muted-foreground: #58667d;
-  --border: #c4cedb;
+  --background: #f3f6fb;
+  --foreground: #142033;
+  --muted: #e7edf6;
+  --muted-foreground: #5d6b82;
+  --border: #cfdae8;
   --card: #ffffff;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
+  --surface: #f8fafc;
+  --surface-alt: #edf3fb;
+  --primary: #2557c7;
+  --primary-hover: #1d459f;
+  --primary-soft: #e9f0ff;
   --primary-foreground: #ffffff;
   --danger: #dc2626;
   --danger-foreground: #ffffff;
@@ -20,13 +23,23 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(37, 87, 199, 0.1), transparent 28rem),
+    linear-gradient(180deg, #f8fbff 0%, var(--background) 38rem);
   color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
 }
 
 @keyframes pos-card-tap {

@@ -57,7 +57,10 @@ function PosCart({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
         <div>
-          <h2 className="font-semibold">Cart</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
+            Current order
+          </p>
+          <h2 className="text-lg font-semibold tracking-tight">Cart</h2>
           <p className="text-sm text-[var(--muted-foreground)]">
             {items.length} item type(s)
           </p>
@@ -66,14 +69,14 @@ function PosCart({
           <button
             onClick={clearCart}
             disabled={items.length === 0}
-            className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Clear
           </button>
           {onClose ? (
             <button
               onClick={onClose}
-              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)]"
+              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium hover:bg-[var(--surface)]"
             >
               Close
             </button>
@@ -83,13 +86,13 @@ function PosCart({
 
       <div className="min-h-0 flex-1 overflow-y-auto py-3">
         {items.length === 0 ? (
-          <div className="rounded-md border border-dashed border-[var(--border)] p-4 text-sm text-[var(--muted-foreground)]">
+          <div className="rounded-lg border border-dashed border-[var(--border)] bg-white/70 p-4 text-sm text-[var(--muted-foreground)]">
             Cart is empty. Select products to begin checkout.
           </div>
         ) : (
           <div className="grid gap-3">
             {items.map((item) => (
-              <div key={item.id} className="rounded-md border border-[var(--border)] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+              <div key={item.id} className="rounded-lg border border-white/80 bg-white p-3 shadow-[0_8px_22px_rgba(20,32,51,0.08)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium leading-tight">{item.productName}</p>
@@ -104,16 +107,16 @@ function PosCart({
                   </div>
                   <button
                     onClick={() => removeItem(item.id)}
-                    className="h-9 rounded-md border border-[var(--border)] px-2 text-sm font-medium hover:bg-[var(--muted)]"
+                    className="h-9 rounded-md border border-[var(--border)] px-2 text-sm font-medium hover:bg-[var(--surface)]"
                   >
                     Remove
                   </button>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center rounded-md border border-[var(--border)]">
+                  <div className="flex items-center overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      className="h-10 w-10 font-semibold hover:bg-[var(--muted)]"
+                      className="h-10 w-10 font-semibold hover:bg-white"
                       aria-label={`Decrease ${item.productName}`}
                     >
                       -
@@ -121,7 +124,7 @@ function PosCart({
                     <span className="w-10 text-center text-sm font-medium">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="h-10 w-10 font-semibold hover:bg-[var(--muted)]"
+                      className="h-10 w-10 font-semibold hover:bg-white"
                       aria-label={`Increase ${item.productName}`}
                     >
                       +
@@ -142,7 +145,7 @@ function PosCart({
                     value={item.notes}
                     onChange={(event) => updateNotes(item.id, event.target.value)}
                     placeholder="Less sugar, no ice"
-                    className="h-10 rounded-md border border-[var(--border)] px-3 text-sm text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className="h-10 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                   />
                 </label>
               </div>
@@ -169,7 +172,7 @@ function PosCart({
             <span className="text-[var(--muted-foreground)]">Tax</span>
             <span>{formatRupiah(totals.taxAmount)}</span>
           </div>
-          <div className="flex justify-between border-t border-[var(--border)] pt-2 text-lg font-semibold">
+          <div className="flex justify-between rounded-lg bg-white px-3 py-2 text-lg font-semibold shadow-[0_1px_2px_rgba(20,32,51,0.06)]">
             <span>Total</span>
             <span>{formatRupiah(totals.totalAmount)}</span>
           </div>
@@ -190,14 +193,14 @@ function PosCart({
           <button
             onClick={onHold}
             disabled={holdDisabled}
-            className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-4 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] bg-white px-4 font-medium hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {holding ? "Holding..." : "Hold"}
           </button>
           <button
             onClick={onPay}
             disabled={finalActionsDisabled}
-            className="h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] shadow-[0_8px_18px_rgba(37,87,199,0.24)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Pay
           </button>
@@ -792,10 +795,12 @@ function PosContent() {
 
   return (
     <main className="grid h-dvh grid-rows-[auto_1fr] bg-[var(--background)] text-[var(--foreground)]">
-      <header className="flex items-center justify-between border-b border-[var(--border)] bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+      <header className="flex items-center justify-between border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur">
         <div>
-          <p className="text-sm text-[var(--muted-foreground)]">Cashier POS</p>
-          <h1 className="text-xl font-semibold">{storeName}</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
+            Cashier POS
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{storeName}</h1>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <span className="hidden text-sm text-[var(--muted-foreground)] sm:inline">
@@ -804,13 +809,13 @@ function PosContent() {
           <button
             onClick={openHeldOrders}
             disabled={!isOnline}
-            className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-4 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] bg-white px-4 font-medium shadow-[0_1px_2px_rgba(20,32,51,0.06)] hover:border-[var(--primary)]/35 hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Held
           </button>
           <Link
             href="/orders"
-            className="grid h-11 place-items-center rounded-md border border-[var(--border)] bg-[var(--card)] px-4 font-medium hover:bg-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            className="grid h-11 place-items-center rounded-md border border-[var(--border)] bg-white px-4 font-medium shadow-[0_1px_2px_rgba(20,32,51,0.06)] hover:border-[var(--primary)]/35 hover:bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           >
             History
           </Link>
@@ -826,7 +831,7 @@ function PosContent() {
           <button
             onClick={logout}
             disabled={loading}
-            className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-4 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] bg-white px-4 font-medium shadow-[0_1px_2px_rgba(20,32,51,0.06)] hover:border-[var(--primary)]/35 hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Signing out..." : "Sign out"}
           </button>
@@ -841,8 +846,9 @@ function PosContent() {
 
       <section className="grid min-h-0 md:grid-cols-[minmax(0,1fr)_340px] lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0 overflow-y-auto p-4 pb-28 md:pb-4">
-          <div className="grid gap-3">
-            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <div className="grid gap-4">
+            <div className="rounded-lg border border-white/80 bg-white/85 p-4 shadow-[0_10px_30px_rgba(20,32,51,0.08)]">
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
               <label className="grid gap-1 text-sm font-medium">
                 Search products
                 <input
@@ -852,25 +858,25 @@ function PosContent() {
                     if (event.key === "Enter") applyFilters(activeCategoryId);
                   }}
                   placeholder="Coffee, SKU, food"
-                  className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                  className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 />
               </label>
               <button
                 onClick={() => applyFilters(activeCategoryId)}
                 disabled={loadingCatalog}
-                className="h-11 self-end rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:opacity-60"
+                className="h-11 self-end rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] shadow-[0_8px_18px_rgba(37,87,199,0.22)] hover:bg-[var(--primary-hover)] disabled:opacity-60"
               >
                 Search
               </button>
-            </div>
+              </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               <button
                 onClick={() => applyFilters("")}
                 className={`h-10 whitespace-nowrap rounded-md border px-3 text-sm font-medium ${
                   activeCategoryId === ""
-                    ? "border-[var(--primary)] bg-blue-50 text-[var(--primary)]"
-                    : "border-[var(--border)] bg-white hover:bg-[var(--muted)]"
+                    ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-[0_6px_14px_rgba(37,87,199,0.12)]"
+                    : "border-[var(--border)] bg-white hover:bg-[var(--surface)]"
                 }`}
               >
                 All
@@ -881,13 +887,14 @@ function PosContent() {
                   onClick={() => applyFilters(category.id)}
                   className={`h-10 whitespace-nowrap rounded-md border px-3 text-sm font-medium ${
                     activeCategoryId === category.id
-                      ? "border-[var(--primary)] bg-blue-50 text-[var(--primary)]"
-                      : "border-[var(--border)] bg-white hover:bg-[var(--muted)]"
+                      ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-[0_6px_14px_rgba(37,87,199,0.12)]"
+                      : "border-[var(--border)] bg-white hover:bg-[var(--surface)]"
                   }`}
                 >
                   {category.name}
                 </button>
               ))}
+              </div>
             </div>
 
             {error ? (
@@ -897,7 +904,7 @@ function PosContent() {
             ) : null}
 
             {cartMessage ? (
-              <div className="rounded-md border border-[var(--info)]/30 bg-blue-50 p-3 text-sm text-[var(--info)]">
+              <div className="rounded-lg border border-[var(--info)]/30 bg-[var(--primary-soft)] p-3 text-sm text-[var(--info)]">
                 {cartMessage}
               </div>
             ) : null}
@@ -905,14 +912,14 @@ function PosContent() {
             {loadingCatalog ? (
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
                 {Array.from({ length: 8 }).map((_, index) => (
-                  <div key={index} className="h-32 rounded-md border border-[var(--border)] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.06)]">
+                  <div key={index} className="h-32 rounded-lg border border-white/80 bg-white p-3 shadow-[0_8px_22px_rgba(20,32,51,0.08)]">
                     <div className="h-5 rounded-md bg-[var(--muted)]" />
                     <div className="mt-10 h-4 w-20 rounded-md bg-[var(--muted)]" />
                   </div>
                 ))}
               </div>
             ) : products.length === 0 ? (
-              <div className="rounded-md border border-dashed border-[var(--border)] bg-white p-8 text-center">
+              <div className="rounded-lg border border-dashed border-[var(--border)] bg-white/85 p-8 text-center shadow-[0_10px_30px_rgba(20,32,51,0.08)]">
                 <h2 className="font-semibold">No products found</h2>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                   Reset search or choose another category.
@@ -922,7 +929,7 @@ function PosContent() {
                     setSearch("");
                     applyFilters("", "");
                   }}
-                  className="mt-4 h-11 rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]"
+                  className="mt-4 h-11 rounded-md border border-[var(--border)] bg-white px-4 font-medium hover:bg-[var(--surface)]"
                 >
                   Reset filters
                 </button>
@@ -941,9 +948,9 @@ function PosContent() {
                       key={product.id}
                       onClick={() => handleProductClick(product)}
                       disabled={disabled}
-                      className={`min-h-32 rounded-md border border-[var(--border)] bg-white p-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                      className={`min-h-32 rounded-lg border border-white/80 bg-white p-3 text-left shadow-[0_8px_22px_rgba(20,32,51,0.08)] transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[var(--primary)]/35 hover:bg-[var(--surface)] hover:shadow-[0_14px_30px_rgba(20,32,51,0.12)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
                         tappedProductId === product.id
-                          ? "pos-card-tap border-[var(--primary)] bg-blue-50 ring-2 ring-[var(--primary)]/20"
+                          ? "pos-card-tap border-[var(--primary)] bg-[var(--primary-soft)] ring-2 ring-[var(--primary)]/20"
                           : ""
                       }`}
                     >
@@ -979,7 +986,7 @@ function PosContent() {
           </div>
         </div>
 
-        <aside className="hidden min-h-0 border-l border-[var(--border)] bg-slate-50 p-4 shadow-[-2px_0_6px_rgba(15,23,42,0.06)] md:block">
+        <aside className="hidden min-h-0 border-l border-white/70 bg-[var(--surface-alt)] p-4 shadow-[-8px_0_24px_rgba(20,32,51,0.08)] md:block">
           <PosCart
             isOnline={isOnline}
             settings={settings}

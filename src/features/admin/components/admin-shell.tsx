@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
@@ -25,14 +26,17 @@ export default function AdminShell({
   children: ReactNode;
 }) {
   const { logout, loading, user } = useAuth();
+  const pathname = usePathname();
 
   return (
     <RoleGuard allowedRoles={["admin"]}>
       <main className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
-        <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)] p-4">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur lg:px-6">
           <div>
-            <p className="text-sm text-[var(--muted-foreground)]">{eyebrow}</p>
-            <h1 className="text-xl font-semibold">{title}</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
+              {eyebrow}
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-[var(--muted-foreground)] sm:inline">
@@ -41,25 +45,36 @@ export default function AdminShell({
             <button
               onClick={logout}
               disabled={loading}
-              className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-4 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-11 rounded-md border border-[var(--border)] bg-white px-4 font-medium shadow-[0_1px_2px_rgba(20,32,51,0.06)] hover:border-[var(--primary)]/35 hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Signing out..." : "Sign out"}
             </button>
           </div>
         </header>
 
-        <div className="lg:grid lg:min-h-[calc(100dvh-73px)] lg:grid-cols-[240px_1fr]">
-          <aside className="border-b border-[var(--border)] bg-[var(--card)] p-3 lg:border-b-0 lg:border-r">
-            <nav className="flex gap-2 overflow-x-auto lg:grid">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-                >
-                  {item.label}
-                </Link>
-              ))}
+        <div className="lg:grid lg:min-h-[calc(100dvh-69px)] lg:grid-cols-[248px_1fr]">
+          <aside className="border-b border-[var(--border)] bg-[#152238] p-3 text-white lg:border-b-0 lg:p-4">
+            <nav className="flex gap-2 overflow-x-auto lg:grid lg:gap-1">
+              {navItems.map((item) => {
+                const isActive =
+                  item.href === "/dashboard"
+                    ? pathname === item.href
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`whitespace-nowrap rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-white/80 ${
+                      isActive
+                        ? "bg-white text-[#152238] shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
           </aside>
           <section className="min-w-0 p-4 lg:p-6">{children}</section>
