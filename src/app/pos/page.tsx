@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import ReceiptPreview from "@/features/checkout/components/receipt-preview";
@@ -321,10 +322,9 @@ function CashPaymentModal({
           Cash received
           <input
             id="cash-received-input"
-            type="number"
-            min={0}
-            value={cashReceived}
-            onChange={(event) => setCashReceived(event.target.value)}
+            inputMode="numeric"
+            value={formatCurrencyInput(cashReceived)}
+            onChange={(event) => setCashReceived(parseCurrencyInput(event.target.value))}
             className="h-11 rounded-md border border-[var(--border)] px-3 text-lg focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           />
         </label>
@@ -934,7 +934,7 @@ function PosContent() {
                     product.trackStock &&
                     product.stockQuantity !== null &&
                     product.stockQuantity <= 0;
-                  const disabled = !product.isAvailable || outOfStock;
+                  const disabled = !product.isAvailable || outOfStock || !product.canSellOne;
 
                   return (
                     <button
@@ -963,6 +963,11 @@ function PosContent() {
                           ) : null}
                           {outOfStock ? (
                             <p className="mt-1 text-xs text-[var(--warning)]">Out of stock</p>
+                          ) : null}
+                          {!outOfStock && !product.canSellOne ? (
+                            <p className="mt-1 text-xs text-[var(--warning)]">
+                              {product.unavailableReason ?? "Ingredients unavailable"}
+                            </p>
                           ) : null}
                         </div>
                       </div>
