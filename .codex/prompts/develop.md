@@ -50,14 +50,14 @@ Do not begin implementation until the agreement documents have been read and the
 4. Preserve all business rules from the selected milestone file. Do not hardcode assumptions from another milestone; if a rule differs between milestones, follow the selected milestone.
 5. Use the documented architecture: Next.js UI, Next.js Route Handlers, service layer, repository/data-access layer, Prisma/PostgreSQL, TanStack Query for server state, and Zustand for cashier cart/UI state.
 6. Server state is the source of truth for persisted business data. Client state may only manage temporary UI/session workflow state unless the selected milestone says otherwise.
-7. When schema changes are needed, update the Prisma schema, migrations, seed data if affected, service/repository logic, tests, and any API/UI assumptions together.
+7. When schema changes are needed, update the Prisma schema, migrations, seed data if affected, service/repository logic, tests, and any API/UI assumptions together. Before QA is considered complete, apply the migration to the local development database and verify the live database actually contains the fields, tables, indexes, and enums used by the implementation.
 8. When touching protected workflows, verify authentication, role authorization, server-side enforcement, and UI access controls together.
 9. For money, tax, discounts, service charge, refunds, and payments, use integer minor units or the project's existing money helpers. Do not use floating-point arithmetic for persisted financial calculations.
 10. Backend validation errors must map to clear frontend error states without exposing sensitive internals.
 11. Keep commits grouped by logical purpose, such as tests, backend, frontend, QA fixes, and prompt/documentation updates. Do not mix unrelated changes in one commit.
 12. Use Conventional Commit messages in the form `type(scope): summary` when a scope is useful, or `type: summary` when it is not. Prefer `feat`, `fix`, `test`, `docs`, `refactor`, `chore`, and `style`; keep the summary imperative, lowercase, and under 72 characters.
 13. When changing shared utilities, services, stores, schemas, or types, check all call sites and update affected tests.
-14. A task is done only when implementation, tests, QA verification, documentation compliance, and final worktree review are complete.
+14. A task is done only when implementation, tests, live QA verification, documentation compliance, and final worktree review are complete. Mocked/unit tests, lint, and production build are not sufficient QA for database-backed or API-backed workflows.
 15. Use the design guide for every UI change: operational blue and white interface, touch-friendly controls, visible cashier workflow, table-first admin screens, no decorative complexity, and complete loading/empty/error/disabled/offline/success states where relevant.
 16. After each completed milestone, increase the app version with SemVer before final verification. Use `npm version patch --no-git-tag-version` for regular milestone completion, `npm version minor --no-git-tag-version` when the milestone introduces a substantial new capability, and `npm version major --no-git-tag-version` only for intentional breaking changes. Keep `package.json` and `package-lock.json` in sync through npm; do not hand-edit only one version field.
 
@@ -86,7 +86,9 @@ Follow this exact workflow:
 16. Add or update focused tests when the project has an adjacent test pattern.
 17. If the task completes a milestone, bump the app version according to the Operating Rules before final validation.
 18. Run `npm test` after adding or changing tests. Also run the most specific useful validation available for the change, such as `npm run lint`, `npm run typecheck`, or targeted test commands if configured.
-19. If a validation command is unavailable, report that clearly instead of inventing a result.
+19. If the task changes Prisma schema, migrations, repositories, services, Route Handlers, authenticated workflows, checkout/payment/order state, inventory state, kitchen/queue state, or any persisted business workflow, perform live QA against the real local database after migrations are applied. Start or reuse the local dev server and exercise the changed Route Handlers with browser interaction, `curl`, or a small `npx tsx` smoke script that calls the same service/API path. Verify fresh server logs or command output show successful responses for changed routes and representative mutations, not 500s.
+20. If live QA reveals an issue missed by mocked tests or build validation, fix it, rerun migrations/generation if needed, rerun tests/lint/build, and repeat the live API/database check before final response.
+21. If a validation command is unavailable, report that clearly instead of inventing a result.
 
 ## Document Analysis
 
@@ -111,10 +113,12 @@ After implementation, run this loop until no required fixes remain or a real blo
 5. Check online-only guards and role boundaries when the task touches orders, payments, auth, refunds, stock, or cashier/admin pages.
 6. Check transaction correctness when the task touches checkout: totals, tax, service charge, discounts, payment state, stock deduction timing, order item snapshots, and activity logs.
 7. Check UX states when the task touches UI: loading, empty, error, disabled, offline, and success.
-8. Have the QA agent test the integrated frontend and backend result against the acceptance checklist, then route any findings through the frontend/backend ownership workflow.
-9. Fix any mismatch found.
-10. Re-run the relevant validation command after fixes.
-11. Repeat the loop.
+8. Check live database readiness when schema or persisted workflows changed: migration applied, Prisma Client regenerated when needed, and the local database actually contains the fields/tables/enums used by the implementation.
+9. Check live API/server behavior for changed routes and workflows. A passing build is not enough; hit the changed endpoints or exercise the UI against the running dev server and confirm the server returns expected 2xx/4xx business responses, not 500s.
+10. Have the QA agent test the integrated frontend and backend result against the acceptance checklist, including live API/database verification when applicable, then route any findings through the frontend/backend ownership workflow.
+11. Fix any mismatch found.
+12. Re-run the relevant validation command after fixes.
+13. Repeat the loop.
 
 Stop the loop only when the implementation, validation result, and documentation checks agree.
 
@@ -126,7 +130,7 @@ Finish with:
 - What changed, with file paths.
 - Whether a milestone version bump was required, and the resulting version when it was.
 - Which validation commands ran and their results.
-- A QA result showing whether the integrated feature passed, and which agent fixed any QA findings.
+- A QA result showing whether the integrated feature passed, which live API/database checks were performed when applicable, and which agent fixed any QA findings.
 - A documentation compliance result covering `docs/pos-system-spec.md`, the selected milestone file, and `docs/design-guidelines.md`.
 - A worktree check that separates task changes from pre-existing unrelated changes.
 - Any remaining blocker or follow-up, only if one exists.
