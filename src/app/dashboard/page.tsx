@@ -22,6 +22,11 @@ export default function DashboardPage() {
             body: "Manage product prices, availability, stock tracking, and variants.",
           },
           {
+            href: "/dashboard/inventory",
+            title: "Inventory",
+            body: "Manage ingredient stock, adjustments, waste, and low-stock alerts.",
+          },
+          {
             href: "/dashboard/users",
             title: "Users",
             body: "Manage admin and cashier accounts, roles, and active access.",
