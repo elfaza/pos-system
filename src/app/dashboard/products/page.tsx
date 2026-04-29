@@ -2,11 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/features/admin/components/admin-shell";
+import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency";
+import { sanitizeDecimalInput } from "@/lib/number";
 import type {
   CategoryRecord,
   ProductRecord,
   ProductVariantRecord,
 } from "@/features/catalog/types";
+import type { IngredientRecord } from "@/features/inventory/types";
 
 interface ProductForm {
   id: string;
@@ -29,6 +32,11 @@ interface ProductForm {
     costDelta: string;
     isActive: boolean;
   }>;
+  recipes: Array<{
+    ingredientId: string;
+    variantId: string;
+    quantityRequired: string;
+  }>;
 }
 
 const emptyForm: ProductForm = {
@@ -45,6 +53,7 @@ const emptyForm: ProductForm = {
   lowStockThreshold: "",
   isAvailable: true,
   variants: [],
+  recipes: [],
 };
 
 function formatCurrency(value: number) {
@@ -81,12 +90,18 @@ function toProductForm(product: ProductRecord): ProductForm {
     lowStockThreshold: product.lowStockThreshold?.toString() ?? "",
     isAvailable: product.isAvailable,
     variants: product.variants.map(toVariantForm),
+    recipes: product.recipes.map((recipe) => ({
+      ingredientId: recipe.ingredientId,
+      variantId: recipe.variantId ?? "",
+      quantityRequired: recipe.quantityRequired.toString(),
+    })),
   };
 }
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [ingredients, setIngredients] = useState<IngredientRecord[]>([]);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -104,12 +119,14 @@ export default function ProductsPage() {
       if (search) query.set("search", search);
       if (categoryFilter) query.set("categoryId", categoryFilter);
 
-      const [productResponse, categoryResponse] = await Promise.all([
+      const [productResponse, categoryResponse, ingredientResponse] = await Promise.all([
         fetch(`/api/products?${query.toString()}`),
         fetch("/api/categories?includeInactive=true"),
+        fetch("/api/ingredients?active=true"),
       ]);
       const productData = await productResponse.json();
       const categoryData = await categoryResponse.json();
+      const ingredientData = await ingredientResponse.json();
 
       if (!productResponse.ok) {
         throw new Error(productData.error ?? "Unable to load products.");
@@ -117,9 +134,13 @@ export default function ProductsPage() {
       if (!categoryResponse.ok) {
         throw new Error(categoryData.error ?? "Unable to load categories.");
       }
+      if (!ingredientResponse.ok) {
+        throw new Error(ingredientData.error ?? "Unable to load ingredients.");
+      }
 
       setProducts(productData.products);
       setCategories(categoryData.categories);
+      setIngredients(ingredientData.ingredients);
       setForm((current) =>
         current.categoryId || categoryData.categories.length === 0
           ? current
@@ -160,6 +181,11 @@ export default function ProductsPage() {
             ...variant,
             sku: variant.sku || null,
             costDelta: variant.costDelta || null,
+          })),
+          recipes: form.recipes.map((recipe) => ({
+            ingredientId: recipe.ingredientId,
+            variantId: recipe.variantId || null,
+            quantityRequired: recipe.quantityRequired,
           })),
         }),
       });
@@ -203,6 +229,39 @@ export default function ProductsPage() {
     setForm((current) => ({
       ...current,
       variants: current.variants.filter((_, variantIndex) => variantIndex !== index),
+    }));
+  }
+
+  function addRecipe() {
+    setForm((current) => ({
+      ...current,
+      recipes: [
+        ...current.recipes,
+        {
+          ingredientId: ingredients[0]?.id ?? "",
+          variantId: "",
+          quantityRequired: "1",
+        },
+      ],
+    }));
+  }
+
+  function updateRecipe(
+    index: number,
+    patch: Partial<ProductForm["recipes"][number]>,
+  ) {
+    setForm((current) => ({
+      ...current,
+      recipes: current.recipes.map((recipe, recipeIndex) =>
+        recipeIndex === index ? { ...recipe, ...patch } : recipe,
+      ),
+    }));
+  }
+
+  function removeRecipe(index: number) {
+    setForm((current) => ({
+      ...current,
+      recipes: current.recipes.filter((_, recipeIndex) => recipeIndex !== index),
     }));
   }
 
@@ -259,6 +318,7 @@ export default function ProductsPage() {
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium">Price</th>
                   <th className="px-4 py-3 font-medium">Stock</th>
+                  <th className="px-4 py-3 font-medium">Recipe</th>
                   <th className="px-4 py-3 font-medium">Available</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
@@ -267,14 +327,14 @@ export default function ProductsPage() {
                 {loading ? (
                   Array.from({ length: 4 }).map((_, index) => (
                     <tr key={index} className="border-b border-[var(--border)]">
-                      <td className="px-4 py-4" colSpan={7}>
+                      <td className="px-4 py-4" colSpan={8}>
                         <div className="h-5 rounded-md bg-[var(--muted)]" />
                       </td>
                     </tr>
                   ))
                 ) : products.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-[var(--muted-foreground)]" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-[var(--muted-foreground)]" colSpan={8}>
                       No products found.
                     </td>
                   </tr>
@@ -300,14 +360,21 @@ export default function ProductsPage() {
                           : "Not tracked"}
                       </td>
                       <td className="px-4 py-3">
+                        {product.ingredientRecipeCount > 0
+                          ? `${product.ingredientRecipeCount} row(s)`
+                          : "No recipe"}
+                      </td>
+                      <td className="px-4 py-3">
                         <span
                           className={`rounded-md px-2 py-1 text-xs font-medium ${
-                            product.isAvailable
+                            product.isAvailable && product.canSellOne
                               ? "bg-green-50 text-[var(--success)]"
                               : "bg-slate-100 text-[var(--muted-foreground)]"
                           }`}
                         >
-                          {product.isAvailable ? "Available" : "Hidden"}
+                          {product.isAvailable && product.canSellOne
+                            ? "Available"
+                            : product.unavailableReason ?? "Hidden"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -376,11 +443,13 @@ export default function ProductsPage() {
               <label className="grid gap-1 text-sm font-medium">
                 Price before tax/service
                 <input
-                  type="number"
-                  min={0}
-                  value={form.price}
+                  inputMode="numeric"
+                  value={formatCurrencyInput(form.price)}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, price: Number(event.target.value) }))
+                    setForm((current) => ({
+                      ...current,
+                      price: Number(parseCurrencyInput(event.target.value) || 0),
+                    }))
                   }
                   className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                   required
@@ -389,11 +458,13 @@ export default function ProductsPage() {
               <label className="grid gap-1 text-sm font-medium">
                 Cost price
                 <input
-                  type="number"
-                  min={0}
-                  value={form.costPrice}
+                  inputMode="numeric"
+                  value={formatCurrencyInput(form.costPrice)}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, costPrice: event.target.value }))
+                    setForm((current) => ({
+                      ...current,
+                      costPrice: parseCurrencyInput(event.target.value),
+                    }))
                   }
                   className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 />
@@ -452,13 +523,12 @@ export default function ProductsPage() {
                 <label className="grid gap-1 text-sm font-medium">
                   Stock quantity
                   <input
-                    type="number"
-                    min={0}
+                    inputMode="decimal"
                     value={form.stockQuantity}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        stockQuantity: event.target.value,
+                        stockQuantity: sanitizeDecimalInput(event.target.value),
                       }))
                     }
                     className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
@@ -467,13 +537,12 @@ export default function ProductsPage() {
                 <label className="grid gap-1 text-sm font-medium">
                   Low stock threshold
                   <input
-                    type="number"
-                    min={0}
+                    inputMode="decimal"
                     value={form.lowStockThreshold}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        lowStockThreshold: event.target.value,
+                        lowStockThreshold: sanitizeDecimalInput(event.target.value),
                       }))
                     }
                     className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
@@ -516,10 +585,12 @@ export default function ProductsPage() {
                           className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
                         />
                         <input
-                          type="number"
-                          value={variant.priceDelta}
+                          inputMode="numeric"
+                          value={formatCurrencyInput(variant.priceDelta)}
                           onChange={(event) =>
-                            updateVariant(index, { priceDelta: Number(event.target.value) })
+                            updateVariant(index, {
+                              priceDelta: Number(parseCurrencyInput(event.target.value) || 0),
+                            })
                           }
                           placeholder="Price delta"
                           className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
@@ -544,6 +615,100 @@ export default function ProductsPage() {
                           Remove
                         </button>
                       </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-md border border-[var(--border)] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Ingredient recipe</h3>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Quantity required to sell one product unit.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addRecipe}
+                  disabled={ingredients.length === 0}
+                  className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:opacity-60"
+                >
+                  Add row
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3">
+                {ingredients.length === 0 ? (
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    Add active ingredients on the inventory page before creating recipes.
+                  </p>
+                ) : form.recipes.length === 0 ? (
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    No ingredient recipe. Checkout will only use product availability.
+                  </p>
+                ) : (
+                  form.recipes.map((recipe, index) => (
+                    <div key={index} className="grid gap-2 rounded-md bg-[var(--muted)] p-3">
+                      <label className="grid gap-1 text-xs font-medium">
+                        Ingredient
+                        <select
+                          value={recipe.ingredientId}
+                          onChange={(event) =>
+                            updateRecipe(index, { ingredientId: event.target.value })
+                          }
+                          className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                          required
+                        >
+                          {ingredients.map((ingredient) => (
+                            <option key={ingredient.id} value={ingredient.id}>
+                              {ingredient.name} ({ingredient.unit})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="grid gap-1 text-xs font-medium">
+                          Variant
+                          <select
+                            value={recipe.variantId}
+                            onChange={(event) =>
+                              updateRecipe(index, { variantId: event.target.value })
+                            }
+                            className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                          >
+                            <option value="">Base product</option>
+                            {form.variants
+                              .filter((variant) => variant.id)
+                              .map((variant) => (
+                                <option key={variant.id} value={variant.id}>
+                                  {variant.name}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-xs font-medium">
+                          Quantity
+                          <input
+                            inputMode="decimal"
+                            value={recipe.quantityRequired}
+                            onChange={(event) =>
+                              updateRecipe(index, {
+                                quantityRequired: sanitizeDecimalInput(event.target.value),
+                              })
+                            }
+                            className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                            required
+                          />
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeRecipe(index)}
+                        className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-white"
+                      >
+                        Remove recipe row
+                      </button>
                     </div>
                   ))
                 )}

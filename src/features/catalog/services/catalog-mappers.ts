@@ -1,7 +1,15 @@
-import type { AppSetting, Category, Product, ProductVariant } from "@prisma/client";
+import type {
+  AppSetting,
+  Category,
+  Ingredient,
+  Product,
+  ProductIngredient,
+  ProductVariant,
+} from "@prisma/client";
 import type {
   CategoryRecord,
   ProductRecord,
+  ProductIngredientRecipeRecord,
   ProductVariantRecord,
   SettingsRecord,
 } from "../types";
@@ -30,12 +38,74 @@ export function mapVariant(variant: ProductVariant): ProductVariantRecord {
   };
 }
 
+function mapProductRecipe(
+  recipe: ProductIngredient & {
+    ingredient: Pick<Ingredient, "name" | "sku" | "unit">;
+  },
+): ProductIngredientRecipeRecord {
+  return {
+    id: recipe.id,
+    productId: recipe.productId,
+    variantId: recipe.variantId,
+    ingredientId: recipe.ingredientId,
+    ingredientName: recipe.ingredient.name,
+    ingredientSku: recipe.ingredient.sku,
+    unit: recipe.ingredient.unit,
+    quantityRequired: Number(recipe.quantityRequired),
+  };
+}
+
+function getCanSellOne(product: Product & {
+  ingredients?: Array<
+    ProductIngredient & {
+      ingredient: Pick<Ingredient, "currentStock" | "isActive" | "name">;
+    }
+  >;
+}) {
+  if (!product.isAvailable) {
+    return { canSellOne: false, unavailableReason: "Product unavailable" };
+  }
+
+  if (
+    product.trackStock &&
+    product.stockQuantity !== null &&
+    Number(product.stockQuantity) <= 0
+  ) {
+    return { canSellOne: false, unavailableReason: "Product stock unavailable" };
+  }
+
+  for (const recipe of product.ingredients ?? []) {
+    if (!recipe.ingredient.isActive) {
+      return {
+        canSellOne: false,
+        unavailableReason: `${recipe.ingredient.name} inactive`,
+      };
+    }
+
+    if (Number(recipe.ingredient.currentStock) < Number(recipe.quantityRequired)) {
+      return {
+        canSellOne: false,
+        unavailableReason: `${recipe.ingredient.name} unavailable`,
+      };
+    }
+  }
+
+  return { canSellOne: true, unavailableReason: null };
+}
+
 export function mapProduct(
   product: Product & {
     category: { name: string };
     variants: ProductVariant[];
+    ingredients?: Array<
+      ProductIngredient & {
+        ingredient: Pick<Ingredient, "name" | "sku" | "unit" | "currentStock" | "isActive">;
+      }
+    >;
   },
 ): ProductRecord {
+  const availability = getCanSellOne(product);
+
   return {
     id: product.id,
     categoryId: product.categoryId,
@@ -51,7 +121,11 @@ export function mapProduct(
     lowStockThreshold:
       product.lowStockThreshold === null ? null : Number(product.lowStockThreshold),
     isAvailable: product.isAvailable,
+    ingredientRecipeCount: product.ingredients?.length ?? 0,
+    canSellOne: availability.canSellOne,
+    unavailableReason: availability.unavailableReason,
     variants: product.variants.map(mapVariant),
+    recipes: (product.ingredients ?? []).map(mapProductRecipe),
   };
 }
 

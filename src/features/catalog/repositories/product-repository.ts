@@ -6,6 +6,12 @@ const productInclude = {
   variants: {
     orderBy: { name: "asc" },
   },
+  ingredients: {
+    include: {
+      ingredient: true,
+    },
+    orderBy: [{ variantId: "asc" }, { createdAt: "asc" }],
+  },
 } satisfies Prisma.ProductInclude;
 
 export function listProducts(filters: {
@@ -57,6 +63,11 @@ export async function createProduct(data: {
     costDelta: string | null;
     isActive: boolean;
   }>;
+  recipes: Array<{
+    ingredientId: string;
+    variantId: string | null;
+    quantityRequired: string;
+  }>;
 }) {
   return prisma.product.create({
     data: {
@@ -73,6 +84,9 @@ export async function createProduct(data: {
       isAvailable: data.isAvailable,
       variants: {
         create: data.variants,
+      },
+      ingredients: {
+        create: data.recipes,
       },
     },
     include: productInclude,
@@ -100,6 +114,11 @@ export async function updateProduct(
       priceDelta: string;
       costDelta: string | null;
       isActive: boolean;
+    }>;
+    recipes: Array<{
+      ingredientId: string;
+      variantId: string | null;
+      quantityRequired: string;
     }>;
   },
 ) {
@@ -137,6 +156,10 @@ export async function updateProduct(
       },
     });
 
+    await tx.productIngredient.deleteMany({
+      where: { productId: id },
+    });
+
     for (const variant of data.variants) {
       if (variant.id) {
         await tx.productVariant.update({
@@ -161,6 +184,17 @@ export async function updateProduct(
           },
         });
       }
+    }
+
+    if (data.recipes.length > 0) {
+      await tx.productIngredient.createMany({
+        data: data.recipes.map((recipe) => ({
+          productId: id,
+          ingredientId: recipe.ingredientId,
+          variantId: recipe.variantId,
+          quantityRequired: recipe.quantityRequired,
+        })),
+      });
     }
 
     return tx.product.findUniqueOrThrow({ where: { id }, include: productInclude });
