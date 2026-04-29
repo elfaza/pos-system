@@ -9,6 +9,8 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 const navItems = [
   { href: "/dashboard", label: "Overview" },
   { href: "/orders", label: "Orders" },
+  { href: "/kitchen", label: "Kitchen" },
+  { href: "/queue", label: "Queue" },
   { href: "/dashboard/categories", label: "Categories" },
   { href: "/dashboard/products", label: "Products" },
   { href: "/dashboard/inventory", label: "Inventory" },

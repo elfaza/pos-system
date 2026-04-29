@@ -61,6 +61,10 @@ export default function ReceiptPreview({
             <span>{order.orderNumber}</span>
           </div>
           <div className="flex justify-between gap-3">
+            <span>Queue</span>
+            <span>{order.queueNumber ? `#${order.queueNumber}` : "-"}</span>
+          </div>
+          <div className="flex justify-between gap-3">
             <span>Cashier</span>
             <span>{order.cashierName ?? "-"}</span>
           </div>

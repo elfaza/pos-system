@@ -370,13 +370,15 @@ function OrderHistoryContent() {
 
         <div className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--card)]">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-left text-sm">
+            <table className="w-full min-w-[1120px] text-left text-sm">
               <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]">
                 <tr>
                   <th className="px-3 py-3 font-medium">Order</th>
+                  <th className="px-3 py-3 font-medium">Queue</th>
                   <th className="px-3 py-3 font-medium">Time</th>
                   <th className="px-3 py-3 font-medium">Cashier</th>
                   <th className="px-3 py-3 font-medium">Status</th>
+                  <th className="px-3 py-3 font-medium">Kitchen</th>
                   <th className="px-3 py-3 font-medium">Payment</th>
                   <th className="px-3 py-3 font-medium">Paid at</th>
                   <th className="px-3 py-3 text-right font-medium">Total</th>
@@ -391,6 +393,9 @@ function OrderHistoryContent() {
                         <div className="h-4 w-40 rounded-md bg-[var(--muted)]" />
                       </td>
                       <td className="px-3 py-3">
+                        <div className="h-4 w-16 rounded-md bg-[var(--muted)]" />
+                      </td>
+                      <td className="px-3 py-3">
                         <div className="h-4 w-36 rounded-md bg-[var(--muted)]" />
                       </td>
                       <td className="px-3 py-3">
@@ -398,6 +403,9 @@ function OrderHistoryContent() {
                       </td>
                       <td className="px-3 py-3">
                         <div className="h-6 w-20 rounded-md bg-[var(--muted)]" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="h-6 w-24 rounded-md bg-[var(--muted)]" />
                       </td>
                       <td className="px-3 py-3">
                         <div className="h-6 w-24 rounded-md bg-[var(--muted)]" />
@@ -416,7 +424,7 @@ function OrderHistoryContent() {
                 ) : visibleOrders.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={10}
                       className="px-3 py-8 text-center text-[var(--muted-foreground)]"
                     >
                       No orders found.
@@ -426,6 +434,9 @@ function OrderHistoryContent() {
                   visibleOrders.map((order) => (
                     <tr key={order.id} className="border-b border-[var(--border)]">
                       <td className="px-3 py-3 font-medium">{order.orderNumber}</td>
+                      <td className="px-3 py-3 font-semibold">
+                        {order.queueNumber ? `#${order.queueNumber}` : "-"}
+                      </td>
                       <td className="px-3 py-3 text-[var(--muted-foreground)]">
                         {new Date(order.createdAt).toLocaleString()}
                       </td>
@@ -438,6 +449,15 @@ function OrderHistoryContent() {
                         >
                           {order.status.replace("_", " ")}
                         </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        {order.kitchenStatus ? (
+                          <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassName(order.kitchenStatus === "completed" ? "paid" : "held")}`}>
+                            {order.kitchenStatus}
+                          </span>
+                        ) : (
+                          <span className="text-[var(--muted-foreground)]">-</span>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         {order.payment ? (

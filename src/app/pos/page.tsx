@@ -377,6 +377,9 @@ function PaymentSuccessModal({
         <div className="rounded-md border border-[var(--success)]/30 bg-green-50 p-4 text-[var(--success)]">
           <h2 className="text-lg font-semibold">Payment successful</h2>
           <p className="mt-1 text-sm">Order {order.orderNumber} is paid.</p>
+          {order.queueNumber ? (
+            <p className="mt-3 text-3xl font-semibold">Queue #{order.queueNumber}</p>
+          ) : null}
         </div>
         <div className="mt-4">
           <ReceiptPreview order={order} settings={settings} />
@@ -818,6 +821,12 @@ function PosContent() {
             className="grid h-11 place-items-center rounded-md border border-[var(--border)] bg-white px-4 font-medium shadow-[0_1px_2px_rgba(20,32,51,0.06)] hover:border-[var(--primary)]/35 hover:bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           >
             History
+          </Link>
+          <Link
+            href="/kitchen"
+            className="grid h-11 place-items-center rounded-md border border-[var(--border)] bg-white px-4 font-medium shadow-[0_1px_2px_rgba(20,32,51,0.06)] hover:border-[var(--primary)]/35 hover:bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+          >
+            Kitchen
           </Link>
           <span
             className={`rounded-md border px-3 py-2 text-sm font-medium ${
