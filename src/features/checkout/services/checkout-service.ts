@@ -3,6 +3,10 @@ import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
 import { getSettings } from "@/features/catalog/repositories/settings-repository";
+import {
+  getNextQueueNumber,
+  getQueueBusinessDate,
+} from "@/features/kitchen/services/queue-number";
 import { calculateCartTotals } from "./checkout-calculations";
 import { mapCheckoutOrder } from "./checkout-mappers";
 import { createOrderNumber } from "./order-number";
@@ -253,6 +257,8 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
 
   const paidAt = new Date();
   const order = await prisma.$transaction(async (tx) => {
+    const queueBusinessDate = getQueueBusinessDate(paidAt);
+    const queueNumber = await getNextQueueNumber(tx, queueBusinessDate);
     const ingredientDeductions = calculateIngredientDeductions(preparedItems);
     for (const deduction of ingredientDeductions) {
       const ingredient = await tx.ingredient.findUnique({
@@ -281,6 +287,9 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
         serviceChargeAmount: new Prisma.Decimal(totals.serviceChargeAmount),
         totalAmount: new Prisma.Decimal(totals.totalAmount),
         notes: input.notes,
+        queueBusinessDate,
+        queueNumber,
+        kitchenStatus: "received",
         paidAt,
         items: {
           create: preparedItems.map((item) => ({
@@ -366,8 +375,24 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
         entityId: createdOrder.id,
         metadata: {
           orderNumber: createdOrder.orderNumber,
+          queueBusinessDate,
+          queueNumber,
           method: "cash",
           totalAmount: totals.totalAmount,
+        },
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "queue.assigned",
+        entityType: "order",
+        entityId: createdOrder.id,
+        metadata: {
+          orderNumber: createdOrder.orderNumber,
+          queueBusinessDate,
+          queueNumber,
         },
       },
     });

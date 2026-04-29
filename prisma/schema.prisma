@@ -34,6 +34,13 @@ enum PaymentStatus {
   refunded
 }
 
+enum KitchenOrderStatus {
+  received
+  preparing
+  ready
+  completed
+}
+
 enum StockMovementType {
   sale_deduction
   adjustment
@@ -204,6 +211,12 @@ model Order {
   serviceChargeAmount Decimal     @default(0) @map("service_charge_amount") @db.Decimal(12, 2)
   totalAmount         Decimal     @default(0) @map("total_amount") @db.Decimal(12, 2)
   notes               String?
+  queueBusinessDate   String?     @map("queue_business_date") @db.VarChar(10)
+  queueNumber         Int?        @map("queue_number")
+  kitchenStatus       KitchenOrderStatus? @map("kitchen_status")
+  kitchenPreparingAt  DateTime?   @map("kitchen_preparing_at")
+  kitchenReadyAt      DateTime?   @map("kitchen_ready_at")
+  kitchenCompletedAt  DateTime?   @map("kitchen_completed_at")
   heldAt              DateTime?   @map("held_at")
   paidAt              DateTime?   @map("paid_at")
   cancelledAt         DateTime?   @map("cancelled_at")
@@ -219,6 +232,8 @@ model Order {
 
   @@index([cashierId])
   @@index([status])
+  @@index([kitchenStatus])
+  @@unique([queueBusinessDate, queueNumber])
   @@map("orders")
 }
 

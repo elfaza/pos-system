@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   tx: {
     activityLog: { create: vi.fn() },
     ingredient: { findUnique: vi.fn(), update: vi.fn() },
-    order: { create: vi.fn(), update: vi.fn() },
+    order: { aggregate: vi.fn(), create: vi.fn(), update: vi.fn() },
     product: { update: vi.fn() },
     stockMovement: { create: vi.fn() },
   },
@@ -87,10 +87,19 @@ describe("checkout service", () => {
     mocks.tx.product.update.mockResolvedValue({});
     mocks.tx.stockMovement.create.mockResolvedValue({});
     mocks.tx.activityLog.create.mockResolvedValue({});
+    mocks.tx.order.aggregate.mockResolvedValue({
+      _max: { queueNumber: 7 },
+    });
     mocks.tx.order.create.mockResolvedValue({
       id: "order-1",
       orderNumber: "ORD-001",
       status: "paid",
+      queueBusinessDate: "2026-04-29",
+      queueNumber: 8,
+      kitchenStatus: "received",
+      kitchenPreparingAt: null,
+      kitchenReadyAt: null,
+      kitchenCompletedAt: null,
       subtotalAmount: "50000",
       discountAmount: "0",
       taxAmount: "5000",
@@ -323,6 +332,12 @@ describe("checkout service", () => {
       id: "order-exact",
       orderNumber: "ORD-EXACT",
       status: "paid",
+      queueBusinessDate: "2026-04-29",
+      queueNumber: 8,
+      kitchenStatus: "received",
+      kitchenPreparingAt: null,
+      kitchenReadyAt: null,
+      kitchenCompletedAt: null,
       subtotalAmount: "20000",
       discountAmount: "0",
       taxAmount: "2000",
@@ -377,6 +392,8 @@ describe("checkout service", () => {
     );
 
     expect(order.status).toBe("paid");
+    expect(order.queueNumber).toBe(8);
+    expect(order.kitchenStatus).toBe("received");
     expect(order.payment).toMatchObject({
       method: "cash",
       status: "paid",
@@ -415,6 +432,8 @@ describe("checkout service", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: "paid",
+          queueNumber: 8,
+          kitchenStatus: "received",
           totalAmount: expect.any(Object),
           payments: {
             create: expect.objectContaining({
@@ -442,6 +461,16 @@ describe("checkout service", () => {
         quantityChange: expect.any(Object),
         reason: "Cash order payment confirmed",
         createdByUserId: actor.id,
+      }),
+    });
+    expect(mocks.tx.activityLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "queue.assigned",
+        entityType: "order",
+        entityId: "order-1",
+        metadata: expect.objectContaining({
+          queueNumber: 8,
+        }),
       }),
     });
     expect(mocks.tx.activityLog.create).toHaveBeenCalledWith({

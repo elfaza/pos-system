@@ -71,6 +71,12 @@ export interface CheckoutOrderRecord {
   cashierName: string | null;
   cashierEmail: string | null;
   status: "draft" | "held" | "pending_payment" | "paid" | "cancelled" | "refunded";
+  queueBusinessDate: string | null;
+  queueNumber: number | null;
+  kitchenStatus: "received" | "preparing" | "ready" | "completed" | null;
+  kitchenPreparingAt: string | null;
+  kitchenReadyAt: string | null;
+  kitchenCompletedAt: string | null;
   subtotalAmount: number;
   discountAmount: number;
   taxAmount: number;
