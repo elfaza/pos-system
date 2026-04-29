@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
@@ -345,6 +345,17 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
           },
         },
       });
+
+      await tx.stockMovement.create({
+        data: {
+          productId: item.productId,
+          orderId: createdOrder.id,
+          type: "sale_deduction",
+          quantityChange: new Prisma.Decimal(-item.quantity),
+          reason: "Cash order payment confirmed",
+          createdByUserId: actor.id,
+        },
+      });
     }
 
     await tx.activityLog.create({
@@ -360,6 +371,27 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
         },
       },
     });
+
+    const payment = createdOrder.payments[0];
+    if (payment) {
+      await tx.activityLog.create({
+        data: {
+          userId: actor.id,
+          action: "payment.paid",
+          entityType: "payment",
+          entityId: payment.id,
+          metadata: {
+            orderId: createdOrder.id,
+            orderNumber: createdOrder.orderNumber,
+            method: "cash",
+            previousStatus: "pending",
+            status: "paid",
+            amount: totals.totalAmount,
+            paidAt: paidAt.toISOString(),
+          },
+        },
+      });
+    }
 
     return createdOrder;
   });
@@ -460,9 +492,52 @@ export function parseOrderStatusFilter(status: string | null) {
   return status as (typeof allowedStatuses)[number];
 }
 
+export function parsePaymentMethodFilter(method: string | null) {
+  if (!method) return undefined;
+
+  if (!Object.values(PaymentMethod).includes(method as PaymentMethod)) {
+    throw new ValidationError("Payment method filter is invalid.", {
+      paymentMethod: "Use a valid payment method.",
+    });
+  }
+
+  return method as PaymentMethod;
+}
+
+export function parsePaymentStatusFilter(status: string | null) {
+  if (!status) return undefined;
+
+  if (!Object.values(PaymentStatus).includes(status as PaymentStatus)) {
+    throw new ValidationError("Payment status filter is invalid.", {
+      paymentStatus: "Use a valid payment status.",
+    });
+  }
+
+  return status as PaymentStatus;
+}
+
+export function parsePaymentDateFilter(value: string | null, field: string) {
+  if (!value) return undefined;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new ValidationError("Payment date filter is invalid.", {
+      [field]: "Use a valid date.",
+    });
+  }
+
+  return date;
+}
+
 export async function getOrders(
   actor: User,
-  filters: { status?: ReturnType<typeof parseOrderStatusFilter> } = {},
+  filters: {
+    status?: ReturnType<typeof parseOrderStatusFilter>;
+    paymentMethod?: ReturnType<typeof parsePaymentMethodFilter>;
+    paymentStatus?: ReturnType<typeof parsePaymentStatusFilter>;
+    paidFrom?: Date;
+    paidTo?: Date;
+  } = {},
 ) {
   const orders = await listOrdersForUser(actor, filters);
   return orders.map(mapCheckoutOrder);

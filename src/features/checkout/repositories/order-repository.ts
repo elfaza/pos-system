@@ -1,4 +1,4 @@
-import { OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const checkoutOrderInclude = {
@@ -66,11 +66,32 @@ export async function findHeldOrderById(id: string, user: { id: string; role: st
 
 export async function listOrdersForUser(
   user: { id: string; role: string },
-  filters: { status?: OrderStatus } = {},
+  filters: {
+    status?: OrderStatus;
+    paymentMethod?: PaymentMethod;
+    paymentStatus?: PaymentStatus;
+    paidFrom?: Date;
+    paidTo?: Date;
+  } = {},
 ) {
+  const paymentFilter: Prisma.PaymentWhereInput = {
+    ...(filters.paymentMethod ? { method: filters.paymentMethod } : {}),
+    ...(filters.paymentStatus ? { status: filters.paymentStatus } : {}),
+    ...(filters.paidFrom || filters.paidTo
+      ? {
+          paidAt: {
+            ...(filters.paidFrom ? { gte: filters.paidFrom } : {}),
+            ...(filters.paidTo ? { lte: filters.paidTo } : {}),
+          },
+        }
+      : {}),
+  };
+  const hasPaymentFilter = Object.keys(paymentFilter).length > 0;
+
   return prisma.order.findMany({
     where: {
       ...(filters.status ? { status: filters.status } : {}),
+      ...(hasPaymentFilter ? { payments: { some: paymentFilter } } : {}),
       ...(user.role === "admin" ? {} : { cashierId: user.id }),
     },
     include: orderHistoryInclude,

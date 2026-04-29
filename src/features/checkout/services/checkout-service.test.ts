@@ -5,12 +5,22 @@ import {
   parseCashCheckoutPayload,
   parseHoldOrderPayload,
   parseOrderStatusFilter,
+  parsePaymentDateFilter,
+  parsePaymentMethodFilter,
+  parsePaymentStatusFilter,
 } from "./checkout-service";
 
 const mocks = vi.hoisted(() => ({
   findProductsForCheckout: vi.fn(),
   getSettings: vi.fn(),
   transaction: vi.fn(),
+  tx: {
+    activityLog: { create: vi.fn() },
+    ingredient: { findUnique: vi.fn(), update: vi.fn() },
+    order: { create: vi.fn(), update: vi.fn() },
+    product: { update: vi.fn() },
+    stockMovement: { create: vi.fn() },
+  },
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -71,6 +81,52 @@ describe("checkout service", () => {
       serviceChargeEnabled: false,
       serviceChargeRate: "0",
     });
+    mocks.transaction.mockImplementation((callback) => callback(mocks.tx));
+    mocks.tx.ingredient.findUnique.mockResolvedValue(null);
+    mocks.tx.ingredient.update.mockResolvedValue({});
+    mocks.tx.product.update.mockResolvedValue({});
+    mocks.tx.stockMovement.create.mockResolvedValue({});
+    mocks.tx.activityLog.create.mockResolvedValue({});
+    mocks.tx.order.create.mockResolvedValue({
+      id: "order-1",
+      orderNumber: "ORD-001",
+      status: "paid",
+      subtotalAmount: "50000",
+      discountAmount: "0",
+      taxAmount: "5000",
+      serviceChargeAmount: "0",
+      totalAmount: "55000",
+      heldAt: null,
+      paidAt: new Date("2026-04-29T09:00:00.000Z"),
+      createdAt: new Date("2026-04-29T09:00:00.000Z"),
+      cashier: { name: actor.name, email: actor.email },
+      items: [
+        {
+          id: "item-1",
+          productId: "product-1",
+          variantId: "variant-large",
+          productNameSnapshot: "Coffee",
+          variantNameSnapshot: "Large",
+          quantity: "2",
+          unitPrice: "25000",
+          discountAmount: "0",
+          lineTotal: "50000",
+          notes: null,
+          createdAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+      payments: [
+        {
+          id: "payment-1",
+          method: "cash",
+          status: "paid",
+          amount: "55000",
+          cashReceivedAmount: "60000",
+          changeAmount: "5000",
+          paidAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+    });
   });
 
   it("parses a valid cash checkout payload", () => {
@@ -120,6 +176,20 @@ describe("checkout service", () => {
     expect(parseOrderStatusFilter("paid")).toBe("paid");
     expect(parseOrderStatusFilter(null)).toBeUndefined();
     expect(() => parseOrderStatusFilter("unknown")).toThrow(ValidationError);
+  });
+
+  it("parses payment history filters", () => {
+    expect(parsePaymentMethodFilter("cash")).toBe("cash");
+    expect(parsePaymentStatusFilter("paid")).toBe("paid");
+    expect(parsePaymentDateFilter("2026-04-29", "paidFrom")).toBeInstanceOf(Date);
+    expect(parsePaymentMethodFilter(null)).toBeUndefined();
+    expect(parsePaymentStatusFilter(null)).toBeUndefined();
+    expect(parsePaymentDateFilter(null, "paidFrom")).toBeUndefined();
+    expect(() => parsePaymentMethodFilter("card")).toThrow(ValidationError);
+    expect(() => parsePaymentStatusFilter("complete")).toThrow(ValidationError);
+    expect(() => parsePaymentDateFilter("not-a-date", "paidFrom")).toThrow(
+      ValidationError,
+    );
   });
 
   it("rejects unavailable products before payment is saved", async () => {
@@ -246,5 +316,146 @@ describe("checkout service", () => {
       },
     });
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("completes cash payment with exact cash received", async () => {
+    mocks.tx.order.create.mockResolvedValueOnce({
+      id: "order-exact",
+      orderNumber: "ORD-EXACT",
+      status: "paid",
+      subtotalAmount: "20000",
+      discountAmount: "0",
+      taxAmount: "2000",
+      serviceChargeAmount: "0",
+      totalAmount: "22000",
+      heldAt: null,
+      paidAt: new Date("2026-04-29T09:00:00.000Z"),
+      createdAt: new Date("2026-04-29T09:00:00.000Z"),
+      cashier: { name: actor.name, email: actor.email },
+      items: [
+        {
+          id: "item-exact",
+          productId: "product-1",
+          variantId: null,
+          productNameSnapshot: "Coffee",
+          variantNameSnapshot: null,
+          quantity: "1",
+          unitPrice: "20000",
+          discountAmount: "0",
+          lineTotal: "20000",
+          notes: null,
+          createdAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+      payments: [
+        {
+          id: "payment-exact",
+          method: "cash",
+          status: "paid",
+          amount: "22000",
+          cashReceivedAmount: "22000",
+          changeAmount: "0",
+          paidAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+    });
+
+    const order = await finalizeCashCheckout(
+      {
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+        cashReceivedAmount: 22_000,
+      },
+      actor,
+    );
+
+    expect(order.status).toBe("paid");
+    expect(order.payment).toMatchObject({
+      method: "cash",
+      status: "paid",
+      amount: 22_000,
+      cashReceivedAmount: 22_000,
+      changeAmount: 0,
+    });
+  });
+
+  it("creates a paid cash payment, deducts product stock, and logs payment transition", async () => {
+    const order = await finalizeCashCheckout(
+      {
+        items: [
+          {
+            productId: "product-1",
+            variantId: "variant-large",
+            quantity: 2,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+        cashReceivedAmount: 60_000,
+      },
+      actor,
+    );
+
+    expect(order.status).toBe("paid");
+    expect(order.payment).toMatchObject({
+      method: "cash",
+      status: "paid",
+      amount: 55_000,
+      cashReceivedAmount: 60_000,
+      changeAmount: 5_000,
+    });
+    expect(mocks.tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "paid",
+          totalAmount: expect.any(Object),
+          payments: {
+            create: expect.objectContaining({
+              method: "cash",
+              status: "paid",
+              amount: expect.any(Object),
+              cashReceivedAmount: expect.any(Object),
+              changeAmount: expect.any(Object),
+              paidAt: expect.any(Date),
+            }),
+          },
+        }),
+        include: expect.any(Object),
+      }),
+    );
+    expect(mocks.tx.product.update).toHaveBeenCalledWith({
+      where: { id: "product-1" },
+      data: { stockQuantity: { decrement: expect.any(Object) } },
+    });
+    expect(mocks.tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        productId: "product-1",
+        orderId: "order-1",
+        type: "sale_deduction",
+        quantityChange: expect.any(Object),
+        reason: "Cash order payment confirmed",
+        createdByUserId: actor.id,
+      }),
+    });
+    expect(mocks.tx.activityLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "payment.paid",
+        entityType: "payment",
+        entityId: "payment-1",
+        metadata: expect.objectContaining({
+          previousStatus: "pending",
+          status: "paid",
+          method: "cash",
+          amount: 55_000,
+        }),
+      }),
+    });
   });
 });
