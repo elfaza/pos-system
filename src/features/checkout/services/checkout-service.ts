@@ -123,6 +123,36 @@ async function prepareCheckoutItems(
       });
     }
 
+    if (options.validateStock) {
+      const recipeRows = product.ingredients ?? [];
+      const baseRecipes = recipeRows.filter((recipe) => recipe.variantId === null);
+      const variantRecipes = item.variantId
+        ? recipeRows.filter((recipe) => recipe.variantId === item.variantId)
+        : [];
+      const recipeByIngredientId = new Map(
+        baseRecipes.map((recipe) => [recipe.ingredientId, recipe]),
+      );
+
+      for (const recipe of variantRecipes) {
+        recipeByIngredientId.set(recipe.ingredientId, recipe);
+      }
+
+      for (const recipe of recipeByIngredientId.values()) {
+        if (!recipe.ingredient.isActive) {
+          throw new ValidationError("Ingredient is not available for checkout.", {
+            [`items.${index}.productId`]: `${recipe.ingredient.name} is inactive.`,
+          });
+        }
+
+        const requiredQuantity = Number(recipe.quantityRequired) * item.quantity;
+        if (Number(recipe.ingredient.currentStock) < requiredQuantity) {
+          throw new ValidationError("Insufficient ingredient stock for checkout.", {
+            [`items.${index}.productId`]: `${product.name} requires ${recipe.ingredient.name}, but only ${recipe.ingredient.currentStock} ${recipe.ingredient.unit} is available.`,
+          });
+        }
+      }
+    }
+
     const unitPrice = Number(product.price) + (variant ? Number(variant.priceDelta) : 0);
     const lineTotal = Math.max(unitPrice * item.quantity - item.discountAmount, 0);
 
@@ -163,6 +193,55 @@ async function prepareCheckoutItems(
   return { preparedItems, totals };
 }
 
+function calculateIngredientDeductions(
+  preparedItems: Awaited<ReturnType<typeof prepareCheckoutItems>>["preparedItems"],
+) {
+  const deductions = new Map<
+    string,
+    {
+      ingredientId: string;
+      ingredientName: string;
+      quantityRequired: number;
+      unit: string;
+      productId: string | null;
+    }
+  >();
+
+  for (const item of preparedItems) {
+    const baseRecipes = (item.product.ingredients ?? []).filter(
+      (recipe) => recipe.variantId === null,
+    );
+    const variantRecipes = item.variantId
+      ? (item.product.ingredients ?? []).filter(
+          (recipe) => recipe.variantId === item.variantId,
+        )
+      : [];
+    const recipeByIngredientId = new Map(
+      baseRecipes.map((recipe) => [recipe.ingredientId, recipe]),
+    );
+
+    for (const recipe of variantRecipes) {
+      recipeByIngredientId.set(recipe.ingredientId, recipe);
+    }
+
+    for (const recipe of recipeByIngredientId.values()) {
+      const existing = deductions.get(recipe.ingredientId);
+      const quantityRequired = Number(recipe.quantityRequired) * item.quantity;
+
+      deductions.set(recipe.ingredientId, {
+        ingredientId: recipe.ingredientId,
+        ingredientName: recipe.ingredient.name,
+        quantityRequired: (existing?.quantityRequired ?? 0) + quantityRequired,
+        unit: recipe.ingredient.unit,
+        productId:
+          existing && existing.productId !== item.productId ? null : item.productId,
+      });
+    }
+  }
+
+  return [...deductions.values()];
+}
+
 export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User) {
   const { preparedItems, totals } = await prepareCheckoutItems(input.items);
 
@@ -174,6 +253,23 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
 
   const paidAt = new Date();
   const order = await prisma.$transaction(async (tx) => {
+    const ingredientDeductions = calculateIngredientDeductions(preparedItems);
+    for (const deduction of ingredientDeductions) {
+      const ingredient = await tx.ingredient.findUnique({
+        where: { id: deduction.ingredientId },
+      });
+      if (!ingredient || !ingredient.isActive) {
+        throw new ValidationError("Ingredient is not available for checkout.", {
+          items: `${deduction.ingredientName} is unavailable.`,
+        });
+      }
+      if (Number(ingredient.currentStock) < deduction.quantityRequired) {
+        throw new ValidationError("Insufficient ingredient stock for checkout.", {
+          items: `${deduction.ingredientName} only has ${ingredient.currentStock} ${deduction.unit} available.`,
+        });
+      }
+    }
+
     const createdOrder = await tx.order.create({
       data: {
         orderNumber: createOrderNumber(paidAt),
@@ -215,6 +311,29 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
       include: checkoutOrderInclude,
     });
 
+    for (const deduction of ingredientDeductions) {
+      await tx.ingredient.update({
+        where: { id: deduction.ingredientId },
+        data: {
+          currentStock: {
+            decrement: new Prisma.Decimal(deduction.quantityRequired),
+          },
+        },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          ingredientId: deduction.ingredientId,
+          productId: deduction.productId,
+          orderId: createdOrder.id,
+          type: "sale_deduction",
+          quantityChange: new Prisma.Decimal(-deduction.quantityRequired),
+          reason: "Cash order payment confirmed",
+          createdByUserId: actor.id,
+        },
+      });
+    }
+
     for (const item of preparedItems) {
       if (!item.product.trackStock) continue;
 
@@ -224,17 +343,6 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
           stockQuantity: {
             decrement: new Prisma.Decimal(item.quantity),
           },
-        },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          productId: item.productId,
-          orderId: createdOrder.id,
-          type: "sale_deduction",
-          quantityChange: new Prisma.Decimal(-item.quantity),
-          reason: "Cash order payment confirmed",
-          createdByUserId: actor.id,
         },
       });
     }

@@ -35,6 +35,9 @@ export async function findProductsForCheckout(productIds: string[]) {
     include: {
       category: true,
       variants: true,
+      ingredients: {
+        include: { ingredient: true },
+      },
     },
   });
 }

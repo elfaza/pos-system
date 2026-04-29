@@ -58,6 +58,7 @@ const checkoutProduct = {
       isActive: true,
     },
   ],
+  ingredients: [],
 };
 
 describe("checkout service", () => {
@@ -165,6 +166,51 @@ describe("checkout service", () => {
               productId: "product-1",
               variantId: null,
               quantity: 2,
+              discountAmount: 0,
+              notes: "",
+            },
+          ],
+          cashReceivedAmount: 50_000,
+        },
+        actor,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects insufficient ingredient stock before payment is saved", async () => {
+    mocks.findProductsForCheckout.mockResolvedValue([
+      {
+        ...checkoutProduct,
+        trackStock: false,
+        stockQuantity: null,
+        ingredients: [
+          {
+            id: "recipe-1",
+            productId: "product-1",
+            variantId: null,
+            ingredientId: "ingredient-1",
+            quantityRequired: "20",
+            ingredient: {
+              id: "ingredient-1",
+              name: "Milk",
+              unit: "ml",
+              currentStock: "10",
+              isActive: true,
+            },
+          },
+        ],
+      },
+    ]);
+
+    await expect(
+      finalizeCashCheckout(
+        {
+          items: [
+            {
+              productId: "product-1",
+              variantId: null,
+              quantity: 1,
               discountAmount: 0,
               notes: "",
             },
