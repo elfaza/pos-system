@@ -68,6 +68,10 @@ export default function ReceiptPreview({
             <span>Paid</span>
             <span>{paidAt ? paidAt.toLocaleString() : "-"}</span>
           </div>
+          <div className="flex justify-between gap-3">
+            <span>Payment</span>
+            <span>{order.payment?.method ? order.payment.method.toUpperCase() : "-"}</span>
+          </div>
         </div>
 
         <div className="my-3 border-t border-dashed border-gray-400" />
@@ -119,7 +123,11 @@ export default function ReceiptPreview({
             <span>{formatRupiah(order.totalAmount)}</span>
           </div>
           <div className="flex justify-between">
-            <span>Cash</span>
+            <span>Payment amount</span>
+            <span>{formatRupiah(order.payment?.amount ?? 0)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Cash received</span>
             <span>{formatRupiah(order.payment?.cashReceivedAmount ?? 0)}</span>
           </div>
           <div className="flex justify-between">

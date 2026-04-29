@@ -18,6 +18,21 @@ const statusOptions = [
   { value: "refunded", label: "Refunded" },
 ];
 
+const paymentMethodOptions = [
+  { value: "", label: "All methods" },
+  { value: "cash", label: "Cash" },
+  { value: "qris", label: "QRIS" },
+];
+
+const paymentStatusOptions = [
+  { value: "", label: "All payment statuses" },
+  { value: "pending", label: "Pending" },
+  { value: "paid", label: "Paid" },
+  { value: "failed", label: "Failed" },
+  { value: "expired", label: "Expired" },
+  { value: "refunded", label: "Refunded" },
+];
+
 function statusClassName(status: CheckoutOrderRecord["status"]) {
   if (status === "paid") {
     return "border-[var(--success)]/30 bg-green-50 text-[var(--success)]";
@@ -31,11 +46,30 @@ function statusClassName(status: CheckoutOrderRecord["status"]) {
   return "border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]";
 }
 
+function paymentStatusClassName(
+  status: NonNullable<CheckoutOrderRecord["payment"]>["status"] | undefined,
+) {
+  if (status === "paid") {
+    return "border-[var(--success)]/30 bg-green-50 text-[var(--success)]";
+  }
+  if (status === "pending" || status === "expired") {
+    return "border-[var(--warning)]/30 bg-orange-50 text-[var(--warning)]";
+  }
+  if (status === "failed" || status === "refunded") {
+    return "border-[var(--danger)]/30 bg-red-50 text-[var(--danger)]";
+  }
+  return "border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]";
+}
+
 function OrderHistoryContent() {
   const { logout, loading, user } = useAuth();
   const [orders, setOrders] = useState<CheckoutOrderRecord[]>([]);
   const [settings, setSettings] = useState<SettingsRecord | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState("");
+  const [paidFrom, setPaidFrom] = useState("");
+  const [paidTo, setPaidTo] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<CheckoutOrderRecord | null>(null);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -50,7 +84,13 @@ function OrderHistoryContent() {
   );
 
   const loadOrders = useCallback(async (
-    status: string,
+    filters: {
+      status: string;
+      paymentMethod: string;
+      paymentStatus: string;
+      paidFrom: string;
+      paidTo: string;
+    },
     options: { silent?: boolean } = {},
   ) => {
     if (!options.silent) {
@@ -60,7 +100,11 @@ function OrderHistoryContent() {
 
     try {
       const query = new URLSearchParams();
-      if (status) query.set("status", status);
+      if (filters.status) query.set("status", filters.status);
+      if (filters.paymentMethod) query.set("paymentMethod", filters.paymentMethod);
+      if (filters.paymentStatus) query.set("paymentStatus", filters.paymentStatus);
+      if (filters.paidFrom) query.set("paidFrom", `${filters.paidFrom}T00:00:00`);
+      if (filters.paidTo) query.set("paidTo", `${filters.paidTo}T23:59:59`);
 
       const [ordersResponse, settingsResponse] = await Promise.all([
         fetch(`/api/orders?${query.toString()}`),
@@ -91,15 +135,26 @@ function OrderHistoryContent() {
     }
   }, []);
 
+  const currentFilters = useMemo(
+    () => ({
+      status: selectedStatus,
+      paymentMethod: selectedPaymentMethod,
+      paymentStatus: selectedPaymentStatus,
+      paidFrom,
+      paidTo,
+    }),
+    [paidFrom, paidTo, selectedPaymentMethod, selectedPaymentStatus, selectedStatus],
+  );
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setIsOnline(window.navigator.onLine);
-      void loadOrders("");
+      void loadOrders(currentFilters);
     }, 0);
 
     function handleOnline() {
       setIsOnline(true);
-      void loadOrders(selectedStatus);
+      void loadOrders(currentFilters);
     }
 
     function handleOffline() {
@@ -114,7 +169,7 @@ function OrderHistoryContent() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [loadOrders, selectedStatus]);
+  }, [currentFilters, loadOrders]);
 
   useEffect(() => {
     function refreshSilently() {
@@ -122,7 +177,7 @@ function OrderHistoryContent() {
         return;
       }
 
-      void loadOrders(selectedStatus, { silent: true });
+      void loadOrders(currentFilters, { silent: true });
     }
 
     const interval = window.setInterval(refreshSilently, 10_000);
@@ -135,11 +190,15 @@ function OrderHistoryContent() {
       window.removeEventListener("focus", refreshSilently);
       document.removeEventListener("visibilitychange", refreshSilently);
     };
-  }, [loadOrders, selectedStatus]);
+  }, [currentFilters, loadOrders]);
 
   function applyStatus(status: string) {
     setSelectedStatus(status);
-    void loadOrders(status);
+    void loadOrders({ ...currentFilters, status });
+  }
+
+  function applyPaymentFilters() {
+    void loadOrders(currentFilters);
   }
 
   function canCancelOrder(order: CheckoutOrderRecord) {
@@ -239,11 +298,67 @@ function OrderHistoryContent() {
             ))}
           </div>
           <button
-            onClick={() => loadOrders(selectedStatus)}
+            onClick={() => loadOrders(currentFilters)}
             disabled={loadingOrders || !isOnline}
             className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Refresh
+          </button>
+        </div>
+
+        <div className="mb-4 grid gap-3 rounded-md border border-[var(--border)] bg-[var(--card)] p-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+          <label className="grid gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+            Method
+            <select
+              value={selectedPaymentMethod}
+              onChange={(event) => setSelectedPaymentMethod(event.target.value)}
+              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              {paymentMethodOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+            Payment status
+            <select
+              value={selectedPaymentStatus}
+              onChange={(event) => setSelectedPaymentStatus(event.target.value)}
+              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              {paymentStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+            Paid from
+            <input
+              type="date"
+              value={paidFrom}
+              onChange={(event) => setPaidFrom(event.target.value)}
+              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+            Paid to
+            <input
+              type="date"
+              value={paidTo}
+              onChange={(event) => setPaidTo(event.target.value)}
+              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            />
+          </label>
+          <button
+            onClick={applyPaymentFilters}
+            disabled={loadingOrders || !isOnline}
+            className="h-10 self-end rounded-md bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Apply
           </button>
         </div>
 
@@ -255,13 +370,15 @@ function OrderHistoryContent() {
 
         <div className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--card)]">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[960px] text-left text-sm">
               <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]">
                 <tr>
                   <th className="px-3 py-3 font-medium">Order</th>
                   <th className="px-3 py-3 font-medium">Time</th>
                   <th className="px-3 py-3 font-medium">Cashier</th>
                   <th className="px-3 py-3 font-medium">Status</th>
+                  <th className="px-3 py-3 font-medium">Payment</th>
+                  <th className="px-3 py-3 font-medium">Paid at</th>
                   <th className="px-3 py-3 text-right font-medium">Total</th>
                   <th className="px-3 py-3 text-right font-medium">Actions</th>
                 </tr>
@@ -283,6 +400,12 @@ function OrderHistoryContent() {
                         <div className="h-6 w-20 rounded-md bg-[var(--muted)]" />
                       </td>
                       <td className="px-3 py-3">
+                        <div className="h-6 w-24 rounded-md bg-[var(--muted)]" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="h-4 w-36 rounded-md bg-[var(--muted)]" />
+                      </td>
+                      <td className="px-3 py-3">
                         <div className="ml-auto h-4 w-24 rounded-md bg-[var(--muted)]" />
                       </td>
                       <td className="px-3 py-3">
@@ -293,7 +416,7 @@ function OrderHistoryContent() {
                 ) : visibleOrders.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={8}
                       className="px-3 py-8 text-center text-[var(--muted-foreground)]"
                     >
                       No orders found.
@@ -315,6 +438,29 @@ function OrderHistoryContent() {
                         >
                           {order.status.replace("_", " ")}
                         </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        {order.payment ? (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="rounded-md border border-[var(--border)] bg-[var(--muted)] px-2 py-1 text-xs font-medium uppercase text-[var(--muted-foreground)]">
+                              {order.payment.method}
+                            </span>
+                            <span
+                              className={`rounded-md border px-2 py-1 text-xs font-medium ${paymentStatusClassName(
+                                order.payment.status,
+                              )}`}
+                            >
+                              {order.payment.status}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[var(--muted-foreground)]">-</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">
+                        {order.payment?.paidAt
+                          ? new Date(order.payment.paidAt).toLocaleString()
+                          : "-"}
                       </td>
                       <td className="px-3 py-3 text-right font-semibold">
                         {formatRupiah(order.totalAmount)}
