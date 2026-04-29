@@ -42,3 +42,11 @@ export function toInteger(value: unknown, fallback = 0): number {
 
   return fallback;
 }
+
+export function sanitizeDecimalInput(value: string): string {
+  const digitsAndDots = value.replace(/[^\d.]/g, "");
+  const [wholePart, ...decimalParts] = digitsAndDots.split(".");
+  const decimalPart = decimalParts.join("");
+
+  return decimalParts.length > 0 ? `${wholePart}.${decimalPart}` : wholePart;
+}
