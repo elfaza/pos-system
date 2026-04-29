@@ -267,8 +267,8 @@ export default function ProductsPage() {
 
   return (
     <AdminShell title="Products" eyebrow="Admin catalog">
-      <div className="grid gap-4 2xl:grid-cols-[1fr_430px]">
-        <div className="rounded-md border border-[var(--border)] bg-[var(--card)]">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)]">
           <div className="grid gap-3 border-b border-[var(--border)] p-4 lg:grid-cols-[1fr_220px_auto]">
             <label className="grid gap-1 text-sm font-medium">
               Search
@@ -395,7 +395,7 @@ export default function ProductsPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4"
+          className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] p-4"
         >
           <h2 className="font-semibold">{editing ? "Edit product" : "Add product"}</h2>
           <div className="mt-4 grid gap-4">
@@ -552,7 +552,7 @@ export default function ProductsPage() {
             ) : null}
 
             <div className="rounded-md border border-[var(--border)] p-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">Variants</h3>
                 <button
                   type="button"
@@ -622,7 +622,7 @@ export default function ProductsPage() {
             </div>
 
             <div className="rounded-md border border-[var(--border)] p-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold">Ingredient recipe</h3>
                   <p className="text-xs text-[var(--muted-foreground)]">
