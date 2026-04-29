@@ -59,7 +59,7 @@ async function main() {
     create: { name: "Food", slug: "food", sortOrder: 30 },
   });
 
-  await prisma.product.upsert({
+  const espresso = await prisma.product.upsert({
     where: { sku: "COF-ESP" },
     update: {
       categoryId: coffee.id,
@@ -99,7 +99,7 @@ async function main() {
     create: { productId: latte.id, name: "Large", sku: "COF-LAT-L", priceDelta: "6000" },
   });
 
-  await prisma.product.upsert({
+  const matcha = await prisma.product.upsert({
     where: { sku: "NON-MAT" },
     update: {
       categoryId: nonCoffee.id,
@@ -116,7 +116,7 @@ async function main() {
     },
   });
 
-  await prisma.product.upsert({
+  const croissant = await prisma.product.upsert({
     where: { sku: "FOD-CRS" },
     update: {
       categoryId: food.id,
@@ -136,6 +136,74 @@ async function main() {
       stockQuantity: "25",
       lowStockThreshold: "5",
     },
+  });
+
+  const beans = await prisma.ingredient.upsert({
+    where: { sku: "ING-BEANS" },
+    update: {
+      name: "Espresso Beans",
+      unit: "gram",
+      currentStock: "5000",
+      lowStockThreshold: "500",
+      isActive: true,
+    },
+    create: {
+      name: "Espresso Beans",
+      sku: "ING-BEANS",
+      unit: "gram",
+      currentStock: "5000",
+      lowStockThreshold: "500",
+    },
+  });
+
+  const milk = await prisma.ingredient.upsert({
+    where: { sku: "ING-MILK" },
+    update: {
+      name: "Fresh Milk",
+      unit: "ml",
+      currentStock: "12000",
+      lowStockThreshold: "2000",
+      isActive: true,
+    },
+    create: {
+      name: "Fresh Milk",
+      sku: "ING-MILK",
+      unit: "ml",
+      currentStock: "12000",
+      lowStockThreshold: "2000",
+    },
+  });
+
+  const matchaPowder = await prisma.ingredient.upsert({
+    where: { sku: "ING-MATCHA" },
+    update: {
+      name: "Matcha Powder",
+      unit: "gram",
+      currentStock: "1500",
+      lowStockThreshold: "250",
+      isActive: true,
+    },
+    create: {
+      name: "Matcha Powder",
+      sku: "ING-MATCHA",
+      unit: "gram",
+      currentStock: "1500",
+      lowStockThreshold: "250",
+    },
+  });
+
+  await prisma.productIngredient.deleteMany({
+    where: { productId: { in: [espresso.id, latte.id, matcha.id, croissant.id] } },
+  });
+
+  await prisma.productIngredient.createMany({
+    data: [
+      { productId: espresso.id, ingredientId: beans.id, quantityRequired: "18" },
+      { productId: latte.id, ingredientId: beans.id, quantityRequired: "18" },
+      { productId: latte.id, ingredientId: milk.id, quantityRequired: "180" },
+      { productId: matcha.id, ingredientId: matchaPowder.id, quantityRequired: "12" },
+      { productId: matcha.id, ingredientId: milk.id, quantityRequired: "160" },
+    ],
   });
 
   const settings = await prisma.appSetting.findFirst();
