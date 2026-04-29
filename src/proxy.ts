@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AUTH_COOKIE = `auth_user`;
 const SESSION_COOKIE = `pos_session`;
 const LOGIN_PATH = `/`;
 const DASHBOARD_PATH = `/dashboard`;
 
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
-  const isAuthenticated =
-    request.cookies.has(SESSION_COOKIE) || request.cookies.has(AUTH_COOKIE);
+  const isAuthenticated = request.cookies.has(SESSION_COOKIE);
   const isLoginPage = pathname === LOGIN_PATH;
 
   if (!isAuthenticated && !isLoginPage) {
