@@ -110,6 +110,10 @@ prisma/                  Schema, migrations, and seed script
 docs/                    Product spec, milestone scope, and implementation notes
 ```
 
+## Documentation
+
+Start with [docs/00-index.md](docs/00-index.md) for the full documentation map. The structured docs cover project overview, BRD, PRD, ERD, API contract, technical design, MVP backlog, UI/UX specification, roadmap, QA plan, and environment setup.
+
 ## Development Notes
 
 - The MVP is online-only and single-store.
