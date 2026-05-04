@@ -29,6 +29,8 @@ export const orderHistoryInclude = {
 
 export type CheckoutTransactionClient = Prisma.TransactionClient;
 
+export const heldOrderListLimit = 100;
+
 export async function findProductsForCheckout(productIds: string[]) {
   return prisma.product.findMany({
     where: { id: { in: productIds } },
@@ -50,6 +52,7 @@ export async function listHeldOrdersForUser(user: { id: string; role: string }) 
     },
     include: checkoutOrderInclude,
     orderBy: { heldAt: "desc" },
+    take: heldOrderListLimit,
   });
 }
 

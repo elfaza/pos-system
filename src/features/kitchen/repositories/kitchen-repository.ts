@@ -4,6 +4,8 @@ import { orderHistoryInclude } from "@/features/checkout/repositories/order-repo
 
 export const kitchenOrderInclude = orderHistoryInclude;
 
+export const activeKitchenOrderLimit = 100;
+
 export async function listActiveKitchenOrders() {
   return prisma.order.findMany({
     where: {
@@ -13,6 +15,7 @@ export async function listActiveKitchenOrders() {
     },
     include: kitchenOrderInclude,
     orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }],
+    take: activeKitchenOrderLimit,
   });
 }
 
@@ -25,6 +28,7 @@ export async function listReadyQueueOrders() {
     },
     include: kitchenOrderInclude,
     orderBy: [{ kitchenReadyAt: "asc" }, { paidAt: "asc" }, { createdAt: "asc" }],
+    take: activeKitchenOrderLimit,
   });
 }
 

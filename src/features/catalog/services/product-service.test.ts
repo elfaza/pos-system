@@ -26,6 +26,7 @@ vi.mock("../repositories/product-repository", () => ({
   createProduct: mocks.createProduct,
   findProductById: mocks.findProductById,
   listProducts: mocks.listProducts,
+  productListLimit: 200,
   updateProduct: mocks.updateProduct,
 }));
 

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getDatabaseUrl } from "@/lib/env";
 import type { LoginPayload, User } from "../types";
 import { verifyPassword } from "../utils/password";
 import {
@@ -27,7 +28,9 @@ export class InvalidCredentialsError extends AuthServiceError {
 }
 
 function assertDatabaseConfigured() {
-  if (!process.env.DATABASE_URL) {
+  try {
+    getDatabaseUrl();
+  } catch {
     throw new AuthServiceError(
       "Database is not configured. Set DATABASE_URL, restart the dev server, then run the Prisma migration and seed.",
     );

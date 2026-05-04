@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+export const productListLimit = 200;
+
 const productInclude = {
   category: true,
   variants: {
@@ -37,6 +39,7 @@ export function listProducts(filters: {
     },
     include: productInclude,
     orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
+    take: productListLimit,
   });
 }
 

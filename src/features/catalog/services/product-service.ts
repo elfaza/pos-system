@@ -11,6 +11,7 @@ import {
   createProduct,
   findProductById,
   listProducts,
+  productListLimit,
   updateProduct,
 } from "../repositories/product-repository";
 import { mapProduct } from "./catalog-mappers";
@@ -166,6 +167,10 @@ export async function getProductList(url: URL, includeUnavailable: boolean) {
     includeUnavailable,
   });
   return products.map(mapProduct);
+}
+
+export function getProductListLimit(): number {
+  return productListLimit;
 }
 
 export async function createProductFromPayload(

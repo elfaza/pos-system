@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
+export const categoryListLimit = 200;
+
 export function listCategories(includeInactive: boolean) {
   return prisma.category.findMany({
     where: includeInactive ? undefined : { isActive: true },
@@ -9,6 +11,7 @@ export function listCategories(includeInactive: boolean) {
       },
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    take: categoryListLimit,
   });
 }
 

@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+export const ingredientListLimit = 200;
+
 export function listIngredients(filters: {
   search?: string;
   active?: boolean;
@@ -28,6 +30,7 @@ export function listIngredients(filters: {
         : {}),
     },
     orderBy: { name: "asc" },
+    take: ingredientListLimit,
   });
 }
 

@@ -3,6 +3,7 @@ import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
 import { requireUser } from "@/features/auth/services/session-service";
 import {
   createProductFromPayload,
+  getProductListLimit,
   getProductList,
 } from "@/features/catalog/services/product-service";
 
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
 
     return jsonOk({
       products: await getProductList(request.nextUrl, includeUnavailable),
+      limit: getProductListLimit(),
     });
   } catch (error) {
     return jsonError(error);

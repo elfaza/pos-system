@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-
-const DEFAULT_SESSION_DAYS = 7;
+import { getAuthSessionDays } from "@/lib/env";
 
 export const AUTH_COOKIE = "pos_session";
 
@@ -13,8 +12,7 @@ export function hashSessionToken(token: string): string {
 }
 
 export function getSessionExpiresAt(): Date {
-  const configuredDays = Number(process.env.AUTH_SESSION_DAYS);
-  const days = configuredDays > 0 ? configuredDays : DEFAULT_SESSION_DAYS;
+  const days = getAuthSessionDays();
 
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }

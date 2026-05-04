@@ -1,9 +1,12 @@
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+export const userListLimit = 100;
+
 export function listUsers() {
   return prisma.user.findMany({
     orderBy: [{ role: "asc" }, { name: "asc" }],
+    take: userListLimit,
   });
 }
 

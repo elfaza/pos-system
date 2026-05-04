@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EnvironmentConfigurationError } from "@/lib/env";
 import { getSessionExpiresAt, hashSessionToken } from "./session";
 
 describe("session utilities", () => {
@@ -23,11 +24,11 @@ describe("session utilities", () => {
     expect(getSessionExpiresAt().toISOString()).toBe("2026-04-29T00:00:00.000Z");
   });
 
-  it("falls back to seven days for invalid expiry configuration", () => {
+  it("rejects invalid expiry configuration", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-27T00:00:00.000Z"));
     process.env.AUTH_SESSION_DAYS = "0";
 
-    expect(getSessionExpiresAt().toISOString()).toBe("2026-05-04T00:00:00.000Z");
+    expect(() => getSessionExpiresAt()).toThrow(EnvironmentConfigurationError);
   });
 });
