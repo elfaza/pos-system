@@ -362,39 +362,6 @@ function CashPaymentModal({
   );
 }
 
-function PaymentSuccessModal({
-  order,
-  settings,
-  onClose,
-}: {
-  order: CheckoutOrderRecord;
-  settings: SettingsRecord | null;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-30 grid place-items-end bg-black/20 p-0 md:place-items-center md:p-4">
-      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:max-w-md md:rounded-md">
-        <div className="rounded-md border border-[var(--success)]/30 bg-green-50 p-4 text-[var(--success)]">
-          <h2 className="text-lg font-semibold">Payment successful</h2>
-          <p className="mt-1 text-sm">Order {order.orderNumber} is paid.</p>
-          {order.queueNumber ? (
-            <p className="mt-3 text-3xl font-semibold">Queue #{order.queueNumber}</p>
-          ) : null}
-        </div>
-        <div className="mt-4">
-          <ReceiptPreview order={order} settings={settings} autoPrint />
-        </div>
-        <button
-          onClick={onClose}
-          className="mt-4 h-11 w-full rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)]"
-        >
-          New order
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function HeldOrdersModal({
   orders,
   loading,
@@ -1073,6 +1040,7 @@ function PosContent() {
             clearCart();
             setShowPayment(false);
             setPaidOrder(order);
+            setCartMessage(`Paid order ${order.orderNumber}. Printing receipt.`);
             void loadCatalog({ categoryId: activeCategoryId, search });
           }}
         />
@@ -1092,10 +1060,12 @@ function PosContent() {
       ) : null}
 
       {paidOrder ? (
-        <PaymentSuccessModal
+        <ReceiptPreview
           order={paidOrder}
           settings={settings}
-          onClose={() => setPaidOrder(null)}
+          autoPrint
+          screenHidden
+          onAfterPrint={() => setPaidOrder(null)}
         />
       ) : null}
     </main>

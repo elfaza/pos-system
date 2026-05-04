@@ -31,11 +31,15 @@ export default function ReceiptPreview({
   order,
   settings,
   autoPrint = false,
+  screenHidden = false,
+  onAfterPrint,
   onClose,
 }: {
   order: CheckoutOrderRecord;
   settings: SettingsRecord | null;
   autoPrint?: boolean;
+  screenHidden?: boolean;
+  onAfterPrint?: () => void;
   onClose?: () => void;
 }) {
   const paidAt = order.paidAt ? new Date(order.paidAt) : null;
@@ -49,15 +53,27 @@ export default function ReceiptPreview({
     }
 
     hasPrintedRef.current = true;
+    const handleAfterPrint = () => {
+      onAfterPrint?.();
+    };
     const printTimer = window.setTimeout(() => {
       window.print();
     }, 300);
 
-    return () => window.clearTimeout(printTimer);
-  }, [autoPrint]);
+    window.addEventListener("afterprint", handleAfterPrint);
+
+    return () => {
+      window.clearTimeout(printTimer);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, [autoPrint, onAfterPrint]);
 
   return (
-    <div className="receipt-preview rounded-md border border-[var(--border)] bg-[var(--card)] p-4">
+    <div
+      className={`receipt-preview rounded-md border border-[var(--border)] bg-[var(--card)] p-4 ${
+        screenHidden ? "fixed left-[-9999px] top-0 opacity-0 print:opacity-100" : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-3 print:hidden">
         <div>
           <h2 className="text-lg font-semibold">Receipt Preview</h2>
@@ -83,7 +99,7 @@ export default function ReceiptPreview({
         </div>
       </div>
 
-      <div className="receipt-print-paper mx-auto mt-4 max-w-[80mm] rounded-sm border border-dashed border-[var(--border)] bg-white px-2 py-4 font-mono text-[12px] uppercase leading-tight tracking-normal text-black print:mt-0 print:border-0">
+      <div className="receipt-print-paper mx-auto mt-4 max-w-[58mm] rounded-sm border border-dashed border-[var(--border)] bg-white px-2 py-4 font-mono text-[12px] uppercase leading-tight tracking-normal text-black print:mt-0 print:border-0">
         <div className="text-center">
           <h3 className="text-[16px] font-semibold leading-none">
             {(settings?.storeName ?? "Maza Cafe").toUpperCase()}
