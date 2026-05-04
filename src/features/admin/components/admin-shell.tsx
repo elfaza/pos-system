@@ -8,9 +8,10 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
+  { href: "/pos", label: "POS", opensInNewTab: true },
   { href: "/orders", label: "Orders" },
   { href: "/kitchen", label: "Kitchen" },
-  { href: "/queue", label: "Queue" },
+  { href: "/queue", label: "Queue", opensInNewTab: true },
   { href: "/dashboard/categories", label: "Categories" },
   { href: "/dashboard/products", label: "Products" },
   { href: "/dashboard/inventory", label: "Inventory" },
@@ -62,16 +63,31 @@ export default function AdminShell({
                   item.href === "/dashboard"
                     ? pathname === item.href
                     : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const className = `whitespace-nowrap rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-white/80 ${
+                  isActive
+                    ? "bg-white text-[#152238] shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
+                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                }`;
+
+                if (item.opensInNewTab) {
+                  return (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={className}
+                    >
+                      {item.label}
+                    </a>
+                  );
+                }
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`whitespace-nowrap rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-white/80 ${
-                      isActive
-                        ? "bg-white text-[#152238] shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
-                        : "text-slate-300 hover:bg-white/10 hover:text-white"
-                    }`}
+                    className={className}
                   >
                     {item.label}
                   </Link>
