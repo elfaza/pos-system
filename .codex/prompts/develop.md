@@ -1,6 +1,6 @@
 ---
 description: Develop the POS system against the structured docs and design guidelines
-argument-hint: [task to implement]
+argument-hint: [task to implement] [optional: --parallel]
 allowed-tools: [Read, Glob, Grep, Bash, Edit, Write]
 ---
 
@@ -17,6 +17,19 @@ $ARGUMENTS
 ```
 
 Treat all arguments as the development task. The numbered docs are the source of truth.
+
+## Parallel Agent Authorization
+
+This prompt is intended to authorize Codex to use parallel sub-agents when the active runtime allows it. When the task has separable backend, frontend, and QA concerns, treat the user's invocation of `/prompts:develop` as an explicit request for parallel agent work for that task.
+
+Use fewer or no sub-agents only when:
+
+- The active runtime explicitly blocks sub-agent usage.
+- The task is docs-only, single-file, or too small to benefit from delegation.
+- The next critical-path action is blocked on context that must be gathered locally first.
+- The user explicitly asks not to use agents or asks for local-only work.
+
+If the active runtime requires a direct user wording for delegation beyond this prompt file, tell the user to invoke the task with `--parallel` or with a sentence such as `use backend, frontend, and QA sub-agents`.
 
 ## Required Source Documents
 
