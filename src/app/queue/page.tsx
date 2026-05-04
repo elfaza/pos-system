@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AdminShell from "@/features/admin/components/admin-shell";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import type { KitchenQueueRecord, QueueDisplayRecord } from "@/features/kitchen/types";
@@ -30,7 +28,7 @@ function QueueNumberTile({
 }
 
 function QueueContent() {
-  const { logout, loading, user } = useAuth();
+  const { logout, loading } = useAuth();
   const [queue, setQueue] = useState<QueueDisplayRecord>({
     waiting: [],
     preparing: [],
@@ -100,37 +98,28 @@ function QueueContent() {
     };
   }, [loadQueue]);
 
-  const header = (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--card)] p-4">
-      <div>
-        <p className="text-sm text-[var(--muted-foreground)]">
-          {user?.role === "admin" ? "Admin" : "Cashier"}
-        </p>
-        <h1 className="text-xl font-semibold">Queue Display</h1>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-md border px-3 py-2 text-sm font-medium ${isOnline ? "border-[var(--success)]/30 bg-green-50 text-[var(--success)]" : "border-[var(--warning)]/30 bg-orange-50 text-[var(--warning)]"}`}>
-          {isOnline ? "Online" : "Offline"}
-        </span>
-        <Link href="/kitchen" className="grid h-11 place-items-center rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]">
-          Kitchen
-        </Link>
-        <Link href={user?.role === "admin" ? "/dashboard" : "/pos"} className="grid h-11 place-items-center rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]">
-          {user?.role === "admin" ? "Dashboard" : "POS"}
-        </Link>
-        <button
-          onClick={logout}
-          disabled={loading}
-          className="h-11 rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? "Signing out..." : "Sign out"}
-        </button>
-      </div>
-    </header>
-  );
-
-  const body = (
-    <>
+  return (
+    <main className="grid min-h-dvh grid-rows-[auto_1fr] bg-[var(--background)] text-[var(--foreground)]">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--card)] p-4">
+        <div>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Live kitchen status
+          </p>
+          <h1 className="text-xl font-semibold">Queue Display</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-md border px-3 py-2 text-sm font-medium ${isOnline ? "border-[var(--success)]/30 bg-green-50 text-[var(--success)]" : "border-[var(--warning)]/30 bg-orange-50 text-[var(--warning)]"}`}>
+            {isOnline ? "Online" : "Offline"}
+          </span>
+          <button
+            onClick={logout}
+            disabled={loading}
+            className="h-11 rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Signing out..." : "Sign out"}
+          </button>
+        </div>
+      </header>
       {!isOnline ? (
         <div className="border-b border-[var(--warning)]/30 bg-orange-50 px-4 py-2 text-sm text-[var(--warning)]">
           Connection lost. Queue display will refresh after reconnect.
@@ -238,21 +227,6 @@ function QueueContent() {
           </div>
         )}
       </section>
-    </>
-  );
-
-  if (user?.role === "admin") {
-    return (
-      <AdminShell title="Queue Display" eyebrow="Operations">
-        {body}
-      </AdminShell>
-    );
-  }
-
-  return (
-    <main className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
-      {header}
-      {body}
     </main>
   );
 }
