@@ -13,6 +13,7 @@ import {
 const mocks = vi.hoisted(() => ({
   findProductsForCheckout: vi.fn(),
   getSettings: vi.fn(),
+  createSalesAccountingForPaidCashOrder: vi.fn(),
   transaction: vi.fn(),
   tx: {
     activityLog: { create: vi.fn() },
@@ -40,6 +41,10 @@ vi.mock("../repositories/order-repository", () => ({
 
 vi.mock("@/features/catalog/repositories/settings-repository", () => ({
   getSettings: mocks.getSettings,
+}));
+
+vi.mock("@/features/accounting/services/accounting-service", () => ({
+  createSalesAccountingForPaidCashOrder: mocks.createSalesAccountingForPaidCashOrder,
 }));
 
 const actor = {
@@ -87,6 +92,7 @@ describe("checkout service", () => {
     mocks.tx.product.update.mockResolvedValue({});
     mocks.tx.stockMovement.create.mockResolvedValue({});
     mocks.tx.activityLog.create.mockResolvedValue({});
+    mocks.createSalesAccountingForPaidCashOrder.mockResolvedValue(undefined);
     mocks.tx.order.aggregate.mockResolvedValue({
       _max: { queueNumber: 7 },
     });
@@ -486,5 +492,14 @@ describe("checkout service", () => {
         }),
       }),
     });
+    expect(mocks.createSalesAccountingForPaidCashOrder).toHaveBeenCalledWith(
+      mocks.tx,
+      expect.objectContaining({
+        orderId: "order-1",
+        orderNumber: "ORD-001",
+        paymentId: "payment-1",
+        totalAmount: 55_000,
+      }),
+    );
   });
 });

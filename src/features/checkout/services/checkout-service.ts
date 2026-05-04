@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
 import { getSettings } from "@/features/catalog/repositories/settings-repository";
+import { createSalesAccountingForPaidCashOrder } from "@/features/accounting/services/accounting-service";
 import {
   getNextQueueNumber,
   getQueueBusinessDate,
@@ -399,6 +400,19 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
 
     const payment = createdOrder.payments[0];
     if (payment) {
+      await createSalesAccountingForPaidCashOrder(tx, {
+        orderId: createdOrder.id,
+        orderNumber: createdOrder.orderNumber,
+        paymentId: payment.id,
+        businessDate: queueBusinessDate,
+        actorId: actor.id,
+        subtotalAmount: totals.subtotalAmount,
+        discountAmount: totals.discountAmount,
+        taxAmount: totals.taxAmount,
+        serviceChargeAmount: totals.serviceChargeAmount,
+        totalAmount: totals.totalAmount,
+      });
+
       await tx.activityLog.create({
         data: {
           userId: actor.id,

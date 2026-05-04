@@ -235,6 +235,98 @@ async function main() {
       },
     });
   }
+
+  const cashAccount = await prisma.account.upsert({
+    where: { code: "1000" },
+    update: { name: "Cash on Hand", type: "asset", isActive: true },
+    create: { code: "1000", name: "Cash on Hand", type: "asset" },
+  });
+  const equityAccount = await prisma.account.upsert({
+    where: { code: "1100" },
+    update: { name: "QRIS Clearing", type: "asset", isActive: true },
+    create: { code: "1100", name: "QRIS Clearing", type: "asset" },
+  });
+  await prisma.account.upsert({
+    where: { code: "3000" },
+    update: { name: "Owner Equity and Cash Variance", type: "equity", isActive: true },
+    create: { code: "3000", name: "Owner Equity and Cash Variance", type: "equity" },
+  });
+  await prisma.account.upsert({
+    where: { code: "4000" },
+    update: { name: "Sales Revenue", type: "income", isActive: true },
+    create: { code: "4000", name: "Sales Revenue", type: "income" },
+  });
+  await prisma.account.upsert({
+    where: { code: "4010" },
+    update: { name: "Service Charge Revenue", type: "income", isActive: true },
+    create: { code: "4010", name: "Service Charge Revenue", type: "income" },
+  });
+  await prisma.account.upsert({
+    where: { code: "2100" },
+    update: { name: "Tax Payable", type: "liability", isActive: true },
+    create: { code: "2100", name: "Tax Payable", type: "liability" },
+  });
+  const expenseAccount = await prisma.account.upsert({
+    where: { code: "5000" },
+    update: { name: "Operating Expense", type: "expense", isActive: true },
+    create: { code: "5000", name: "Operating Expense", type: "expense" },
+  });
+
+  await Promise.all(
+    ["Supplies", "Utilities", "Maintenance"].map((name) =>
+      prisma.expenseCategory.upsert({
+        where: { name },
+        update: { accountId: expenseAccount.id, isActive: true },
+        create: { name, accountId: expenseAccount.id },
+      }),
+    ),
+  );
+
+  await prisma.cashLedgerEntry.upsert({
+    where: {
+      sourceType_sourceId: {
+        sourceType: "cash_movement",
+        sourceId: "seed-opening-cash",
+      },
+    },
+    update: {
+      businessDate: "2026-05-04",
+      direction: "in",
+      amount: "500000",
+      description: "Opening cash float",
+    },
+    create: {
+      sourceType: "cash_movement",
+      sourceId: "seed-opening-cash",
+      businessDate: "2026-05-04",
+      direction: "in",
+      amount: "500000",
+      description: "Opening cash float",
+    },
+  });
+
+  await prisma.journalEntry.upsert({
+    where: {
+      sourceType_sourceId: {
+        sourceType: "cash_movement",
+        sourceId: "seed-opening-cash",
+      },
+    },
+    update: {},
+    create: {
+      entryNumber: "JE-SEED-OPENING-CASH",
+      sourceType: "cash_movement",
+      sourceId: "seed-opening-cash",
+      businessDate: "2026-05-04",
+      description: "Opening cash float",
+      lines: {
+        create: [
+          { accountId: cashAccount.id, debitAmount: "500000" },
+          { accountId: equityAccount.id, creditAmount: "500000" },
+        ],
+      },
+    },
+  });
 }
 
 main()
