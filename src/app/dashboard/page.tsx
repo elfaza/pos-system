@@ -51,12 +51,12 @@ function SummaryCard({
   helper?: string;
 }) {
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+    <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
         {label}
       </p>
-      <p className={`mt-2 text-2xl font-semibold tracking-tight ${tone}`}>{value}</p>
-      {helper ? <p className="mt-1 text-sm text-[var(--muted-foreground)]">{helper}</p> : null}
+      <p className={`mt-2 break-words text-2xl font-semibold tracking-tight ${tone}`}>{value}</p>
+      {helper ? <p className="mt-1 break-words text-sm text-[var(--muted-foreground)]">{helper}</p> : null}
     </div>
   );
 }
@@ -133,7 +133,7 @@ export default function DashboardPage() {
 
   return (
     <AdminShell title="Owner Dashboard" eyebrow="Admin reports">
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-5">
         {!isOnline ? (
           <div className="rounded-md border border-[var(--warning)]/30 bg-orange-50 p-3 text-sm text-[var(--warning)]">
             Connection lost. Reports use the last loaded data until the POS reconnects.
@@ -145,7 +145,7 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <section className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+        <section className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
           <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
             <label className="grid gap-1 text-sm font-medium">
               From
@@ -182,7 +182,7 @@ export default function DashboardPage() {
         </section>
 
         {loading ? (
-          <section className="grid gap-3 md:grid-cols-4">
+          <section className="grid min-w-0 gap-3 md:grid-cols-4">
             {["Net sales", "Orders", "Average order", "Low stock"].map((label) => (
               <div
                 key={label}
@@ -192,7 +192,7 @@ export default function DashboardPage() {
           </section>
         ) : report ? (
           <>
-            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <section className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
               <SummaryCard
                 label="Net sales"
                 value={formatRupiah(report.dailySales.netSales)}
@@ -227,8 +227,8 @@ export default function DashboardPage() {
               </div>
             ) : null}
 
-            <section className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-              <div className="rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+            <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+              <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
                 <div className="border-b border-[var(--border)] p-4">
                   <h2 className="font-semibold">Daily Sales</h2>
                   <p className="mt-1 text-sm text-[var(--muted-foreground)]">
@@ -243,7 +243,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+              <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
                 <div className="border-b border-[var(--border)] p-4">
                   <h2 className="font-semibold">Payment Summary</h2>
                 </div>
@@ -274,7 +274,7 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+            <section className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
               <div className="border-b border-[var(--border)] p-4">
                 <h2 className="font-semibold">Top Products</h2>
               </div>
@@ -298,9 +298,9 @@ export default function DashboardPage() {
                           className="border-t border-[var(--border)]"
                         >
                           <td className="max-w-[280px] p-3">
-                            <p className="font-medium">{product.productName}</p>
+                            <p className="break-words font-medium">{product.productName}</p>
                             {product.variantName ? (
-                              <p className="text-xs text-[var(--muted-foreground)]">
+                              <p className="break-words text-xs text-[var(--muted-foreground)]">
                                 {product.variantName}
                               </p>
                             ) : null}
@@ -324,8 +324,8 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            <section className="grid gap-5 xl:grid-cols-2">
-              <div className="rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+            <section className="grid min-w-0 gap-5 xl:grid-cols-2">
+              <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
                 <div className="border-b border-[var(--border)] p-4">
                   <h2 className="font-semibold">Stock Report</h2>
                   <p className="mt-1 text-sm text-[var(--muted-foreground)]">
@@ -353,8 +353,8 @@ export default function DashboardPage() {
                       {report.stockReport.items.slice(0, 12).map((item) => (
                         <tr key={`${item.kind}:${item.id}`} className="border-t border-[var(--border)]">
                           <td className="max-w-[220px] p-3">
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-xs text-[var(--muted-foreground)]">{item.kind}</p>
+                            <p className="break-words font-medium">{item.name}</p>
+                            <p className="break-words text-xs text-[var(--muted-foreground)]">{item.kind}</p>
                           </td>
                           <td className="p-3">
                             <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${stockStatusClass(item.status)}`}>
@@ -375,7 +375,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+              <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
                 <div className="border-b border-[var(--border)] p-4">
                   <h2 className="font-semibold">Cashier Report</h2>
                 </div>
@@ -394,7 +394,7 @@ export default function DashboardPage() {
                       {report.cashierReport.length > 0 ? (
                         report.cashierReport.map((cashier) => (
                           <tr key={cashier.cashierId} className="border-t border-[var(--border)]">
-                            <td className="p-3 font-medium">{cashier.cashierName}</td>
+                            <td className="max-w-[220px] break-words p-3 font-medium">{cashier.cashierName}</td>
                             <td className="p-3 text-right">{formatNumber(cashier.orderCount)}</td>
                             <td className="p-3 text-right">{formatRupiah(cashier.grossSales)}</td>
                             <td className="p-3 text-right">{formatRupiah(cashier.refundAmount)}</td>
@@ -414,7 +414,7 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
+            <section className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
               <div className="border-b border-[var(--border)] p-4">
                 <h2 className="font-semibold">Sales Detail</h2>
               </div>

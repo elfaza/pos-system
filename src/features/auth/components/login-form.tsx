@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, SyntheticEvent } from "react";
+import { useEffect, useState, SyntheticEvent } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../hooks/use-auth";
 
 type LoginFormProps = {
@@ -8,11 +9,18 @@ type LoginFormProps = {
 };
 
 export default function LoginForm({ appVersion }: LoginFormProps) {
-  const { login, loading } = useAuth();
+  const router = useRouter();
+  const { login, loading, user } = useAuth();
 
   const [email, setEmail] = useState(``);
   const [password, setPassword] = useState(``);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    router.replace(user.role === "admin" ? "/dashboard" : "/pos");
+  }, [router, user]);
 
   const handleSubmit = async (
     e: SyntheticEvent<HTMLFormElement>,

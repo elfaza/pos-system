@@ -91,9 +91,9 @@ export default function CategoriesPage() {
 
   return (
     <AdminShell title="Categories" eyebrow="Admin catalog">
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="rounded-md border border-[var(--border)] bg-[var(--card)]">
-          <div className="flex items-center justify-between border-b border-[var(--border)] p-4">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)]">
+          <div className="grid gap-3 border-b border-[var(--border)] p-4 lg:grid-cols-[1fr_220px_auto]">
             <div>
               <h2 className="font-semibold">Category list</h2>
               <p className="text-sm text-[var(--muted-foreground)]">

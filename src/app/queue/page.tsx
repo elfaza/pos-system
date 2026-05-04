@@ -22,9 +22,9 @@ function QueueNumberTile({
         : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)]";
 
   return (
-    <div className={`rounded-md border p-4 text-center shadow-[0_1px_2px_rgba(20,32,51,0.08)] ${className}`}>
-      <p className="text-4xl font-semibold">#{order.queueNumber}</p>
-      <p className="mt-1 text-sm">{order.orderNumber}</p>
+    <div className={`min-w-0 rounded-md border p-4 text-center shadow-[0_1px_2px_rgba(20,32,51,0.08)] ${className}`}>
+      <p className="max-w-full break-words text-3xl font-semibold sm:text-4xl">#{order.queueNumber}</p>
+      <p className="mt-1 truncate text-sm" title={order.orderNumber}>{order.orderNumber}</p>
     </div>
   );
 }
@@ -148,7 +148,7 @@ function QueueContent() {
           <button
             onClick={() => loadQueue()}
             disabled={loadingQueue || !isOnline}
-            className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Refresh
           </button>

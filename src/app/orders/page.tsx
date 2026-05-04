@@ -300,7 +300,7 @@ function OrderHistoryContent() {
           <button
             onClick={() => loadOrders(currentFilters)}
             disabled={loadingOrders || !isOnline}
-            className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Refresh
           </button>
@@ -356,7 +356,7 @@ function OrderHistoryContent() {
           <button
             onClick={applyPaymentFilters}
             disabled={loadingOrders || !isOnline}
-            className="h-10 self-end rounded-md bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 self-end rounded-md bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Apply
           </button>
@@ -491,7 +491,7 @@ function OrderHistoryContent() {
                             <button
                               onClick={() => cancelOrderFromHistory(order)}
                               disabled={!isOnline || cancellingOrderId === order.id}
-                              className="h-9 rounded-md border border-[var(--danger)]/40 px-3 font-medium text-[var(--danger)] hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="h-11 rounded-md border border-[var(--danger)]/40 px-3 font-medium text-[var(--danger)] hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {cancellingOrderId === order.id ? "..." : "Cancel"}
                             </button>
@@ -499,7 +499,7 @@ function OrderHistoryContent() {
                           <button
                             onClick={() => setSelectedOrder(order)}
                             disabled={order.status !== "paid"}
-                            className="h-9 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="h-11 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             Receipt
                           </button>

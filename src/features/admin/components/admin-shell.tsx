@@ -33,14 +33,14 @@ export default function AdminShell({
   return (
     <RoleGuard allowedRoles={["admin"]}>
       <main className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur lg:px-6">
-          <div>
+        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur lg:px-6">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
               {eyebrow}
             </p>
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
             <span className="hidden text-sm text-[var(--muted-foreground)] sm:inline">
               {user?.name}
             </span>

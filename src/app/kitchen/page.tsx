@@ -50,11 +50,11 @@ function KitchenOrderCard({
   const isUpdating = updatingStatus === order.id;
 
   return (
-    <article className="rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.08)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-3xl font-semibold">#{order.queueNumber}</p>
-          <p className="text-sm text-[var(--muted-foreground)]">{order.orderNumber}</p>
+    <article className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.08)]">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="min-w-0">
+          <p className="break-words text-2xl font-semibold sm:text-3xl">#{order.queueNumber}</p>
+          <p className="truncate text-sm text-[var(--muted-foreground)]" title={order.orderNumber}>{order.orderNumber}</p>
         </div>
         <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassName(order.kitchenStatus)}`}>
           {order.kitchenStatus}
@@ -64,12 +64,12 @@ function KitchenOrderCard({
       <div className="mt-3 grid gap-2 text-sm">
         {order.items.map((item) => (
           <div key={item.id} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-2">
-            <div className="flex justify-between gap-3">
-              <span className="min-w-0 font-medium">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+              <span className="min-w-0 break-words font-medium">
                 {item.quantity} x {item.productNameSnapshot}
                 {item.variantNameSnapshot ? ` / ${item.variantNameSnapshot}` : ""}
               </span>
-              <span className="shrink-0 text-[var(--muted-foreground)]">
+              <span className="shrink-0 whitespace-nowrap text-[var(--muted-foreground)]">
                 {formatRupiah(item.lineTotal)}
               </span>
             </div>
@@ -234,7 +234,7 @@ function KitchenContent() {
         </div>
       ) : null}
 
-      <section className="p-4 lg:p-6">
+      <section className="min-w-0 p-4 lg:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Active Kitchen Orders</h2>
@@ -245,7 +245,7 @@ function KitchenContent() {
           <button
             onClick={() => loadBoard()}
             disabled={loadingBoard || !isOnline}
-            className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Refresh
           </button>
@@ -258,9 +258,9 @@ function KitchenContent() {
         ) : null}
 
         {loadingBoard ? (
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid min-w-0 gap-3 lg:grid-cols-3">
             {columns.map((column) => (
-              <div key={column.key} className="rounded-md border border-[var(--border)] bg-[var(--card)] p-3">
+              <div key={column.key} className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] p-3">
                 <div className="h-5 w-28 rounded-md bg-[var(--muted)]" />
                 <div className="mt-3 grid gap-2">
                   {Array.from({ length: 2 }).map((_, index) => (
@@ -275,9 +275,9 @@ function KitchenContent() {
             No active kitchen orders.
           </div>
         ) : (
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid min-w-0 gap-3 lg:grid-cols-3">
             {columns.map((column) => (
-              <section key={column.key} className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] p-3">
+              <section key={column.key} className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--surface-alt)] p-3">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h3 className="font-semibold">{column.title}</h3>
                   <span className="rounded-md bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--muted-foreground)]">

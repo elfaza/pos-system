@@ -55,8 +55,8 @@ function PosCart({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div>
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
             Current order
           </p>
@@ -95,19 +95,19 @@ function PosCart({
               <div key={item.id} className="rounded-lg border border-white/80 bg-white p-3 shadow-[0_8px_22px_rgba(20,32,51,0.08)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium leading-tight">{item.productName}</p>
+                    <p className="break-words font-medium leading-tight">{item.productName}</p>
                     {item.variantName ? (
                       <p className="text-sm text-[var(--muted-foreground)]">
                         {item.variantName}
                       </p>
                     ) : null}
-                    <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                    <p className="mt-1 break-words text-sm text-[var(--muted-foreground)]">
                       {formatRupiah(item.unitPrice)}
                     </p>
                   </div>
                   <button
                     onClick={() => removeItem(item.id)}
-                    className="h-9 rounded-md border border-[var(--border)] px-2 text-sm font-medium hover:bg-[var(--surface)]"
+                    className="h-11 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--surface)]"
                   >
                     Remove
                   </button>
@@ -116,15 +116,15 @@ function PosCart({
                   <div className="flex items-center overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      className="h-10 w-10 font-semibold hover:bg-white"
+                      className="h-11 w-11 font-semibold hover:bg-white"
                       aria-label={`Decrease ${item.productName}`}
                     >
                       -
                     </button>
-                    <span className="w-10 text-center text-sm font-medium">{item.quantity}</span>
+                    <span className="w-11 text-center text-sm font-medium">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="h-10 w-10 font-semibold hover:bg-white"
+                      className="h-11 w-11 font-semibold hover:bg-white"
                       aria-label={`Increase ${item.productName}`}
                     >
                       +
@@ -293,7 +293,7 @@ function CashPaymentModal({
 
   return (
     <div className="fixed inset-0 z-30 grid place-items-end bg-black/20 p-0 md:place-items-center md:p-4">
-      <div className="w-full rounded-t-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:max-w-md md:rounded-md">
+      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:max-w-md md:rounded-md">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Cash Payment</h2>
@@ -304,7 +304,7 @@ function CashPaymentModal({
           <button
             onClick={onClose}
             disabled={submitting}
-            className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)] disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)] disabled:opacity-60"
           >
             Cancel
           </button>
@@ -338,7 +338,7 @@ function CashPaymentModal({
               key={amount}
               type="button"
               onClick={() => setCashReceived(amount.toString())}
-              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)]"
+              className="h-11 touch-manipulation rounded-md border border-[var(--border)] px-3 text-sm font-medium transition-[background-color,border-color,box-shadow,transform] duration-150 hover:bg-[var(--muted)] active:scale-[0.98] active:border-[var(--primary)] active:bg-[var(--primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             >
               {formatRupiah(amount)}
             </button>
@@ -353,7 +353,7 @@ function CashPaymentModal({
         <button
           onClick={submitPayment}
           disabled={!canSubmit || submitting}
-          className="mt-4 h-11 w-full rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 h-11 w-full touch-manipulation rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] shadow-[0_8px_18px_rgba(37,87,199,0.24)] transition-[background-color,box-shadow,transform] duration-150 hover:bg-[var(--primary-hover)] active:scale-[0.985] active:shadow-[0_3px_10px_rgba(37,87,199,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2"
         >
           {submitting ? "Confirming..." : "Confirm Payment"}
         </button>
@@ -537,7 +537,7 @@ function VariantPicker({
           </div>
           <button
             onClick={onClose}
-            className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)]"
+            className="h-11 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)]"
           >
             Cancel
           </button>
@@ -545,18 +545,18 @@ function VariantPicker({
         <div className="mt-4 grid gap-2">
           <button
             onClick={() => onSelect(null)}
-            className="flex h-12 items-center justify-between rounded-md border border-[var(--border)] px-3 text-left font-medium hover:bg-[var(--muted)]"
+            className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-[var(--border)] px-3 py-2 text-left font-medium hover:bg-[var(--muted)]"
           >
-            <span>Base</span>
+            <span className="min-w-0 break-words">Base</span>
             <span>{formatRupiah(product.price)}</span>
           </button>
           {activeVariants.map((variant) => (
             <button
               key={variant.id}
               onClick={() => onSelect(variant)}
-              className="flex h-12 items-center justify-between rounded-md border border-[var(--border)] px-3 text-left font-medium hover:bg-[var(--muted)]"
+              className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-[var(--border)] px-3 py-2 text-left font-medium hover:bg-[var(--muted)]"
             >
-              <span>{variant.name}</span>
+              <span className="min-w-0 break-words">{variant.name}</span>
               <span>{formatRupiah(product.price + variant.priceDelta)}</span>
             </button>
           ))}
@@ -798,14 +798,14 @@ function PosContent() {
 
   return (
     <main className="grid h-dvh grid-rows-[auto_1fr] bg-[var(--background)] text-[var(--foreground)]">
-      <header className="flex items-center justify-between border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur">
-        <div>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
             Cashier POS
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">{storeName}</h1>
+          <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{storeName}</h1>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-sm text-[var(--muted-foreground)] sm:inline">
             {user?.name}
           </span>
@@ -965,8 +965,8 @@ function PosContent() {
                     >
                       <div className="flex h-full flex-col justify-between gap-3">
                         <div>
-                          <p className="font-medium leading-tight">{product.name}</p>
-                          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                          <p className="line-clamp-2 break-words font-medium leading-tight">{product.name}</p>
+                          <p className="mt-1 break-words text-xs text-[var(--muted-foreground)]">
                             {product.categoryName}
                           </p>
                         </div>
@@ -981,7 +981,7 @@ function PosContent() {
                             <p className="mt-1 text-xs text-[var(--warning)]">Out of stock</p>
                           ) : null}
                           {!outOfStock && !product.canSellOne ? (
-                            <p className="mt-1 text-xs text-[var(--warning)]">
+                            <p className="mt-1 break-words text-xs text-[var(--warning)]">
                               {product.unavailableReason ?? "Ingredients unavailable"}
                             </p>
                           ) : null}
@@ -1014,9 +1014,9 @@ function PosContent() {
             className="min-w-0 flex-1 rounded-md p-1 text-left disabled:opacity-60"
           >
             <p className="text-sm text-[var(--muted-foreground)]">{itemCount} item(s)</p>
-            <p className="text-lg font-semibold">{formatRupiah(mobileTotals.totalAmount)}</p>
+            <p className="truncate text-base font-semibold sm:text-lg">{formatRupiah(mobileTotals.totalAmount)}</p>
           </button>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid shrink-0 grid-cols-2 gap-2">
             <button
               disabled={!isOnline || cartItems.length === 0 || holdingOrder}
               onClick={holdCurrentOrder}
