@@ -6,7 +6,7 @@ POS System
 
 ## Purpose
 
-The POS System is a web-based point-of-sale application for a single-store cafe. It supports cashier checkout, product catalog management, inventory tracking, cash payments, receipt output, kitchen queue operations, and owner dashboard reporting.
+The POS System is a web-based point-of-sale application for a single-store cafe. It supports cashier checkout, product catalog management, inventory tracking, cash payments, receipt output, kitchen queue operations, owner dashboard reporting, and operational accounting.
 
 The product is designed as an online-only MVP with a modular monolith architecture so it can be built, deployed, and maintained quickly while keeping clear boundaries for future expansion.
 
@@ -16,6 +16,7 @@ Small cafe operators often rely on disconnected tools for cashier transactions, 
 
 - Cashiers need a fast checkout screen that works well on touch devices.
 - Owners need reliable product, stock, and sales data.
+- Owners need basic cash, expense, and daily close visibility without using a separate spreadsheet.
 - Kitchen staff need clear order sequencing and preparation status.
 - Inventory changes must be traceable after sales, adjustments, and waste.
 - Receipts and order history must remain accurate after catalog changes.
@@ -29,6 +30,7 @@ The system centralizes cafe operations into one Next.js application:
 - Paid orders automatically create queue numbers and kitchen work.
 - Inventory is deducted only after successful payment.
 - Reports are calculated from persisted transaction records.
+- Accounting records connect paid sales, cash movements, expenses, and daily close summaries without mutating POS history.
 
 ## Target Users
 
@@ -51,6 +53,7 @@ The system centralizes cafe operations into one Next.js application:
 - Ingredient inventory, recipes, stock adjustment, waste, and stock movement history.
 - Daily queue numbers and kitchen statuses.
 - Owner dashboard with sales, payment, product, stock, and cashier summaries.
+- Operational accounting with chart of accounts, sales journals, expenses, cash movements, and daily close summaries.
 - Production-readiness documentation and QA checklist.
 
 ## Explicit MVP Limits
@@ -64,7 +67,7 @@ The system centralizes cafe operations into one Next.js application:
 - No table management.
 - No customer accounts or loyalty.
 - No hardware integrations for cash drawers, barcode scanners, or physical receipt printers.
-- No accounting-grade financial statements.
+- No tax filing, payroll, bank reconciliation, or audited accounting-grade financial statements.
 
 ## High-Level Workflow
 
@@ -77,11 +80,13 @@ The system centralizes cafe operations into one Next.js application:
 7. Kitchen screen receives the paid order as `received`.
 8. Staff move the kitchen order through `preparing`, `ready`, and `completed`.
 9. Admin reviews dashboard reports, stock status, order history, and cashier performance.
+10. Admin reviews accounting ledgers, expenses, and daily close records.
 
 ## Success Criteria
 
 - Cashier can complete a cash sale quickly and accurately.
 - Paid order data remains reliable for receipt, kitchen, queue, inventory, and reporting.
+- Accounting records are auditable and do not mutate paid order/payment history.
 - Stock is deducted only once and only after confirmed payment.
 - Admin-only data and actions are blocked from cashier users.
 - Key pages remain usable on desktop, tablet, and narrow mobile viewports.

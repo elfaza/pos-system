@@ -37,6 +37,7 @@ Next.js UI
 | `inventory` | Ingredients, recipes, stock adjustments, stock movements |
 | `kitchen` | Queue number assignment, kitchen order listing, status transitions |
 | `reporting` | Dashboard aggregation and report data |
+| `accounting` | Accounts, journals, expenses, cash movements, daily close, accounting reports |
 | `lib` | Shared Prisma client, API helpers, Axios client, number/money helpers |
 
 ## Application Routes
@@ -54,6 +55,12 @@ Next.js UI
 | `/dashboard/products` | Admin product management |
 | `/dashboard/inventory` | Admin inventory management |
 | `/dashboard/settings` | Admin settings |
+| `/dashboard/accounting` | Admin accounting overview |
+| `/dashboard/accounting/accounts` | Admin chart of accounts |
+| `/dashboard/accounting/journals` | Admin journal history |
+| `/dashboard/accounting/expenses` | Admin expense recording |
+| `/dashboard/accounting/cash` | Admin cash ledger and cash movements |
+| `/dashboard/accounting/close` | Admin daily close workflow |
 
 ## Data Flow: Cash Checkout
 
@@ -82,6 +89,14 @@ Next.js UI
 4. Transaction updates kitchen status timestamp and activity log.
 5. UI refreshes active kitchen/queue data.
 
+## Data Flow: Accounting Entry
+
+1. A paid cash checkout, expense, cash movement, or daily close creates accounting source data.
+2. Accounting service validates admin permission for manual workflows.
+3. Accounting service builds balanced journal lines from the source event.
+4. Database transaction writes accounting records and activity log entries.
+5. Accounting reports read persisted accounting records and source references without mutating POS order/payment history.
+
 ## Security Design
 
 - Passwords are hashed before persistence.
@@ -101,6 +116,7 @@ Next.js UI
 - Money values use decimal-safe helpers and persisted totals.
 - Stock deduction is transactional and idempotency-sensitive.
 - Reports aggregate persisted records rather than client state.
+- Accounting entries must balance and must reference source records instead of rewriting POS history.
 
 ## Connectivity Design
 
@@ -108,7 +124,7 @@ The MVP is online-only:
 
 - Mutation actions are disabled or rejected while offline.
 - Previously loaded data may remain visible as stale.
-- Checkout, held orders, payment, inventory, kitchen, queue mutation, and reporting refresh require network access.
+- Checkout, held orders, payment, inventory, kitchen, queue mutation, reporting refresh, and accounting mutation require network access.
 
 ## Deployment Design
 
@@ -138,7 +154,7 @@ npm run start
 - No offline sync queue.
 - No active QRIS provider integration.
 - No hardware integration layer.
-- Dashboard reports are operational summaries, not accounting-grade statements.
+- Dashboard and accounting reports are operational summaries, not audited financial statements.
 
 ## Extension Points
 
@@ -148,3 +164,4 @@ Future modules can build on current boundaries:
 - Multi-store support by introducing store/branch ownership to catalog, orders, inventory, and users.
 - Hardware adapters for receipt printers or cash drawers.
 - More advanced reporting using views or materialized summary tables if query load requires it.
+- External accounting exports or bank reconciliation after the MVP accounting module is stable.

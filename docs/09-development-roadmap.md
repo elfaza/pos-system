@@ -2,31 +2,33 @@
 
 ## Roadmap Overview
 
-The POS MVP is organized into six milestones. Each milestone builds on the previous one and should be validated before the next milestone expands the workflow.
+The POS MVP is delivered as a set of integrated product modules. Each module should be validated against the numbered docs before another module expands the workflow.
 
-## Timeline
+## Delivery Sequence
 
-| Milestone | Duration | Goal |
+| Sequence | Module | Goal |
 | --- | --- | --- |
-| 1 | 1 to 1.5 months | Core POS engine and transaction foundation |
-| 2 | 2 weeks | Inventory system |
-| 3 | 2 weeks | Cash payment and receipt completion |
-| 4 | 2 weeks | Queue and kitchen workflow |
-| 5 | 2 weeks | Owner dashboard and reports |
-| 6 | 1 to 2 weeks | Polish, performance, deployment, and release QA |
+| 1 | Core POS engine | Auth, catalog, settings, orders, and cashier foundation |
+| 2 | Inventory | Ingredient stock, recipes, stock validation, and movement history |
+| 3 | Payment and receipt | Cash checkout, payment records, and receipt reprint |
+| 4 | Queue and kitchen | Daily queue numbers and kitchen preparation status |
+| 5 | Dashboard and reports | Owner sales, stock, product, and cashier summaries |
+| 6 | Accounting | Cash ledger, sales journals, expenses, and daily close records |
+| 7 | Release polish | Responsive UI, performance, deployment, and release QA |
 
-## Milestone Dependencies
+## Module Dependencies
 
 ```text
-Milestone 1: Core schema, auth, catalog, orders
-  -> Milestone 2: Inventory depends on products and orders
-  -> Milestone 3: Payment depends on checkout and order persistence
-  -> Milestone 4: Queue/kitchen depends on paid order finalization
-  -> Milestone 5: Dashboard depends on paid orders, payments, inventory, kitchen
-  -> Milestone 6: Polish depends on complete MVP workflows
+Core POS engine: auth, catalog, settings, orders
+  -> Inventory depends on products and paid order timing
+  -> Payment and receipt depends on checkout and order persistence
+  -> Queue/kitchen depends on paid order finalization
+  -> Dashboard/reports depends on paid orders, payments, inventory, kitchen
+  -> Accounting depends on paid orders, payments, expenses, cash movement, and admin permissions
+  -> Release polish depends on complete MVP workflows
 ```
 
-## Milestone 1: Core POS Engine And Transaction
+## Core POS Engine
 
 Focus:
 
@@ -45,7 +47,7 @@ Done when:
 - Cashier can operate POS basics.
 - Orders and order items are persisted with snapshots.
 
-## Milestone 2: Inventory System
+## Inventory
 
 Focus:
 
@@ -62,7 +64,7 @@ Done when:
 - Insufficient stock blocks checkout.
 - Admin can inspect and adjust inventory.
 
-## Milestone 3: Payment System
+## Payment And Receipt
 
 Focus:
 
@@ -77,7 +79,7 @@ Done when:
 - Receipt data remains reliable.
 - Payment records reconcile with paid orders.
 
-## Milestone 4: Queue And Kitchen
+## Queue And Kitchen
 
 Focus:
 
@@ -92,7 +94,7 @@ Done when:
 - Kitchen can move orders from received to completed.
 - Queue display reflects active preparation state.
 
-## Milestone 5: Dashboard
+## Dashboard And Reports
 
 Focus:
 
@@ -109,7 +111,25 @@ Done when:
 - Cashier cannot access reports.
 - Reports use persisted transaction data.
 
-## Milestone 6: Polish
+## Accounting
+
+Focus:
+
+- Chart of accounts.
+- Sales journal generation from paid orders.
+- Cash ledger for cash sales and manual cash movements.
+- Expense recording.
+- Daily close reconciliation.
+- Accounting reports.
+
+Done when:
+
+- Admin can review accounting entries tied to POS activity.
+- Cash sales create auditable accounting records without mutating paid orders.
+- Expenses and cash movements are tracked with categories, reasons, and actor metadata.
+- Daily close records compare expected and counted cash.
+
+## Release Polish
 
 Focus:
 
@@ -155,5 +175,7 @@ npm run build
 - Cash payment only as active payment workflow.
 - QRIS reserved for future work.
 - No split payments.
+- No active refund processing workflow.
 - No native mobile app.
 - No hardware integration.
+- No tax filing, payroll, or bank reconciliation.

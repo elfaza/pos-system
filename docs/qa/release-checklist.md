@@ -1,4 +1,4 @@
-# Milestone 6 Release QA Checklist
+# Release QA Checklist
 
 Use seeded demo accounts unless the target environment provides dedicated test users.
 
@@ -42,9 +42,9 @@ Check POS and key operational screens at these widths:
 
 ## Role And Permission Checks
 
-- [ ] Admin can access dashboard, reports, catalog, inventory, users, settings, orders, kitchen, and queue.
+- [ ] Admin can access dashboard, reports, accounting, catalog, inventory, users, settings, orders, kitchen, and queue.
 - [ ] Cashier can access POS, orders, kitchen, and queue.
-- [ ] Cashier cannot access admin dashboard, reports, catalog management, inventory management, users, or settings.
+- [ ] Cashier cannot access admin dashboard, reports, accounting, catalog management, inventory management, users, or settings.
 - [ ] Authenticated cashier opening `/` is routed to POS, not an admin-only surface.
 
 ## Critical Business Flows
@@ -55,6 +55,9 @@ Check POS and key operational screens at these widths:
 - [ ] Paid order receives a daily queue number and initial kitchen status.
 - [ ] Kitchen order can move through received, preparing, ready, and completed.
 - [ ] Dashboard totals load for admin and remain blocked for cashier.
+- [ ] Paid cash order is represented once in accounting.
+- [ ] Admin can record expense, cash movement, and daily close.
+- [ ] Accounting journal entries balance.
 
 ## States
 

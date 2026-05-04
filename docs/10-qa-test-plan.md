@@ -2,7 +2,7 @@
 
 ## QA Objective
 
-Validate that the POS MVP is reliable for daily cafe operations across authentication, catalog, checkout, payment, inventory, kitchen, queue, reporting, responsive UI, and deployment readiness.
+Validate that the POS MVP is reliable for daily cafe operations across authentication, catalog, checkout, payment, inventory, kitchen, queue, reporting, accounting, responsive UI, and deployment readiness.
 
 ## Test Types
 
@@ -81,9 +81,20 @@ Validate that the POS MVP is reliable for daily cafe operations across authentic
 - Stock report follows low-stock and out-of-stock rules.
 - Cashier cannot access admin report endpoint.
 
+### Accounting
+
+- Cashier cannot access accounting endpoints.
+- Paid cash order is represented once in accounting.
+- Journal entries balance.
+- Expense creation validates category, amount, date, payment source, and description.
+- Cash in/out validates amount, direction, date, and reason.
+- Daily close is unique per business date.
+- Daily close records expected cash, counted cash, and difference.
+- Accounting reports use persisted accounting records and POS source references.
+
 ## Manual QA Checklist
 
-Use [qa/milestone-6-checklist.md](qa/milestone-6-checklist.md) for release execution.
+Use [qa/release-checklist.md](qa/release-checklist.md) for release execution.
 
 Minimum manual flows:
 
@@ -99,7 +110,11 @@ Minimum manual flows:
 10. Receipt preview and reprint show persisted data.
 11. Dashboard loads for admin.
 12. Dashboard is blocked for cashier.
-13. Offline state disables checkout and kitchen mutations.
+13. Admin records expense and sees it in accounting report.
+14. Admin records cash movement and sees it in cash ledger.
+15. Admin closes a business date.
+16. Accounting is blocked for cashier.
+17. Offline state disables checkout, kitchen, and accounting mutations.
 
 ## Responsive QA
 
@@ -135,7 +150,7 @@ npm run build
 | Severity | Definition |
 | --- | --- |
 | Blocker | Prevents login, checkout, payment, migration, build, or data integrity |
-| High | Breaks admin/cashier role boundaries, stock correctness, kitchen workflow, or reports |
+| High | Breaks admin/cashier role boundaries, stock correctness, kitchen workflow, accounting integrity, or reports |
 | Medium | Significant UI, validation, or workflow issue with workaround |
 | Low | Cosmetic or minor copy/layout issue that does not affect operation |
 

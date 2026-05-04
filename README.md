@@ -107,7 +107,7 @@ src/features/catalog/    Categories, products, variants, and settings
 src/features/checkout/   Cart state, order calculations, checkout, and receipts
 src/lib/                 Shared Prisma, API, axios, and number helpers
 prisma/                  Schema, migrations, and seed script
-docs/                    Product spec, milestone scope, and implementation notes
+docs/                    Product, technical, QA, setup, and module documentation
 ```
 
 ## Documentation

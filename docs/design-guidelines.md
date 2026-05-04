@@ -207,7 +207,7 @@ Tailwind layout:
 
 ## Screen Inventory
 
-### Milestone 1 Screens
+### Core Screens
 
 | Screen | Role | Purpose |
 | --- | --- | --- |
@@ -221,17 +221,18 @@ Tailwind layout:
 | Admin Categories | Admin | Manage categories |
 | Admin Settings | Admin | Store, tax, service, receipt settings |
 | Admin Users | Admin | Manage admin/cashier users |
+| Inventory Adjustment | Stock adjustment and waste tracking |
+| Kitchen Display | Preparation workflow |
+| Queue Display | Customer-facing queue |
+| Reports | Sales and inventory reporting |
+| Accounting | Cash ledger, expenses, journals, and daily close |
 
-### Future Screens
+### Deferred Screens
 
 | Screen | Purpose |
 | --- | --- |
 | QRIS Payment | Midtrans QRIS creation/status |
 | Refund Management | Admin refund workflow |
-| Inventory Adjustment | Stock adjustment and waste tracking |
-| Kitchen Display | Preparation workflow |
-| Queue Display | Customer-facing queue |
-| Reports | Sales and inventory reporting |
 
 ---
 

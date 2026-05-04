@@ -2,7 +2,7 @@
 
 ## Overview
 
-The database uses PostgreSQL through Prisma. The schema supports authentication, catalog, checkout, payments, refunds, inventory, queue/kitchen workflow, reporting, and activity logs.
+The database uses PostgreSQL through Prisma. The schema supports authentication, catalog, checkout, payments, refunds, inventory, queue/kitchen workflow, reporting, operational accounting, and activity logs.
 
 ## Entity Relationship Summary
 
@@ -29,6 +29,13 @@ ProductVariant 1--* OrderItem
 Payment 1--* Refund
 Ingredient 1--* StockMovement
 Product 1--* StockMovement
+
+Account 1--* JournalEntryLine
+JournalEntry 1--* JournalEntryLine
+ExpenseCategory 1--* Expense
+User 1--* Expense
+User 1--* CashMovement
+User 1--* DailyClose
 ```
 
 ## Enums
@@ -331,6 +338,29 @@ Rules:
 
 - Used for authentication, checkout, queue, kitchen, inventory, and other auditable workflow events.
 
+## Accounting Models
+
+Detailed accounting requirements are defined in [modules/accounting.md](modules/accounting.md). The accounting schema should add these models when implemented:
+
+| Model | Purpose |
+| --- | --- |
+| `accounts` | Chart of accounts for cash, income, expense, liability, equity, and adjustment categories |
+| `journal_entries` | Accounting transaction headers linked to source workflows such as orders, expenses, cash movements, and daily close |
+| `journal_entry_lines` | Debit and credit lines that must balance for each journal entry |
+| `expense_categories` | Admin-managed grouping for operating expenses |
+| `expenses` | Manual expense records with amount, date, payment source, reason, category, and actor |
+| `cash_movements` | Manual cash in/out records with amount, direction, reason, date, and actor |
+| `daily_closes` | Business-date close records with expected cash, counted cash, difference, and closing actor |
+
+Accounting rules:
+
+- Paid orders and payments remain the source of truth for sales.
+- Accounting entries must reference source records rather than mutate them.
+- Journal entry debits and credits must balance.
+- A paid order may produce at most one generated sales journal entry.
+- A daily close is unique per business date.
+- Accounting mutation records require admin actor context.
+
 ## Reporting Data Sources
 
 Reports should aggregate from persisted source tables instead of duplicating data:
@@ -340,6 +370,7 @@ Reports should aggregate from persisted source tables instead of duplicating dat
 - `payments`
 - `refunds`
 - `stock_movements`
+- accounting tables
 - `products`
 - `ingredients`
 - `users`

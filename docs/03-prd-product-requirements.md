@@ -2,16 +2,16 @@
 
 ## Product Summary
 
-The POS System is a cafe-focused MVP that combines cashier checkout, admin management, inventory, kitchen queue, and reporting in one web application.
+The POS System is a cafe-focused MVP that combines cashier checkout, admin management, inventory, kitchen queue, reporting, and operational accounting in one web application.
 
 ## Personas
 
 | Persona | Primary Jobs |
 | --- | --- |
-| Admin | Configure store, users, catalog, settings, inventory, reports |
+| Admin | Configure store, users, catalog, settings, inventory, reports, and accounting |
 | Cashier | Process orders, hold/resume carts, accept cash, print receipts, monitor queue |
 | Kitchen operator | See paid orders and update preparation status |
-| Owner | Review sales, stock, product, and cashier performance |
+| Owner | Review sales, stock, product, cashier performance, cash movement, expenses, and daily close records |
 
 ## Product Modules
 
@@ -169,6 +169,28 @@ Acceptance criteria:
 - Draft, held, cancelled unpaid, and failed orders are excluded.
 - Cashier access to reports is forbidden.
 
+### 11. Accounting
+
+Requirements:
+
+- Admin can manage chart of accounts.
+- Admin can view journal entries generated from POS activity and manual accounting workflows.
+- Admin can record expenses with category, amount, date, payment source, and description.
+- Admin can record cash in and cash out movements with amount, date, and reason.
+- Admin can close a business date by comparing expected cash and counted cash.
+- Accounting reports include cash ledger, income/expense summary, journal history, and daily close history.
+- Cashier cannot access accounting pages or APIs.
+
+Acceptance criteria:
+
+- Paid cash orders are represented in accounting without mutating order/payment records.
+- Journal entries balance.
+- Expenses and cash movements are auditable.
+- Daily close is unique per business date.
+- Accounting reports use persisted accounting records and POS source references.
+
+Detailed module spec: [modules/accounting.md](modules/accounting.md).
+
 ## Out Of Scope
 
 - Multi-store and branch management.
@@ -181,4 +203,5 @@ Acceptance criteria:
 - Table management.
 - Hardware integrations.
 - Native mobile apps.
-- Advanced analytics and accounting statements.
+- Advanced analytics.
+- Tax filing, payroll, bank reconciliation, and audited accounting-grade financial statements.

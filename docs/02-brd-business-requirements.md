@@ -2,7 +2,7 @@
 
 ## Business Objective
 
-Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, inventory, kitchen preparation, and owner reporting from one system.
+Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, inventory, kitchen preparation, owner reporting, and operational accounting from one system.
 
 ## Business Goals
 
@@ -11,6 +11,7 @@ Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, 
 - Track ingredient stock movements after sales, adjustments, and waste.
 - Give kitchen staff a clear queue of paid orders.
 - Give owners daily visibility into sales, top products, stock health, and cashier performance.
+- Give owners basic visibility into cash movement, expenses, and daily close differences.
 - Keep deployment and operations simple for an early-stage product.
 
 ## Business Users
@@ -20,7 +21,7 @@ Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, 
 | Admin | Configure the store, control users, manage catalog and inventory, view reports |
 | Cashier | Process customer orders, payments, receipts, held orders, and order pickup |
 | Kitchen staff | Prepare paid orders in queue order and update status |
-| Owner/operator | Understand business performance and keep the application running |
+| Owner/operator | Understand business performance, cash movement, expenses, daily close records, and keep the application running |
 
 ## Functional Business Requirements
 
@@ -83,6 +84,15 @@ Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, 
 - Held, draft, cancelled unpaid, failed payment, and expired payment orders are excluded.
 - Existing refund records must be shown separately so revenue is not overstated.
 
+### Accounting
+
+- Admin can manage chart of accounts, expenses, cash movements, journal entries, and daily close records.
+- Paid POS orders remain the source of truth for sales.
+- Accounting entries must not mutate paid orders, payments, receipts, inventory, or kitchen/queue state.
+- Journal entries must balance.
+- Cashier users cannot access accounting workflows.
+- Tax filing, payroll, bank reconciliation, and audited financial statements are out of scope.
+
 ## Non-Functional Requirements
 
 | Area | Requirement |
@@ -92,6 +102,7 @@ Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, 
 | Maintainability | Modular monolith with feature-oriented boundaries |
 | Security | Password hashes only, httpOnly session cookies, role checks on server routes |
 | Auditability | Activity logs, stock movements, order/payment persistence, and immutable paid records |
+| Accounting Integrity | Balanced journal entries, traceable source references, and immutable POS history |
 | Usability | Touch-friendly cashier workflow and responsive admin screens |
 | Deployment | Production-like setup must support Prisma migrations, build, and start commands |
 
@@ -105,6 +116,7 @@ Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, 
 - Queue numbers are assigned only after successful payment.
 - Failed checkout must not consume a queue number.
 - Reporting uses paid time and store business date.
+- Accounting uses persisted POS source references and store business date.
 - Monetary calculations must use decimal-safe helpers and persisted totals.
 
 ## Acceptance Criteria
@@ -114,5 +126,6 @@ Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, 
 - Paid order appears in kitchen/queue workflows.
 - Inventory is reduced when paid items have recipes.
 - Dashboard shows reliable owner-level summaries.
+- Accounting shows reliable cash, expense, journal, and close records.
 - Cashier cannot access admin-only modules.
 - Release validation commands and manual QA checklist are documented.

@@ -27,6 +27,12 @@ The interface must feel like an operational cafe tool: fast, clear, touch-friend
 | Kitchen | Cashier, Admin | Manage active paid order preparation |
 | Queue | Cashier, Admin | Display waiting, preparing, and ready queue numbers |
 | Dashboard | Admin | View business metrics and reports |
+| Accounting Overview | Admin | View cash, income, expenses, journals, and close status |
+| Accounting Accounts | Admin | Manage chart of accounts |
+| Accounting Journal | Admin | Inspect generated and manual accounting entries |
+| Accounting Expenses | Admin | Record and review operating expenses |
+| Accounting Cash | Admin | Review cash ledger and record cash in/out |
+| Accounting Daily Close | Admin | Count cash and close the business date |
 | Users | Admin | Manage user accounts and active state |
 | Categories | Admin | Manage catalog grouping |
 | Products | Admin | Manage sellable products and variants |
@@ -118,6 +124,18 @@ Requirements:
 - Summary cards show sales, payments, product, stock, and cashier metrics.
 - Detail tables are scannable and use persisted values.
 - Empty sales periods show empty state, not an error.
+
+## Accounting Layout
+
+Requirements:
+
+- Admin-only.
+- Use table-first layouts for accounts, journals, expenses, cash movements, and daily close history.
+- Forms must validate amount, date, account/category, payment source, and reason before submit.
+- Daily close shows expected cash, counted cash, and difference clearly.
+- Difference and warning states must not rely on color alone.
+- Accounting mutation actions are disabled while offline.
+- Accounting screens must not expose data or navigation to cashier users.
 
 ## Interaction States
 

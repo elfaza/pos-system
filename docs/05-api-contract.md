@@ -211,6 +211,32 @@ Rules:
 - Date filters must be validated.
 - Report responses must be calculated from persisted server data.
 
+### Accounting
+
+Detailed accounting behavior is defined in [modules/accounting.md](modules/accounting.md).
+
+| Method | Route | Role | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/accounting/accounts` | Admin | List accounts |
+| `POST` | `/api/accounting/accounts` | Admin | Create account |
+| `PATCH` | `/api/accounting/accounts/[id]` | Admin | Update account |
+| `GET` | `/api/accounting/journal-entries` | Admin | List journal entries |
+| `GET` | `/api/accounting/expenses` | Admin | List expenses |
+| `POST` | `/api/accounting/expenses` | Admin | Record expense |
+| `GET` | `/api/accounting/cash-movements` | Admin | List cash movements |
+| `POST` | `/api/accounting/cash-movements` | Admin | Record cash in/out |
+| `GET` | `/api/accounting/daily-closes` | Admin | List daily closes |
+| `POST` | `/api/accounting/daily-closes` | Admin | Close business date |
+| `GET` | `/api/accounting/reports` | Admin | Accounting report summary |
+
+Rules:
+
+- Cashier access is forbidden.
+- Journal entries must balance.
+- Accounting records must reference POS source data instead of mutating orders or payments.
+- Duplicate generated accounting entries for the same source order/payment are rejected or treated idempotently.
+- Duplicate daily close for the same business date is rejected.
+
 ### Reserved Refund Data
 
 Refund models, statuses, settings fields, and report calculations exist so historical refund records can be represented and future refund workflows have a schema foundation. The current API does not expose an active refund creation, approval, or processing route.
