@@ -1,22 +1,63 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { SettingsRecord } from "@/features/catalog/types";
-import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import type { CheckoutOrderRecord } from "@/features/checkout/types";
+
+function formatReceiptAmount(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatReceiptDate(value: Date): string {
+  const pad = (part: number) => part.toString().padStart(2, "0");
+
+  return [
+    `${pad(value.getDate())}/${pad(value.getMonth() + 1)}/${value.getFullYear().toString().slice(-2)}`,
+    `${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`,
+  ].join(" ");
+}
+
+function Separator({ strong = false }: { strong?: boolean }) {
+  return (
+    <div className="receipt-separator my-1 overflow-hidden whitespace-nowrap leading-none text-black">
+      {strong ? "================================" : "--------------------------------"}
+    </div>
+  );
+}
 
 export default function ReceiptPreview({
   order,
   settings,
+  autoPrint = false,
   onClose,
 }: {
   order: CheckoutOrderRecord;
   settings: SettingsRecord | null;
+  autoPrint?: boolean;
   onClose?: () => void;
 }) {
   const paidAt = order.paidAt ? new Date(order.paidAt) : null;
+  const printTime = new Date();
+  const paymentMethod = order.payment?.method === "qris" ? "QRIS" : "TUNAI";
+  const hasPrintedRef = useRef(false);
+
+  useEffect(() => {
+    if (!autoPrint || hasPrintedRef.current) {
+      return;
+    }
+
+    hasPrintedRef.current = true;
+    const printTimer = window.setTimeout(() => {
+      window.print();
+    }, 300);
+
+    return () => window.clearTimeout(printTimer);
+  }, [autoPrint]);
 
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4">
+    <div className="receipt-preview rounded-md border border-[var(--border)] bg-[var(--card)] p-4">
       <div className="flex items-start justify-between gap-3 print:hidden">
         <div>
           <h2 className="text-lg font-semibold">Receipt Preview</h2>
@@ -42,108 +83,157 @@ export default function ReceiptPreview({
         </div>
       </div>
 
-      <div className="mx-auto mt-4 max-w-sm rounded-md border border-dashed border-[var(--border)] bg-white p-4 text-sm text-black print:mt-0 print:border-0">
+      <div className="receipt-print-paper mx-auto mt-4 max-w-[80mm] rounded-sm border border-dashed border-[var(--border)] bg-white px-2 py-4 font-mono text-[12px] uppercase leading-tight tracking-normal text-black print:mt-0 print:border-0">
         <div className="text-center">
-          <h3 className="font-semibold">{settings?.storeName ?? "Maza Cafe"}</h3>
+          <h3 className="text-[16px] font-semibold leading-none">
+            {(settings?.storeName ?? "Maza Cafe").toUpperCase()}
+          </h3>
           {settings?.storeAddress ? (
-            <p className="mt-1 text-xs">{settings.storeAddress}</p>
+            <p className="mt-1 text-[13px] font-semibold leading-none">
+              {settings.storeAddress.toUpperCase()}
+            </p>
           ) : null}
           {settings?.storePhone ? (
-            <p className="text-xs">{settings.storePhone}</p>
+            <p className="text-[12px] leading-none">{settings.storePhone}</p>
           ) : null}
         </div>
 
-        <div className="my-3 border-t border-dashed border-gray-400" />
+        <Separator strong />
 
-        <div className="grid gap-1 text-xs">
-          <div className="flex justify-between gap-3">
-            <span>Order</span>
-            <span>{order.orderNumber}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Queue</span>
-            <span>{order.queueNumber ? `#${order.queueNumber}` : "-"}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Cashier</span>
-            <span>{order.cashierName ?? "-"}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Paid</span>
-            <span>{paidAt ? paidAt.toLocaleString() : "-"}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Payment</span>
-            <span>{order.payment?.method ? order.payment.method.toUpperCase() : "-"}</span>
-          </div>
+        <div className="text-center text-[12px] leading-tight">
+          <p>BILL:{order.orderNumber}</p>
+          <p>POS:1|CSH:{(order.cashierName ?? "-").toUpperCase()}</p>
+          <p>PAID: {paidAt ? formatReceiptDate(paidAt) : "-"}</p>
+          <p>PRINT TIME: {formatReceiptDate(printTime)}</p>
         </div>
 
-        <div className="my-3 border-t border-dashed border-gray-400" />
+        <Separator strong />
 
-        <div className="grid gap-2">
+        <div className="grid gap-1">
           {order.items.map((item) => (
             <div key={item.id}>
-              <div className="flex justify-between gap-3">
-                <span className="font-medium">
+              <div className="grid grid-cols-[1fr_28px_58px_58px] gap-1">
+                <span className="min-w-0 truncate">
                   {item.productNameSnapshot}
                   {item.variantNameSnapshot ? ` / ${item.variantNameSnapshot}` : ""}
                 </span>
-                <span>{formatRupiah(item.lineTotal)}</span>
+                <span className="text-right">{item.quantity}x</span>
+                <span className="text-right">
+                  {formatReceiptAmount(item.unitPrice)}
+                </span>
+                <span className="text-right">
+                  {formatReceiptAmount(item.lineTotal)}
+                </span>
               </div>
-              <div className="text-xs text-gray-600">
-                {item.quantity} x {formatRupiah(item.unitPrice)}
-                {item.discountAmount > 0
-                  ? ` - discount ${formatRupiah(item.discountAmount)}`
-                  : ""}
-              </div>
+              {item.discountAmount > 0 ? (
+                <div className="grid grid-cols-[1fr_58px] gap-1 pl-2">
+                  <span>* DISCOUNT</span>
+                  <span className="text-right">
+                    -{formatReceiptAmount(item.discountAmount)}
+                  </span>
+                </div>
+              ) : null}
               {item.notes ? (
-                <div className="text-xs text-gray-600">Note: {item.notes}</div>
+                <div className="pl-2">* {item.notes}</div>
               ) : null}
             </div>
           ))}
         </div>
 
-        <div className="my-3 border-t border-dashed border-gray-400" />
+        <Separator strong />
 
         <div className="grid gap-1">
-          <div className="flex justify-between">
-            <span>Subtotal</span>
-            <span>{formatRupiah(order.subtotalAmount)}</span>
+          <div className="grid grid-cols-[1fr_72px]">
+            <span>SUB TOTAL</span>
+            <span className="text-right">
+              {formatReceiptAmount(order.subtotalAmount)}
+            </span>
           </div>
-          <div className="flex justify-between">
-            <span>Discount</span>
-            <span>{formatRupiah(order.discountAmount)}</span>
+          {order.discountAmount > 0 ? (
+            <div className="grid grid-cols-[1fr_72px]">
+              <span>DISCOUNT</span>
+              <span className="text-right">
+                -{formatReceiptAmount(order.discountAmount)}
+              </span>
+            </div>
+          ) : null}
+          {order.serviceChargeAmount > 0 ? (
+            <div className="grid grid-cols-[1fr_72px]">
+              <span>SERVICE</span>
+              <span className="text-right">
+                {formatReceiptAmount(order.serviceChargeAmount)}
+              </span>
+            </div>
+          ) : null}
+          <Separator />
+          <div className="grid grid-cols-[1fr_72px] font-semibold">
+            <span>TOTAL</span>
+            <span className="text-right">
+              {formatReceiptAmount(order.totalAmount)}
+            </span>
           </div>
-          <div className="flex justify-between">
-            <span>Service</span>
-            <span>{formatRupiah(order.serviceChargeAmount)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Tax</span>
-            <span>{formatRupiah(order.taxAmount)}</span>
-          </div>
-          <div className="flex justify-between border-t border-dashed border-gray-400 pt-2 font-semibold">
-            <span>Total</span>
-            <span>{formatRupiah(order.totalAmount)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Payment amount</span>
-            <span>{formatRupiah(order.payment?.amount ?? 0)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Cash received</span>
-            <span>{formatRupiah(order.payment?.cashReceivedAmount ?? 0)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Change</span>
-            <span>{formatRupiah(order.payment?.changeAmount ?? 0)}</span>
+          {order.taxAmount > 0 ? (
+            <>
+              <Separator />
+              <div>HARGA SUDAH TERMASUK PAJAK</div>
+              <div className="grid grid-cols-[1fr_72px]">
+                <span>PB1</span>
+                <span className="text-right">
+                  {formatReceiptAmount(order.taxAmount)}
+                </span>
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        <Separator />
+
+        <div className="grid gap-1">
+          <p>Pembayaran</p>
+          <div className="grid grid-cols-[1fr_72px] pl-4">
+            <span>- {paymentMethod}</span>
+            <span className="text-right">
+              {formatReceiptAmount(order.payment?.amount ?? order.totalAmount)}
+            </span>
           </div>
         </div>
 
+        <Separator />
+
+        <div className="grid gap-1">
+          <div className="grid grid-cols-[1fr_72px]">
+            <span>TUNAI</span>
+            <span className="text-right">
+              {formatReceiptAmount(
+                order.payment?.cashReceivedAmount ?? order.payment?.amount ?? order.totalAmount,
+              )}
+            </span>
+          </div>
+          <div className="grid grid-cols-[1fr_72px]">
+            <span>KEMBALIAN</span>
+            <span className="text-right">
+              {formatReceiptAmount(order.payment?.changeAmount ?? 0)}
+            </span>
+          </div>
+        </div>
+
+        <Separator strong />
+
+        {order.queueNumber ? (
+          <div className="my-4 text-center">
+            <p className="text-[14px] leading-tight">NO PANGGIL:</p>
+            <p className="text-[30px] font-semibold leading-none">
+              {order.queueNumber}
+            </p>
+          </div>
+        ) : null}
+
         {settings?.receiptFooter ? (
           <>
-            <div className="my-3 border-t border-dashed border-gray-400" />
-            <p className="text-center text-xs">{settings.receiptFooter}</p>
+            <Separator strong />
+            <p className="whitespace-pre-line text-center text-[12px] leading-tight">
+              {settings.receiptFooter}
+            </p>
           </>
         ) : null}
       </div>

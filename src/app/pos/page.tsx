@@ -382,7 +382,7 @@ function PaymentSuccessModal({
           ) : null}
         </div>
         <div className="mt-4">
-          <ReceiptPreview order={order} settings={settings} />
+          <ReceiptPreview order={order} settings={settings} autoPrint />
         </div>
         <button
           onClick={onClose}

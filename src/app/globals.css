@@ -63,3 +63,35 @@ textarea {
 .pos-card-tap {
   animation: pos-card-tap 260ms ease-out;
 }
+
+@media print {
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .receipt-print-paper,
+  .receipt-print-paper * {
+    visibility: visible !important;
+  }
+
+  .receipt-print-paper {
+    box-sizing: border-box !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 80mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
