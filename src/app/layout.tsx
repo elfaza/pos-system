@@ -11,8 +11,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: `POS System`,
-  description: `Single-store cafe POS`,
+  title: {
+    default: "POS System",
+    template: "%s | POS System",
+  },
+  description: "Single-store cafe POS",
 };
 
 export default async function RootLayout({

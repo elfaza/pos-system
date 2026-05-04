@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import LoginForm from "@/features/auth/components/login-form";
 import packageJson from "../../package.json";
+
+export const metadata: Metadata = {
+  title: "Sign In",
+};
 
 export default function HomePage() {
   return (
