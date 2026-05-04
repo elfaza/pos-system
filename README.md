@@ -40,6 +40,7 @@ Create `.env`:
 ```bash
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pos_system?schema=public"
 AUTH_SESSION_DAYS=7
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
 Run the initial migration and seed data:
@@ -73,10 +74,29 @@ The seed script creates:
 | `npm run dev` | Start the local Next.js dev server |
 | `npm run build` | Build the app |
 | `npm run start` | Start the production server after build |
+| `npm test` | Run the Vitest test suite |
 | `npm run lint` | Run ESLint |
 | `npm run prisma:generate` | Generate Prisma Client |
+| `npm run prisma:deploy` | Apply committed Prisma migrations in production/staging |
 | `npm run prisma:migrate` | Run Prisma migrations in development |
 | `npm run prisma:seed` | Seed demo users, catalog data, and app settings |
+| `npm run vercel-build` | Generate Prisma Client, deploy migrations, and build for Vercel |
+
+## Production Deployment
+
+Production-like deployments require `DATABASE_URL`; `AUTH_SESSION_DAYS` is optional and must be a positive whole number when set. The app fails fast when required environment configuration is missing or invalid.
+
+Use the deployment flow in [docs/deployment.md](docs/deployment.md):
+
+```bash
+npm ci
+npm run prisma:generate
+npm run prisma:deploy
+npm run build
+npm run start
+```
+
+Seed data is for local/demo environments only and is not required for production correctness.
 
 ## Project Structure
 
