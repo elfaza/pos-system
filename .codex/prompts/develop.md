@@ -46,8 +46,21 @@ Then read only the numbered docs that directly affect the task:
 - UI/workflow work: `docs/08-ui-ux-specification.md`, `docs/design-guidelines.md`
 - Testing/release work: `docs/10-qa-test-plan.md`, `docs/qa/release-checklist.md`
 - Setup/deployment work: `docs/11-environment-setup.md`, `docs/deployment.md`
+- Configurability/module enablement work: `docs/12-configurability-analysis.md`
+- Test specification work for every development task: `docs/13-test-case-matrix.md`
 
 Use `docs/pos-system-spec.md` as a legacy detailed source only when a numbered doc is not specific enough. Do not repeat large sections of the docs in the plan; cite the relevant files and summarize only constraints that affect the task.
+
+Always read `docs/12-configurability-analysis.md` and `docs/13-test-case-matrix.md` before implementation when the task touches modules, feature flags, settings, payments, checkout, inventory, kitchen, queue, reporting, accounting, auth access, API routes, persisted workflows, or tests. For trivial docs-only edits that cannot affect application behavior, state why those docs are not applicable.
+
+Every `/prompts:develop` run must derive task-specific test specs from `docs/13-test-case-matrix.md` before code changes. The specs must include:
+
+- Relevant configuration tests, including enabled and disabled module behavior where applicable.
+- Relevant function-level tests for services, repositories, utilities, stores, actions, and mappers touched by the task.
+- Relevant API/route tests for changed endpoints, including unauthorized, forbidden, validation, success, and disabled-module behavior where applicable.
+- Relevant module flow tests for affected user workflows.
+- Relevant edge cases, especially money, stock, queue numbers, sessions, accounting balance, concurrency, stale UI, and invalid configuration combinations.
+- Any matrix gaps discovered during analysis, with a note to update `docs/13-test-case-matrix.md` when a new behavior has no existing test case ID.
 
 Before changing any Next.js API, routing convention, layout, route handler, caching behavior, metadata, config, or framework convention, also read the relevant guide in:
 
@@ -82,28 +95,30 @@ Follow this exact workflow:
 2. Generate a concise document analysis before implementation.
 3. Confirm the relevant docs have been read and identify only the constraints they add to the work.
 4. Inspect existing files and identify the smallest coherent implementation path.
-5. Create a short implementation checklist mapped to the relevant numbered docs and UI docs when applicable.
-6. Before parallel work starts, define the frontend/backend contract when both sides are involved: API route, request shape, response shape, error states, permissions, and loading/empty/error UI expectations.
-7. Use the three-agent workflow when the task has separable backend, frontend, and QA concerns. If the task is docs-only or single-scope, note why fewer agents are enough.
-8. Before agents work in parallel, publish a shared kickoff note containing: selected docs, acceptance checklist, API/UI contract if any, and file ownership.
-9. Assign clear ownership:
+5. Generate a task-specific test specification from `docs/13-test-case-matrix.md`, including exact relevant test IDs when they exist and new proposed IDs when they do not.
+6. Create a short implementation checklist mapped to the relevant numbered docs, configurability docs, test matrix IDs, and UI docs when applicable.
+7. Before parallel work starts, define the frontend/backend contract when both sides are involved: API route, request shape, response shape, error states, permissions, module-flag behavior, and loading/empty/error/disabled UI expectations.
+8. Use the three-agent workflow when the task has separable backend, frontend, and QA concerns. If the task is docs-only or single-scope, note why fewer agents are enough.
+9. Before agents work in parallel, publish a shared kickoff note containing: selected docs, task-specific test specs/test IDs, acceptance checklist, API/UI contract if any, module configuration expectations if any, and file ownership.
+10. Assign clear ownership:
    - `backend agent`: API routes, services, repositories, Prisma/database behavior, auth/authorization, validation, transactions, backend architecture boundaries, and backend tests.
    - `frontend agent`: pages, components, state management, data fetching hooks, UI states, accessibility, responsive behavior, UI docs compliance, and frontend tests.
-   - `qa agent`: independent verification against relevant docs, acceptance criteria, regression risk, edge cases, integration behavior, live API/database checks when applicable, and validation commands.
-10. Keep backend and frontend work parallel only when write scopes are distinct. Agents must work with existing changes and must not revert or overwrite another agent's files.
-11. Backend and frontend agents must align on contracts before either side implements incompatible assumptions. Contract changes must be announced and accepted by both sides before integration.
-12. Each implementation agent must finish with: files changed, behavior implemented, tests/validation run, contract changes made, risks found, and remaining blockers if any.
-13. QA starts from the integrated result, not from isolated agent claims. QA must report pass/fail against the acceptance checklist and identify the owning agent for each finding.
-14. If QA reports an error, route it back to the owner: backend for API/data/business-rule failures, frontend for UI/state/accessibility/workflow failures, or both for contract mismatches. Re-run QA after fixes until QA passes or a real blocker is found.
-15. Do not stop at planning, partial implementation, or unanswered internal uncertainty. Continue through implementation, integration, QA, fixes, and validation unless there is a real blocker that requires a user decision.
-16. Ask the user a question only for blocker decisions that cannot be resolved from the docs, existing code, or conservative implementation assumptions.
-17. Implement the change using existing project patterns.
-18. Add or update focused tests when the project has an adjacent test pattern.
-19. If the task completes a versioned release scope, bump the app version according to the Operating Rules before final validation.
-20. Run `npm test` after adding or changing tests. Also run the most specific useful validation available for the change, such as `npm run lint`, `npm run typecheck`, or targeted test commands if configured.
-21. If the task changes Prisma schema, migrations, repositories, services, Route Handlers, authenticated workflows, checkout/payment/order state, inventory state, accounting state, kitchen/queue state, or any persisted business workflow, perform live QA against the real local database after migrations are applied. Start or reuse the local dev server and exercise the changed Route Handlers with browser interaction, `curl`, or a small `npx tsx` smoke script that calls the same service/API path. Verify fresh server logs or command output show successful responses for changed routes and representative mutations, not 500s.
-22. If live QA reveals an issue missed by mocked tests or build validation, fix it, rerun migrations/generation if needed, rerun tests/lint/build, and repeat the live API/database check before final response.
-23. If a validation command is unavailable, report that clearly instead of inventing a result.
+   - `qa agent`: final-gate verification after backend/frontend integration. The QA agent independently tests against relevant docs, task-specific test specs/test IDs, acceptance criteria, regression risk, edge cases, integration behavior, module configuration behavior, live API/database checks when applicable, and validation commands.
+11. Keep backend and frontend work parallel only when write scopes are distinct. Agents must work with existing changes and must not revert or overwrite another agent's files.
+12. Backend and frontend agents must align on contracts before either side implements incompatible assumptions. Contract changes must be announced and accepted by both sides before integration.
+13. Each implementation agent must finish with: files changed, behavior implemented, tests/validation run, contract changes made, risks found, and remaining blockers if any.
+14. QA starts at the ending phase from the integrated result, not from isolated agent claims. Do not treat backend or frontend work as complete until QA has tested the integrated result and reported pass/fail against the task-specific test specs, acceptance checklist, and configuration expectations.
+15. If QA reports an error, call the owning agent back in only as needed: backend for API/data/business-rule failures, frontend for UI/state/accessibility/workflow failures, or both for contract mismatches. The owning agent must fix the finding, report files changed and validation run, then hand the integrated result back to QA.
+16. Re-run QA after fixes until QA passes or a real blocker is found. QA remains the final gate before the final user response.
+17. Do not stop at planning, partial implementation, or unanswered internal uncertainty. Continue through implementation, integration, QA, fixes, and validation unless there is a real blocker that requires a user decision.
+18. Ask the user a question only for blocker decisions that cannot be resolved from the docs, existing code, or conservative implementation assumptions.
+19. Implement the change using existing project patterns.
+20. Add or update focused tests when the project has an adjacent test pattern. If a relevant test case exists in `docs/13-test-case-matrix.md`, reference its ID in the implementation notes or test name where practical.
+21. If the task completes a versioned release scope, bump the app version according to the Operating Rules before final validation.
+22. Run `npm test` after adding or changing tests. Also run the most specific useful validation available for the change, such as `npm run lint`, `npm run typecheck`, or targeted test commands if configured.
+23. If the task changes Prisma schema, migrations, repositories, services, Route Handlers, authenticated workflows, checkout/payment/order state, inventory state, accounting state, kitchen/queue state, settings, module flags, or any persisted business workflow, perform live QA against the real local database after migrations are applied. Start or reuse the local dev server and exercise the changed Route Handlers with browser interaction, `curl`, or a small `npx tsx` smoke script that calls the same service/API path. Verify fresh server logs or command output show successful responses for changed routes and representative mutations, not 500s.
+24. If live QA reveals an issue missed by mocked tests or build validation, call the owning backend/frontend agent back in when needed, fix it, rerun migrations/generation if needed, rerun tests/lint/build, and repeat QA before final response.
+25. If a validation command is unavailable, report that clearly instead of inventing a result.
 
 ## Document Analysis
 
@@ -113,6 +128,8 @@ Before implementation, produce a concise but concrete document analysis with the
 - `Product/Business Rules`: summarize the product rules, domain constraints, and data/workflow requirements that apply to the task.
 - `Scope Boundary`: summarize applicable in-scope, out-of-scope, dependency, and acceptance requirements.
 - `UI/UX Rules`: when relevant, summarize layout, UI states, responsive behavior, styling, accessibility, and interaction rules from `docs/08-ui-ux-specification.md` and `docs/design-guidelines.md`.
+- `Configurability Rules`: summarize relevant module flags, settings behavior, enabled/disabled module expectations, and side-effect rules from `docs/12-configurability-analysis.md`.
+- `Task-Specific Test Specs`: list relevant test IDs from `docs/13-test-case-matrix.md`, grouped by configuration, function, API, flow, and edge case coverage. If no exact ID exists for required behavior, define the missing test spec and note that the matrix should be updated.
 - `Agent Coordination`: state whether backend, frontend, and QA agents are needed, their ownership, and the integration contract.
 - `Implementation Implications`: translate the document findings into concrete engineering constraints, affected modules, validation needs, and risks.
 - `Acceptance Checklist`: list the doc-backed checks that must pass before the task is considered complete.
@@ -126,16 +143,18 @@ After implementation, run this loop until no required fixes remain or a real blo
 1. Compare the change against the relevant numbered docs from `docs/00-index.md`.
 2. Compare the change against `docs/pos-system-spec.md` only when it was used for missing legacy detail.
 3. Compare the change against `docs/08-ui-ux-specification.md` and `docs/design-guidelines.md` if any UI, layout, styling, or user workflow changed.
-4. Check for accidental out-of-scope work.
-5. Check online-only guards and role boundaries when the task touches orders, payments, auth, refunds, stock, accounting, or cashier/admin pages.
-6. Check transaction correctness when the task touches checkout: totals, tax, service charge, discounts, payment state, stock deduction timing, order item snapshots, accounting entry timing, and activity logs.
-7. Check UX states when the task touches UI: loading, empty, error, disabled, offline, and success.
-8. Check live database readiness when schema or persisted workflows changed: migration applied, Prisma Client regenerated when needed, and the local database actually contains the fields/tables/enums used by the implementation.
-9. Check live API/server behavior for changed routes and workflows. A passing build is not enough; hit the changed endpoints or exercise the UI against the running dev server and confirm the server returns expected 2xx/4xx business responses, not 500s.
-10. Have the QA agent test the integrated frontend and backend result against the acceptance checklist, including live API/database verification when applicable, then route any findings through the frontend/backend ownership workflow.
-11. Fix any mismatch found.
-12. Re-run the relevant validation command after fixes.
-13. Repeat the loop.
+4. Compare module and settings behavior against `docs/12-configurability-analysis.md` when the task touches configuration, settings, module availability, optional side effects, or a configurable workflow.
+5. Compare implemented or updated tests against the task-specific test specs derived from `docs/13-test-case-matrix.md`. Required test specs must be implemented, explicitly deferred with rationale, or documented as not applicable.
+6. Check for accidental out-of-scope work.
+7. Check online-only guards and role boundaries when the task touches orders, payments, auth, refunds, stock, accounting, or cashier/admin pages.
+8. Check transaction correctness when the task touches checkout: totals, tax, service charge, discounts, payment state, stock deduction timing, order item snapshots, accounting entry timing, module-enabled side effects, and activity logs.
+9. Check UX states when the task touches UI: loading, empty, error, disabled, offline, success, and disabled-module states.
+10. Check live database readiness when schema or persisted workflows changed: migration applied, Prisma Client regenerated when needed, and the local database actually contains the fields/tables/enums used by the implementation.
+11. Check live API/server behavior for changed routes and workflows. A passing build is not enough; hit the changed endpoints or exercise the UI against the running dev server and confirm the server returns expected 2xx/4xx business responses, not 500s.
+12. Have the QA agent test the integrated frontend and backend result at the ending phase against the acceptance checklist and task-specific test specs, including live API/database verification when applicable.
+13. If QA finds a mismatch, call the relevant frontend/backend agent back in as needed, route the finding through ownership, and require that agent to report the fix and validation performed.
+14. Re-run the relevant validation command and have QA retest after fixes.
+15. Repeat the loop until QA passes or a real blocker is found.
 
 Stop the loop only when the implementation, validation result, and documentation checks agree.
 
@@ -147,8 +166,9 @@ Finish with:
 - What changed, with file paths.
 - Whether a version bump was required, and the resulting version when it was.
 - Which validation commands ran and their results.
-- A three-agent coordination summary when agents were used: backend result, frontend result, QA result, contract changes, and who fixed QA findings.
+- The task-specific test specs used, including matrix IDs covered and any required specs deferred with rationale.
+- A three-agent coordination summary when agents were used: backend result, frontend result, final QA result, contract changes, whether QA called frontend/backend back in, and who fixed QA findings.
 - A QA result showing whether the integrated feature passed and which live API/database checks were performed when applicable.
-- A documentation compliance result covering relevant numbered docs, legacy `docs/pos-system-spec.md` where used, and UI docs where applicable.
+- A documentation compliance result covering relevant numbered docs, `docs/12-configurability-analysis.md`, `docs/13-test-case-matrix.md`, legacy `docs/pos-system-spec.md` where used, and UI docs where applicable.
 - A worktree check that separates task changes from pre-existing unrelated changes.
 - Any remaining blocker or follow-up, only if one exists.

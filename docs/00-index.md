@@ -17,6 +17,8 @@ This documentation pack organizes the POS system requirements, technical design,
 | [09-development-roadmap.md](09-development-roadmap.md) | Module delivery sequence, dependencies, release outputs, and release strategy |
 | [10-qa-test-plan.md](10-qa-test-plan.md) | Automated and manual QA plan for release validation |
 | [11-environment-setup.md](11-environment-setup.md) | Local development, environment variables, scripts, database, and production commands |
+| [12-configurability-analysis.md](12-configurability-analysis.md) | Configurable module and feature analysis, priorities, risks, and implementation phases |
+| [13-test-case-matrix.md](13-test-case-matrix.md) | Function, module flow, configuration, API, and edge case test matrix |
 
 ## Module Specs
 
