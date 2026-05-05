@@ -57,7 +57,7 @@ export default function AdminShell({
         </header>
 
         <div className="lg:grid lg:min-h-[calc(100dvh-69px)] lg:grid-cols-[248px_1fr]">
-          <aside className="border-b border-[var(--border)] bg-[#152238] p-3 text-white lg:border-b-0 lg:p-4">
+          <aside className="border-b border-[var(--border)] bg-[#152238] p-3 text-white lg:sticky lg:top-[69px] lg:h-[calc(100dvh-69px)] lg:overflow-y-auto lg:border-b-0 lg:p-4">
             <nav className="flex gap-2 overflow-x-auto lg:grid lg:gap-1">
               {navItems.map((item) => {
                 const isActive =
