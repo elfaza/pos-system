@@ -8,6 +8,7 @@ import type {
   CategoryRecord,
   ProductRecord,
   ProductVariantRecord,
+  SettingsRecord,
 } from "@/features/catalog/types";
 import type { IngredientRecord } from "@/features/inventory/types";
 
@@ -64,7 +65,7 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function getProductStatus(product: ProductRecord) {
+function getProductStatus(product: ProductRecord, inventoryEnabled: boolean) {
   if (!product.isAvailable) {
     return {
       label: "Hidden",
@@ -72,7 +73,7 @@ function getProductStatus(product: ProductRecord) {
     };
   }
 
-  if (!product.canSellOne) {
+  if (inventoryEnabled && !product.canSellOne) {
     return {
       label: product.unavailableReason ?? "Unavailable",
       className: "bg-red-50 text-[var(--danger)]",
@@ -80,6 +81,7 @@ function getProductStatus(product: ProductRecord) {
   }
 
   const isLowStock =
+    inventoryEnabled &&
     product.trackStock &&
     product.stockQuantity !== null &&
     product.lowStockThreshold !== null &&
@@ -137,6 +139,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [ingredients, setIngredients] = useState<IngredientRecord[]>([]);
+  const [settings, setSettings] = useState<SettingsRecord | null>(null);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -145,6 +148,8 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const editing = useMemo(() => Boolean(form.id), [form.id]);
+  const inventoryEnabled = settings?.inventoryEnabled ?? true;
+  const productTableColumnCount = inventoryEnabled ? 8 : 6;
 
   async function loadData() {
     setLoading(true);
@@ -154,14 +159,14 @@ export default function ProductsPage() {
       if (search) query.set("search", search);
       if (categoryFilter) query.set("categoryId", categoryFilter);
 
-      const [productResponse, categoryResponse, ingredientResponse] = await Promise.all([
+      const [productResponse, categoryResponse, settingsResponse] = await Promise.all([
         fetch(`/api/products?${query.toString()}`),
         fetch("/api/categories?includeInactive=true"),
-        fetch("/api/ingredients?active=true"),
+        fetch("/api/settings"),
       ]);
       const productData = await productResponse.json();
       const categoryData = await categoryResponse.json();
-      const ingredientData = await ingredientResponse.json();
+      const settingsData = await settingsResponse.json();
 
       if (!productResponse.ok) {
         throw new Error(productData.error ?? "Unable to load products.");
@@ -169,13 +174,28 @@ export default function ProductsPage() {
       if (!categoryResponse.ok) {
         throw new Error(categoryData.error ?? "Unable to load categories.");
       }
-      if (!ingredientResponse.ok) {
-        throw new Error(ingredientData.error ?? "Unable to load ingredients.");
+      if (!settingsResponse.ok) {
+        throw new Error(settingsData.error ?? "Unable to load settings.");
       }
 
+      const nextSettings = settingsData.settings as SettingsRecord;
       setProducts(productData.products);
       setCategories(categoryData.categories);
-      setIngredients(ingredientData.ingredients);
+      setSettings(nextSettings);
+
+      if (nextSettings.inventoryEnabled) {
+        const ingredientResponse = await fetch("/api/ingredients?active=true");
+        const ingredientData = await ingredientResponse.json();
+
+        if (!ingredientResponse.ok) {
+          throw new Error(ingredientData.error ?? "Unable to load ingredients.");
+        }
+
+        setIngredients(ingredientData.ingredients);
+      } else {
+        setIngredients([]);
+      }
+
       setForm((current) =>
         current.categoryId || categoryData.categories.length === 0
           ? current
@@ -352,8 +372,12 @@ export default function ProductsPage() {
                   <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium">Price</th>
-                  <th className="px-4 py-3 font-medium">Stock</th>
-                  <th className="px-4 py-3 font-medium">Recipe</th>
+                  {inventoryEnabled ? (
+                    <>
+                      <th className="px-4 py-3 font-medium">Stock</th>
+                      <th className="px-4 py-3 font-medium">Recipe</th>
+                    </>
+                  ) : null}
                   <th className="px-4 py-3 font-medium">Available</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
@@ -362,20 +386,23 @@ export default function ProductsPage() {
                 {loading ? (
                   Array.from({ length: 4 }).map((_, index) => (
                     <tr key={index} className="border-b border-[var(--border)]">
-                      <td className="px-4 py-4" colSpan={8}>
+                      <td className="px-4 py-4" colSpan={productTableColumnCount}>
                         <div className="h-5 rounded-md bg-[var(--muted)]" />
                       </td>
                     </tr>
                   ))
                 ) : products.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-[var(--muted-foreground)]" colSpan={8}>
+                    <td
+                      className="px-4 py-8 text-center text-[var(--muted-foreground)]"
+                      colSpan={productTableColumnCount}
+                    >
                       No products found.
                     </td>
                   </tr>
                 ) : (
                   products.map((product) => {
-                    const status = getProductStatus(product);
+                    const status = getProductStatus(product, inventoryEnabled);
 
                     return (
                       <tr key={product.id} className="border-b border-[var(--border)]">
@@ -392,16 +419,20 @@ export default function ProductsPage() {
                           {product.sku ?? "-"}
                         </td>
                         <td className="px-4 py-3">{formatCurrency(product.price)}</td>
-                        <td className="px-4 py-3">
-                          {product.trackStock
-                            ? `${product.stockQuantity ?? 0} / low ${product.lowStockThreshold ?? 0}`
-                            : "Not tracked"}
-                        </td>
-                        <td className="px-4 py-3">
-                          {product.ingredientRecipeCount > 0
-                            ? `${product.ingredientRecipeCount} row(s)`
-                            : "No recipe"}
-                        </td>
+                        {inventoryEnabled ? (
+                          <>
+                            <td className="px-4 py-3">
+                              {product.trackStock
+                                ? `${product.stockQuantity ?? 0} / low ${product.lowStockThreshold ?? 0}`
+                                : "Not tracked"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {product.ingredientRecipeCount > 0
+                                ? `${product.ingredientRecipeCount} row(s)`
+                                : "No recipe"}
+                            </td>
+                          </>
+                        ) : null}
                         <td className="px-4 py-3">
                           <span
                             className={`rounded-md px-2 py-1 text-xs font-medium ${status.className}`}
@@ -537,21 +568,23 @@ export default function ProductsPage() {
                 />
                 Available in POS
               </label>
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  checked={form.trackStock}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      trackStock: event.target.checked,
-                    }))
-                  }
-                />
-                Track stock
-              </label>
+              {inventoryEnabled ? (
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={form.trackStock}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        trackStock: event.target.checked,
+                      }))
+                    }
+                  />
+                  Track stock
+                </label>
+              ) : null}
             </div>
-            {form.trackStock ? (
+            {inventoryEnabled && form.trackStock ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1 text-sm font-medium">
                   Stock quantity
@@ -654,99 +687,101 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            <div className="rounded-md border border-[var(--border)] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Ingredient recipe</h3>
-                  <p className="text-xs text-[var(--muted-foreground)]">
-                    Quantity required to sell one product unit.
-                  </p>
+            {inventoryEnabled ? (
+              <div className="rounded-md border border-[var(--border)] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Ingredient recipe</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">
+                      Quantity required to sell one product unit.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addRecipe}
+                    disabled={ingredients.length === 0}
+                    className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:opacity-60"
+                  >
+                    Add row
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={addRecipe}
-                  disabled={ingredients.length === 0}
-                  className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:opacity-60"
-                >
-                  Add row
-                </button>
-              </div>
-              <div className="mt-3 grid gap-3">
-                {ingredients.length === 0 ? (
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    Add active ingredients on the inventory page before creating recipes.
-                  </p>
-                ) : form.recipes.length === 0 ? (
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    No ingredient recipe. Checkout will only use product availability.
-                  </p>
-                ) : (
-                  form.recipes.map((recipe, index) => (
-                    <div key={index} className="grid gap-2 rounded-md bg-[var(--muted)] p-3">
-                      <label className="grid gap-1 text-xs font-medium">
-                        Ingredient
-                        <select
-                          value={recipe.ingredientId}
-                          onChange={(event) =>
-                            updateRecipe(index, { ingredientId: event.target.value })
-                          }
-                          className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
-                          required
-                        >
-                          {ingredients.map((ingredient) => (
-                            <option key={ingredient.id} value={ingredient.id}>
-                              {ingredient.name} ({ingredient.unit})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="grid gap-2 sm:grid-cols-2">
+                <div className="mt-3 grid gap-3">
+                  {ingredients.length === 0 ? (
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      Add active ingredients on the inventory page before creating recipes.
+                    </p>
+                  ) : form.recipes.length === 0 ? (
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      No ingredient recipe. Checkout will only use product availability.
+                    </p>
+                  ) : (
+                    form.recipes.map((recipe, index) => (
+                      <div key={index} className="grid gap-2 rounded-md bg-[var(--muted)] p-3">
                         <label className="grid gap-1 text-xs font-medium">
-                          Variant
+                          Ingredient
                           <select
-                            value={recipe.variantId}
+                            value={recipe.ingredientId}
                             onChange={(event) =>
-                              updateRecipe(index, { variantId: event.target.value })
-                            }
-                            className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
-                          >
-                            <option value="">Base product</option>
-                            {form.variants
-                              .filter((variant) => variant.id)
-                              .map((variant) => (
-                                <option key={variant.id} value={variant.id}>
-                                  {variant.name}
-                                </option>
-                              ))}
-                          </select>
-                        </label>
-                        <label className="grid gap-1 text-xs font-medium">
-                          Quantity
-                          <input
-                            inputMode="decimal"
-                            value={recipe.quantityRequired}
-                            onChange={(event) =>
-                              updateRecipe(index, {
-                                quantityRequired: sanitizeDecimalInput(event.target.value),
-                              })
+                              updateRecipe(index, { ingredientId: event.target.value })
                             }
                             className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
                             required
-                          />
+                          >
+                            {ingredients.map((ingredient) => (
+                              <option key={ingredient.id} value={ingredient.id}>
+                                {ingredient.name} ({ingredient.unit})
+                              </option>
+                            ))}
+                          </select>
                         </label>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="grid gap-1 text-xs font-medium">
+                            Variant
+                            <select
+                              value={recipe.variantId}
+                              onChange={(event) =>
+                                updateRecipe(index, { variantId: event.target.value })
+                              }
+                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                            >
+                              <option value="">Base product</option>
+                              {form.variants
+                                .filter((variant) => variant.id)
+                                .map((variant) => (
+                                  <option key={variant.id} value={variant.id}>
+                                    {variant.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          <label className="grid gap-1 text-xs font-medium">
+                            Quantity
+                            <input
+                              inputMode="decimal"
+                              value={recipe.quantityRequired}
+                              onChange={(event) =>
+                                updateRecipe(index, {
+                                  quantityRequired: sanitizeDecimalInput(event.target.value),
+                                })
+                              }
+                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                              required
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeRecipe(index)}
+                          className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-white"
+                        >
+                          Remove recipe row
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeRecipe(index)}
-                        className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-white"
-                      >
-                        Remove recipe row
-                      </button>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
           <div className="mt-5 flex gap-2">
             <button
