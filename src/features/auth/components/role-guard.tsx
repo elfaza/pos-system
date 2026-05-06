@@ -12,11 +12,11 @@ interface RoleGuardProps {
 
 export default function RoleGuard({
     allowedRoles,
-    children,
+  children,
 }: RoleGuardProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, loggingOut } = useAuth();
 
-  if (loading) {
+  if (loading || loggingOut) {
     return <p className="p-4 text-sm text-[var(--muted-foreground)]">Loading...</p>;
   }
 

@@ -9,6 +9,7 @@ import {
 import type { AuthState, LoginPayload, User } from "../types";
 
 interface AuthContextType extends AuthState {
+  loggingOut: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -24,6 +25,7 @@ export function AuthProvider({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(user);
 
   const login = async (payload: LoginPayload): Promise<void> => {
@@ -45,13 +47,14 @@ export function AuthProvider({
 
   const logout = async (): Promise<void> => {
     setLoading(true);
+    setLoggingOut(true);
     try {
       await logoutAction();
-      setCurrentUser(null);
-      router.push(`/`);
-      router.refresh();
-    } finally {
+      window.location.replace(`/`);
+    } catch (error) {
+      setLoggingOut(false);
       setLoading(false);
+      throw error;
     }
   };
 
@@ -60,6 +63,7 @@ export function AuthProvider({
       value={{
         user: currentUser,
         loading,
+        loggingOut,
         isAuthenticated: !!currentUser,
         login,
         logout,

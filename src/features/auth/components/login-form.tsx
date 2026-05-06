@@ -10,17 +10,17 @@ type LoginFormProps = {
 
 export default function LoginForm({ appVersion }: LoginFormProps) {
   const router = useRouter();
-  const { login, loading, user } = useAuth();
+  const { login, loading, loggingOut, user } = useAuth();
 
   const [email, setEmail] = useState(``);
   const [password, setPassword] = useState(``);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || loggingOut) return;
 
     router.replace(user.role === "admin" ? "/dashboard" : "/pos");
-  }, [router, user]);
+  }, [loggingOut, router, user]);
 
   const handleSubmit = async (
     e: SyntheticEvent<HTMLFormElement>,
