@@ -6,6 +6,7 @@ import {
   toOptionalDecimalString,
 } from "@/lib/number";
 import type { User } from "@/features/auth/types";
+import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   adjustIngredientStock,
   countLowStockIngredients,
@@ -84,6 +85,7 @@ function parseAdjustmentPayload(payload: Record<string, unknown>): {
 }
 
 export async function getIngredientList(url: URL) {
+  await requireModuleEnabled("inventoryEnabled");
   const activeParam = url.searchParams.get("active");
   const ingredients = await listIngredients({
     search: url.searchParams.get("search") ?? undefined,
@@ -96,6 +98,7 @@ export async function getIngredientList(url: URL) {
 }
 
 export async function getLowStockIngredientCount() {
+  await requireModuleEnabled("inventoryEnabled");
   return countLowStockIngredients();
 }
 
@@ -103,6 +106,7 @@ export async function createIngredientFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  await requireModuleEnabled("inventoryEnabled");
   const data = parseIngredientPayload(payload);
   const ingredient = await createIngredient(data);
 
@@ -123,6 +127,7 @@ export async function updateIngredientFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  await requireModuleEnabled("inventoryEnabled");
   const existing = await findIngredientById(id);
   if (!existing) {
     throw new NotFoundError("Ingredient was not found.");
@@ -157,6 +162,7 @@ export async function adjustIngredientFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  await requireModuleEnabled("inventoryEnabled");
   const data = parseAdjustmentPayload(payload);
   const result = await adjustIngredientStock({
     ingredientId: id,
@@ -180,6 +186,7 @@ export async function adjustIngredientFromPayload(
 }
 
 export async function getStockMovementList(url: URL) {
+  await requireModuleEnabled("inventoryEnabled");
   const type = url.searchParams.get("type");
   const allowedTypes = [
     "sale_deduction",

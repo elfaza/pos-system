@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     order: { findFirst: vi.fn(), update: vi.fn() },
   },
   listActiveKitchenOrders: vi.fn(),
+  requireModuleEnabled: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -32,6 +33,10 @@ vi.mock("../repositories/kitchen-repository", () => ({
     data: Record<string, unknown>,
     tx: typeof mocks.tx,
   ) => tx.order.update({ where: { id }, data, include: {} }),
+}));
+
+vi.mock("@/features/catalog/services/module-config", () => ({
+  requireModuleEnabled: mocks.requireModuleEnabled,
 }));
 
 const actor = {
@@ -70,6 +75,7 @@ function buildOrder(overrides: Record<string, unknown> = {}) {
 describe("kitchen service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requireModuleEnabled.mockResolvedValue({});
     mocks.transaction.mockImplementation((callback) => callback(mocks.tx));
     mocks.tx.activityLog.create.mockResolvedValue({});
     mocks.tx.order.findFirst.mockResolvedValue(buildOrder());
@@ -134,5 +140,15 @@ describe("kitchen service", () => {
       ValidationError,
     );
     expect(mocks.tx.order.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects kitchen workflows when the module is disabled", async () => {
+    const { ForbiddenError } = await import("@/lib/api-response");
+    mocks.requireModuleEnabled.mockRejectedValueOnce(
+      new ForbiddenError("Kitchen module is disabled."),
+    );
+
+    await expect(getKitchenBoard()).rejects.toBeInstanceOf(ForbiddenError);
+    expect(mocks.listActiveKitchenOrders).not.toHaveBeenCalled();
   });
 });

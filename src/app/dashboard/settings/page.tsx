@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 import AdminShell from "@/features/admin/components/admin-shell";
 import type { SettingsRecord } from "@/features/catalog/types";
 
@@ -9,43 +9,136 @@ interface SettingsForm {
   storeAddress: string;
   storePhone: string;
   logoUrl: string;
+  locale: string;
+  currencyCode: string;
+  timeZone: string;
+  businessDayStartTime: string;
   taxEnabled: boolean;
   taxRate: number;
   serviceChargeEnabled: boolean;
   serviceChargeRate: number;
+  cashPaymentEnabled: boolean;
+  qrisPaymentEnabled: boolean;
+  kitchenEnabled: boolean;
+  queueEnabled: boolean;
+  inventoryEnabled: boolean;
+  accountingEnabled: boolean;
+  reportingEnabled: boolean;
+  receiptPrintingEnabled: boolean;
   refundWindowHours: string;
   autoRestoreStockOnRefund: boolean;
   receiptFooter: string;
 }
+
+type ConfigurableSettingsRecord = SettingsRecord & {
+  locale?: string;
+  currencyCode?: string;
+  timeZone?: string;
+  businessDayStartTime?: string;
+  cashPaymentEnabled?: boolean;
+  qrisPaymentEnabled?: boolean;
+  kitchenEnabled?: boolean;
+  queueEnabled?: boolean;
+  inventoryEnabled?: boolean;
+  accountingEnabled?: boolean;
+  reportingEnabled?: boolean;
+  receiptPrintingEnabled?: boolean;
+};
 
 const emptyForm: SettingsForm = {
   storeName: "",
   storeAddress: "",
   storePhone: "",
   logoUrl: "",
+  locale: "id-ID",
+  currencyCode: "IDR",
+  timeZone: "Asia/Jakarta",
+  businessDayStartTime: "00:00",
   taxEnabled: false,
   taxRate: 0,
   serviceChargeEnabled: false,
   serviceChargeRate: 0,
+  cashPaymentEnabled: true,
+  qrisPaymentEnabled: false,
+  kitchenEnabled: true,
+  queueEnabled: true,
+  inventoryEnabled: true,
+  accountingEnabled: true,
+  reportingEnabled: true,
+  receiptPrintingEnabled: true,
   refundWindowHours: "",
   autoRestoreStockOnRefund: false,
   receiptFooter: "",
 };
 
-function toForm(settings: SettingsRecord): SettingsForm {
+const fieldClass =
+  "h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]";
+const checkboxClass = "size-4 rounded border-[var(--border)]";
+
+function toForm(settings: ConfigurableSettingsRecord): SettingsForm {
   return {
     storeName: settings.storeName,
     storeAddress: settings.storeAddress ?? "",
     storePhone: settings.storePhone ?? "",
     logoUrl: settings.logoUrl ?? "",
+    locale: settings.locale ?? emptyForm.locale,
+    currencyCode: settings.currencyCode ?? emptyForm.currencyCode,
+    timeZone: settings.timeZone ?? emptyForm.timeZone,
+    businessDayStartTime: settings.businessDayStartTime ?? emptyForm.businessDayStartTime,
     taxEnabled: settings.taxEnabled,
     taxRate: settings.taxRate,
     serviceChargeEnabled: settings.serviceChargeEnabled,
     serviceChargeRate: settings.serviceChargeRate,
+    cashPaymentEnabled: settings.cashPaymentEnabled ?? emptyForm.cashPaymentEnabled,
+    qrisPaymentEnabled: settings.qrisPaymentEnabled ?? emptyForm.qrisPaymentEnabled,
+    kitchenEnabled: settings.kitchenEnabled ?? emptyForm.kitchenEnabled,
+    queueEnabled: settings.queueEnabled ?? emptyForm.queueEnabled,
+    inventoryEnabled: settings.inventoryEnabled ?? emptyForm.inventoryEnabled,
+    accountingEnabled: settings.accountingEnabled ?? emptyForm.accountingEnabled,
+    reportingEnabled: settings.reportingEnabled ?? emptyForm.reportingEnabled,
+    receiptPrintingEnabled:
+      settings.receiptPrintingEnabled ?? emptyForm.receiptPrintingEnabled,
     refundWindowHours: settings.refundWindowHours?.toString() ?? "",
     autoRestoreStockOnRefund: settings.autoRestoreStockOnRefund,
     receiptFooter: settings.receiptFooter ?? "",
   };
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-[var(--border)] pt-5 first:border-t-0 first:pt-0">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <div className="mt-3 grid gap-4">{children}</div>
+    </section>
+  );
+}
+
+function ToggleField({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 text-sm font-medium">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className={checkboxClass}
+      />
+      {label}
+    </label>
+  );
 }
 
 export default function SettingsPage() {
@@ -80,6 +173,13 @@ export default function SettingsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!form.cashPaymentEnabled && !form.qrisPaymentEnabled) {
+      setError("Enable at least one payment method.");
+      setSuccess(null);
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -113,7 +213,7 @@ export default function SettingsPage() {
         <div className="border-b border-[var(--border)] p-4">
           <h2 className="font-semibold">Store settings</h2>
           <p className="text-sm text-[var(--muted-foreground)]">
-            Tax and service rates are applied at checkout from these values.
+            Store, payment, and module settings are enforced by the backend.
           </p>
         </div>
 
@@ -136,9 +236,8 @@ export default function SettingsPage() {
               </p>
             ) : null}
 
-            <section>
-              <h3 className="text-sm font-semibold">Store profile</h3>
-              <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <Section title="Store profile">
+              <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-1 text-sm font-medium">
                   Store name
                   <input
@@ -146,7 +245,7 @@ export default function SettingsPage() {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, storeName: event.target.value }))
                     }
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className={fieldClass}
                     required
                   />
                 </label>
@@ -157,7 +256,7 @@ export default function SettingsPage() {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, storePhone: event.target.value }))
                     }
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className={fieldClass}
                   />
                 </label>
                 <label className="grid gap-1 text-sm font-medium md:col-span-2">
@@ -170,7 +269,7 @@ export default function SettingsPage() {
                         storeAddress: event.target.value,
                       }))
                     }
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className={fieldClass}
                   />
                 </label>
                 <label className="grid gap-1 text-sm font-medium md:col-span-2">
@@ -180,26 +279,82 @@ export default function SettingsPage() {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, logoUrl: event.target.value }))
                     }
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className={fieldClass}
                   />
                 </label>
               </div>
-            </section>
+            </Section>
 
-            <section className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-md border border-[var(--border)] p-4">
-                <h3 className="text-sm font-semibold">Tax</h3>
-                <label className="mt-3 flex items-center gap-2 text-sm font-medium">
+            <Section title="Locale and business day">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-1 text-sm font-medium">
+                  Locale
                   <input
-                    type="checkbox"
-                    checked={form.taxEnabled}
+                    value={form.locale}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, taxEnabled: event.target.checked }))
+                      setForm((current) => ({ ...current, locale: event.target.value }))
                     }
+                    className={fieldClass}
+                    placeholder="id-ID"
+                    required
                   />
-                  Enable tax
                 </label>
-                <label className="mt-3 grid gap-1 text-sm font-medium">
+                <label className="grid gap-1 text-sm font-medium">
+                  Currency code
+                  <input
+                    value={form.currencyCode}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        currencyCode: event.target.value.toUpperCase(),
+                      }))
+                    }
+                    className={fieldClass}
+                    maxLength={3}
+                    placeholder="IDR"
+                    required
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-medium">
+                  Time zone
+                  <input
+                    value={form.timeZone}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, timeZone: event.target.value }))
+                    }
+                    className={fieldClass}
+                    placeholder="Asia/Jakarta"
+                    required
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-medium">
+                  Business day starts
+                  <input
+                    type="time"
+                    value={form.businessDayStartTime}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        businessDayStartTime: event.target.value,
+                      }))
+                    }
+                    className={fieldClass}
+                    required
+                  />
+                </label>
+              </div>
+            </Section>
+
+            <Section title="Charges">
+              <div className="grid gap-4 md:grid-cols-2">
+                <ToggleField
+                  checked={form.taxEnabled}
+                  label="Enable tax"
+                  onChange={(taxEnabled) =>
+                    setForm((current) => ({ ...current, taxEnabled }))
+                  }
+                />
+                <label className="grid gap-1 text-sm font-medium">
                   Tax rate percent
                   <input
                     type="number"
@@ -212,27 +367,17 @@ export default function SettingsPage() {
                         taxRate: Number(event.target.value),
                       }))
                     }
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className={fieldClass}
                   />
                 </label>
-              </div>
-
-              <div className="rounded-md border border-[var(--border)] p-4">
-                <h3 className="text-sm font-semibold">Service charge</h3>
-                <label className="mt-3 flex items-center gap-2 text-sm font-medium">
-                  <input
-                    type="checkbox"
-                    checked={form.serviceChargeEnabled}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        serviceChargeEnabled: event.target.checked,
-                      }))
-                    }
-                  />
-                  Enable service charge
-                </label>
-                <label className="mt-3 grid gap-1 text-sm font-medium">
+                <ToggleField
+                  checked={form.serviceChargeEnabled}
+                  label="Enable service charge"
+                  onChange={(serviceChargeEnabled) =>
+                    setForm((current) => ({ ...current, serviceChargeEnabled }))
+                  }
+                />
+                <label className="grid gap-1 text-sm font-medium">
                   Service charge percent
                   <input
                     type="number"
@@ -245,53 +390,114 @@ export default function SettingsPage() {
                         serviceChargeRate: Number(event.target.value),
                       }))
                     }
-                    className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className={fieldClass}
                   />
                 </label>
               </div>
-            </section>
+            </Section>
 
-            <section className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-1 text-sm font-medium">
-                Refund window hours
-                <input
-                  type="number"
-                  min={0}
-                  value={form.refundWindowHours}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      refundWindowHours: event.target.value,
-                    }))
+            <Section title="Payment methods">
+              <div className="grid gap-4 md:grid-cols-2">
+                <ToggleField
+                  checked={form.cashPaymentEnabled}
+                  label="Cash payment"
+                  onChange={(cashPaymentEnabled) =>
+                    setForm((current) => ({ ...current, cashPaymentEnabled }))
                   }
-                  className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 />
-              </label>
-              <label className="mt-6 flex items-center gap-2 text-sm font-medium">
-                <input
-                  type="checkbox"
+                <ToggleField
+                  checked={form.qrisPaymentEnabled}
+                  label="QRIS payment"
+                  onChange={(qrisPaymentEnabled) =>
+                    setForm((current) => ({ ...current, qrisPaymentEnabled }))
+                  }
+                />
+              </div>
+            </Section>
+
+            <Section title="Module availability">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <ToggleField
+                  checked={form.kitchenEnabled}
+                  label="Kitchen"
+                  onChange={(kitchenEnabled) =>
+                    setForm((current) => ({ ...current, kitchenEnabled }))
+                  }
+                />
+                <ToggleField
+                  checked={form.queueEnabled}
+                  label="Queue display"
+                  onChange={(queueEnabled) =>
+                    setForm((current) => ({ ...current, queueEnabled }))
+                  }
+                />
+                <ToggleField
+                  checked={form.inventoryEnabled}
+                  label="Inventory"
+                  onChange={(inventoryEnabled) =>
+                    setForm((current) => ({ ...current, inventoryEnabled }))
+                  }
+                />
+                <ToggleField
+                  checked={form.accountingEnabled}
+                  label="Accounting"
+                  onChange={(accountingEnabled) =>
+                    setForm((current) => ({ ...current, accountingEnabled }))
+                  }
+                />
+                <ToggleField
+                  checked={form.reportingEnabled}
+                  label="Reporting"
+                  onChange={(reportingEnabled) =>
+                    setForm((current) => ({ ...current, reportingEnabled }))
+                  }
+                />
+              </div>
+            </Section>
+
+            <Section title="Refund and receipt">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-1 text-sm font-medium">
+                  Refund window hours
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.refundWindowHours}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        refundWindowHours: event.target.value,
+                      }))
+                    }
+                    className={fieldClass}
+                  />
+                </label>
+                <ToggleField
                   checked={form.autoRestoreStockOnRefund}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      autoRestoreStockOnRefund: event.target.checked,
-                    }))
+                  label="Auto restore stock on refund"
+                  onChange={(autoRestoreStockOnRefund) =>
+                    setForm((current) => ({ ...current, autoRestoreStockOnRefund }))
                   }
                 />
-                Auto restore stock on refund
-              </label>
-            </section>
-
-            <label className="grid gap-1 text-sm font-medium">
-              Receipt footer
-              <textarea
-                value={form.receiptFooter}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, receiptFooter: event.target.value }))
-                }
-                className="min-h-24 rounded-md border border-[var(--border)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-              />
-            </label>
+                <ToggleField
+                  checked={form.receiptPrintingEnabled}
+                  label="Receipt printing"
+                  onChange={(receiptPrintingEnabled) =>
+                    setForm((current) => ({ ...current, receiptPrintingEnabled }))
+                  }
+                />
+                <label className="grid gap-1 text-sm font-medium md:col-span-2">
+                  Receipt footer
+                  <textarea
+                    value={form.receiptFooter}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, receiptFooter: event.target.value }))
+                    }
+                    className="min-h-24 rounded-md border border-[var(--border)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                  />
+                </label>
+              </div>
+            </Section>
           </div>
         )}
 

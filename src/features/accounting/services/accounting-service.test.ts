@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     dailyClose: { findUnique: vi.fn(), create: vi.fn() },
     activityLog: { create: vi.fn() },
   },
+  requireModuleEnabled: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -29,6 +30,10 @@ vi.mock("@/lib/prisma", () => ({
     cashLedgerEntry: mocks.tx.cashLedgerEntry,
     dailyClose: mocks.tx.dailyClose,
   },
+}));
+
+vi.mock("@/features/catalog/services/module-config", () => ({
+  requireModuleEnabled: mocks.requireModuleEnabled,
 }));
 
 const actor = {
@@ -51,6 +56,10 @@ const accountsByCode: Record<string, { id: string; code: string }> = {
 describe("accounting service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requireModuleEnabled.mockResolvedValue({
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
     mocks.transaction.mockImplementation((callback) => callback(mocks.tx));
     mocks.tx.account.upsert.mockImplementation(({ where }: { where: { code: string } }) => ({
       id: accountsByCode[where.code].id,
@@ -191,5 +200,26 @@ describe("accounting service", () => {
       ),
     ).rejects.toBeInstanceOf(ValidationError);
     expect(mocks.tx.dailyClose.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects accounting workflows when the module is disabled", async () => {
+    const { ForbiddenError } = await import("@/lib/api-response");
+    const { createCashMovementFromPayload } = await import("./accounting-service");
+    mocks.requireModuleEnabled.mockRejectedValueOnce(
+      new ForbiddenError("Accounting module is disabled."),
+    );
+
+    await expect(
+      createCashMovementFromPayload(
+        {
+          type: "cash_in",
+          amount: "10000",
+          businessDate: "2026-05-04",
+          reason: "Opening cash",
+        },
+        actor,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 });

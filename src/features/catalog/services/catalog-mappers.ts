@@ -143,5 +143,17 @@ export function mapSettings(settings: AppSetting): SettingsRecord {
     refundWindowHours: settings.refundWindowHours,
     autoRestoreStockOnRefund: settings.autoRestoreStockOnRefund,
     receiptFooter: settings.receiptFooter,
+    locale: settings.locale,
+    currencyCode: settings.currencyCode,
+    timeZone: settings.timeZone,
+    businessDayStartTime: settings.businessDayStartTime,
+    cashPaymentEnabled: settings.cashPaymentEnabled,
+    qrisPaymentEnabled: settings.qrisPaymentEnabled,
+    kitchenEnabled: settings.kitchenEnabled,
+    queueEnabled: settings.queueEnabled,
+    inventoryEnabled: settings.inventoryEnabled,
+    accountingEnabled: settings.accountingEnabled,
+    reportingEnabled: settings.reportingEnabled,
+    receiptPrintingEnabled: settings.receiptPrintingEnabled,
   };
 }

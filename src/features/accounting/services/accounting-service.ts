@@ -3,6 +3,8 @@ import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { toBoolean, toDecimalString } from "@/lib/number";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
+import { requireModuleEnabled } from "@/features/catalog/services/module-config";
+import { getQueueBusinessDate } from "@/features/kitchen/services/queue-number";
 import {
   mapAccount,
   mapCashLedgerEntry,
@@ -241,6 +243,7 @@ export async function createSalesAccountingForPaidCashOrder(
 }
 
 export async function getAccountsAndCategories() {
+  await requireModuleEnabled("accountingEnabled");
   await ensureDefaultAccountingSetup();
   const [accounts, expenseCategories] = await Promise.all([
     prisma.account.findMany({ orderBy: [{ code: "asc" }] }),
@@ -254,6 +257,7 @@ export async function getAccountsAndCategories() {
 }
 
 export async function createAccountFromPayload(payload: Record<string, unknown>) {
+  await requireModuleEnabled("accountingEnabled");
   const code = optionalString(payload.code) ?? "";
   const name = optionalString(payload.name) ?? "";
   const type = optionalString(payload.type) ?? "";
@@ -285,6 +289,7 @@ export async function updateAccountFromPayload(
   id: string,
   payload: Record<string, unknown>,
 ) {
+  await requireModuleEnabled("accountingEnabled");
   const existing = await prisma.account.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError("Account was not found.");
 
@@ -300,6 +305,7 @@ export async function updateAccountFromPayload(
 }
 
 export async function getJournalEntryList() {
+  await requireModuleEnabled("accountingEnabled");
   const entries = await prisma.journalEntry.findMany({
     include: {
       lines: {
@@ -315,6 +321,7 @@ export async function getJournalEntryList() {
 }
 
 export async function getExpenseList() {
+  await requireModuleEnabled("accountingEnabled");
   const expenses = await prisma.expense.findMany({
     include: { category: true },
     orderBy: { createdAt: "desc" },
@@ -328,6 +335,7 @@ export async function createExpenseFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  await requireModuleEnabled("accountingEnabled");
   const categoryId = optionalString(payload.categoryId) ?? "";
   const amount = parsePositiveMoney(payload.amount);
   const businessDate = parseBusinessDate(payload.businessDate);
@@ -408,6 +416,7 @@ export async function createExpenseFromPayload(
 }
 
 export async function getCashMovementList() {
+  await requireModuleEnabled("accountingEnabled");
   const movements = await prisma.cashMovement.findMany({
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -420,6 +429,7 @@ export async function createCashMovementFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  await requireModuleEnabled("accountingEnabled");
   const type = payload.type === "cash_out" ? "cash_out" : "cash_in";
   const amount = parsePositiveMoney(payload.amount);
   const businessDate = parseBusinessDate(payload.businessDate);
@@ -508,6 +518,7 @@ async function getExpectedCashForBusinessDate(
 }
 
 export async function getDailyCloseList() {
+  await requireModuleEnabled("accountingEnabled");
   const closes = await prisma.dailyClose.findMany({
     orderBy: { businessDate: "desc" },
     take: 100,
@@ -520,6 +531,7 @@ export async function createDailyCloseFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  await requireModuleEnabled("accountingEnabled");
   const businessDate = parseBusinessDate(payload.businessDate);
   const countedCashAmount = parsePositiveMoney(payload.countedCashAmount, "countedCashAmount");
 
@@ -595,13 +607,13 @@ export async function createDailyCloseFromPayload(
 }
 
 export async function getAccountingReport(url: URL): Promise<AccountingReport> {
+  const settings = await requireModuleEnabled("accountingEnabled");
   await ensureDefaultAccountingSetup();
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  const today = getQueueBusinessDate(
+    new Date(),
+    settings.timeZone,
+    settings.businessDayStartTime,
+  );
   const dateFrom = url.searchParams.get("dateFrom")
     ? parseBusinessDate(url.searchParams.get("dateFrom"), "dateFrom")
     : today;

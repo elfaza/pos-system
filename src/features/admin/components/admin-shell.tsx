@@ -2,23 +2,69 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+
+type OptionalModuleKey = "kitchen" | "queue" | "inventory" | "accounting";
+
+interface ModuleAvailability {
+  kitchenEnabled: boolean;
+  queueEnabled: boolean;
+  inventoryEnabled: boolean;
+  accountingEnabled: boolean;
+}
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
   { href: "/pos", label: "POS", opensInNewTab: true },
   { href: "/orders", label: "Orders" },
-  { href: "/kitchen", label: "Kitchen" },
-  { href: "/queue", label: "Queue", opensInNewTab: true },
+  { href: "/kitchen", label: "Kitchen", moduleKey: "kitchen" },
+  { href: "/queue", label: "Queue", opensInNewTab: true, moduleKey: "queue" },
   { href: "/dashboard/categories", label: "Categories" },
   { href: "/dashboard/products", label: "Products" },
-  { href: "/dashboard/inventory", label: "Inventory" },
-  { href: "/dashboard/accounting", label: "Accounting" },
+  { href: "/dashboard/inventory", label: "Inventory", moduleKey: "inventory" },
+  { href: "/dashboard/accounting", label: "Accounting", moduleKey: "accounting" },
   { href: "/dashboard/users", label: "Users" },
   { href: "/dashboard/settings", label: "Settings" },
-];
+] satisfies Array<{
+  href: string;
+  label: string;
+  opensInNewTab?: boolean;
+  moduleKey?: OptionalModuleKey;
+}>;
+
+function isModuleEnabled(settings: ModuleAvailability | null, moduleKey?: OptionalModuleKey) {
+  if (!moduleKey) return true;
+  if (!settings) return false;
+
+  if (moduleKey === "kitchen") return settings.kitchenEnabled;
+  if (moduleKey === "queue") return settings.queueEnabled;
+  if (moduleKey === "inventory") return settings.inventoryEnabled;
+  return settings.accountingEnabled;
+}
+
+function DisabledModuleState({ label }: { label: string }) {
+  return (
+    <div className="max-w-3xl rounded-md border border-[var(--border)] bg-[var(--card)] p-4">
+      <h2 className="font-semibold">{label} is disabled</h2>
+      <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+        Enable this module in Settings before using this workspace.
+      </p>
+    </div>
+  );
+}
+
+function ModuleAvailabilityLoadingState({ label }: { label: string }) {
+  return (
+    <div className="max-w-3xl rounded-md border border-[var(--border)] bg-[var(--card)] p-4">
+      <div className="h-5 w-48 rounded-md bg-[var(--muted)]" />
+      <p className="mt-3 text-sm text-[var(--muted-foreground)]">
+        Checking {label.toLowerCase()} module availability...
+      </p>
+    </div>
+  );
+}
 
 export default function AdminShell({
   title,
@@ -31,6 +77,49 @@ export default function AdminShell({
 }) {
   const { logout, loading, user } = useAuth();
   const pathname = usePathname();
+  const [moduleAvailability, setModuleAvailability] = useState<ModuleAvailability | null>(null);
+  const [moduleAvailabilityLoading, setModuleAvailabilityLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadModuleAvailability() {
+      try {
+        const response = await fetch("/api/settings", { signal: controller.signal });
+        const data = await response.json();
+        if (response.ok) {
+          const nextAvailability = {
+            kitchenEnabled: data.settings?.kitchenEnabled ?? true,
+            queueEnabled: data.settings?.queueEnabled ?? true,
+            inventoryEnabled: data.settings?.inventoryEnabled ?? true,
+            accountingEnabled: data.settings?.accountingEnabled ?? true,
+          };
+          setModuleAvailability(nextAvailability);
+        }
+      } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === "AbortError") return;
+        setModuleAvailability(null);
+      } finally {
+        setModuleAvailabilityLoading(false);
+      }
+    }
+
+    void loadModuleAvailability();
+
+    return () => controller.abort();
+  }, []);
+
+  const currentModuleItem = navItems.find(
+    (item) =>
+      item.moduleKey &&
+      (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+  );
+  const disabledCurrentItem = navItems.find(
+    (item) =>
+      item.moduleKey &&
+      !isModuleEnabled(moduleAvailability, item.moduleKey) &&
+      (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+  );
 
   return (
     <RoleGuard allowedRoles={["admin"]}>
@@ -60,6 +149,8 @@ export default function AdminShell({
           <aside className="border-b border-[var(--border)] bg-[#152238] p-3 text-white lg:sticky lg:top-[69px] lg:h-[calc(100dvh-69px)] lg:overflow-y-auto lg:border-b-0 lg:p-4">
             <nav className="flex gap-2 overflow-x-auto lg:grid lg:gap-1">
               {navItems.map((item) => {
+                if (!isModuleEnabled(moduleAvailability, item.moduleKey)) return null;
+
                 const isActive =
                   item.href === "/dashboard"
                     ? pathname === item.href
@@ -96,7 +187,15 @@ export default function AdminShell({
               })}
             </nav>
           </aside>
-          <section className="min-w-0 p-4 lg:p-6">{children}</section>
+          <section className="min-w-0 p-4 lg:p-6">
+            {currentModuleItem && moduleAvailabilityLoading ? (
+              <ModuleAvailabilityLoadingState label={currentModuleItem.label} />
+            ) : disabledCurrentItem ? (
+              <DisabledModuleState label={disabledCurrentItem.label} />
+            ) : (
+              children
+            )}
+          </section>
         </div>
       </main>
     </RoleGuard>

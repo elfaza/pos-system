@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
+import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   findKitchenOrderById,
   kitchenStatuses,
@@ -55,11 +56,13 @@ function buildStatusTimestampPatch(
 }
 
 export async function getKitchenBoard() {
+  await requireModuleEnabled("kitchenEnabled");
   const orders = await listActiveKitchenOrders();
   return buildKitchenBoard(orders.map(mapKitchenOrder));
 }
 
 export async function getQueueDisplay() {
+  await requireModuleEnabled("queueEnabled");
   const orders = await listReadyQueueOrders();
   return buildQueueDisplay(orders.map(mapKitchenOrder));
 }
@@ -69,6 +72,7 @@ export async function changeKitchenStatus(
   nextStatus: KitchenStatus,
   actor: User,
 ) {
+  await requireModuleEnabled("kitchenEnabled");
   const updatedOrder = await prisma.$transaction(async (tx) => {
     const order = await findKitchenOrderById(orderId, tx);
 

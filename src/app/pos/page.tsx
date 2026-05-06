@@ -16,8 +16,13 @@ import { calculateCartTotals, formatRupiah } from "@/features/checkout/services/
 import { useCartStore } from "@/features/checkout/stores/cart-store";
 import type { CartItem, CheckoutOrderRecord } from "@/features/checkout/types";
 
-function isInsufficientStock(item: CartItem): boolean {
-  return item.trackStock && item.stockQuantity !== null && item.quantity > item.stockQuantity;
+function isInsufficientStock(item: CartItem, inventoryEnabled: boolean): boolean {
+  return (
+    inventoryEnabled &&
+    item.trackStock &&
+    item.stockQuantity !== null &&
+    item.quantity > item.stockQuantity
+  );
 }
 
 function PosCart({
@@ -49,7 +54,8 @@ function PosCart({
       serviceChargeRate: 0,
     },
   );
-  const hasStockIssue = items.some(isInsufficientStock);
+  const inventoryEnabled = settings?.inventoryEnabled ?? true;
+  const hasStockIssue = items.some((item) => isInsufficientStock(item, inventoryEnabled));
   const finalActionsDisabled = !isOnline || items.length === 0 || hasStockIssue;
   const holdDisabled = !isOnline || items.length === 0 || holding;
 
@@ -134,7 +140,7 @@ function PosCart({
                     {formatRupiah(item.unitPrice * item.quantity - item.discountAmount)}
                   </p>
                 </div>
-                {isInsufficientStock(item) ? (
+                {isInsufficientStock(item, inventoryEnabled) ? (
                   <p className="mt-2 rounded-md bg-orange-50 px-2 py-1 text-xs text-[var(--warning)]">
                     Insufficient stock. Available: {item.stockQuantity}
                   </p>
@@ -733,8 +739,11 @@ function PosContent() {
   }, [activeCategoryId, search]);
 
   const storeName = settings?.storeName ?? "Maza Cafe";
+  const inventoryEnabled = settings?.inventoryEnabled ?? true;
   const itemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
-  const mobileHasStockIssue = cartItems.some(isInsufficientStock);
+  const mobileHasStockIssue = cartItems.some((item) =>
+    isInsufficientStock(item, inventoryEnabled),
+  );
   const mobileTotals = calculateCartTotals(
     cartItems,
     settings ?? {
@@ -914,10 +923,14 @@ function PosContent() {
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
                 {products.map((product) => {
                   const outOfStock =
+                    inventoryEnabled &&
                     product.trackStock &&
                     product.stockQuantity !== null &&
                     product.stockQuantity <= 0;
-                  const disabled = !product.isAvailable || outOfStock || !product.canSellOne;
+                  const unavailableByInventory =
+                    inventoryEnabled && !product.canSellOne;
+                  const disabled =
+                    !product.isAvailable || outOfStock || unavailableByInventory;
 
                   return (
                     <button
@@ -947,7 +960,7 @@ function PosContent() {
                           {outOfStock ? (
                             <p className="mt-1 text-xs text-[var(--warning)]">Out of stock</p>
                           ) : null}
-                          {!outOfStock && !product.canSellOne ? (
+                          {!outOfStock && unavailableByInventory ? (
                             <p className="mt-1 break-words text-xs text-[var(--warning)]">
                               {product.unavailableReason ?? "Ingredients unavailable"}
                             </p>

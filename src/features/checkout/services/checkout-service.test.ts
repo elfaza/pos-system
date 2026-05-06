@@ -85,6 +85,13 @@ describe("checkout service", () => {
       taxRate: "10",
       serviceChargeEnabled: false,
       serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: true,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
     });
     mocks.transaction.mockImplementation((callback) => callback(mocks.tx));
     mocks.tx.ingredient.findUnique.mockResolvedValue(null);
@@ -333,6 +340,45 @@ describe("checkout service", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects cash checkout when cash payment is disabled", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: false,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: true,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+
+    await expect(
+      finalizeCashCheckout(
+        {
+          items: [
+            {
+              productId: "product-1",
+              variantId: null,
+              quantity: 1,
+              discountAmount: 0,
+              notes: "",
+            },
+          ],
+          cashReceivedAmount: 50_000,
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        cashReceivedAmount: "Cash payment is disabled.",
+      },
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
   it("completes cash payment with exact cash received", async () => {
     mocks.tx.order.create.mockResolvedValueOnce({
       id: "order-exact",
@@ -499,6 +545,186 @@ describe("checkout service", () => {
         orderNumber: "ORD-001",
         paymentId: "payment-1",
         totalAmount: 55_000,
+      }),
+    );
+  });
+
+  it("skips inventory validation and stock movements when inventory is disabled", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      inventoryEnabled: false,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: true,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+    mocks.findProductsForCheckout.mockResolvedValueOnce([
+      {
+        ...checkoutProduct,
+        stockQuantity: "0",
+        ingredients: [
+          {
+            id: "recipe-1",
+            productId: "product-1",
+            variantId: null,
+            ingredientId: "ingredient-1",
+            quantityRequired: "20",
+            ingredient: {
+              id: "ingredient-1",
+              name: "Milk",
+              unit: "ml",
+              currentStock: "0",
+              isActive: true,
+            },
+          },
+        ],
+      },
+    ]);
+
+    await finalizeCashCheckout(
+      {
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            quantity: 2,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+        cashReceivedAmount: 60_000,
+      },
+      actor,
+    );
+
+    expect(mocks.tx.ingredient.findUnique).not.toHaveBeenCalled();
+    expect(mocks.tx.product.update).not.toHaveBeenCalled();
+    expect(mocks.tx.stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  it("skips accounting side effects when accounting is disabled", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: false,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+
+    await finalizeCashCheckout(
+      {
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+        cashReceivedAmount: 60_000,
+      },
+      actor,
+    );
+
+    expect(mocks.createSalesAccountingForPaidCashOrder).not.toHaveBeenCalled();
+  });
+
+  it("omits queue and kitchen fields when both modules are disabled", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      inventoryEnabled: true,
+      kitchenEnabled: false,
+      queueEnabled: false,
+      accountingEnabled: false,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+
+    await finalizeCashCheckout(
+      {
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+        cashReceivedAmount: 60_000,
+      },
+      actor,
+    );
+
+    expect(mocks.tx.order.aggregate).not.toHaveBeenCalled();
+    expect(mocks.tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          queueBusinessDate: null,
+          queueNumber: null,
+          kitchenStatus: null,
+        }),
+      }),
+    );
+    expect(mocks.tx.activityLog.create).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "queue.assigned" }),
+    });
+  });
+
+  it("keeps queue numbers for kitchen ticketing when queue display is disabled", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: false,
+      accountingEnabled: false,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+
+    await finalizeCashCheckout(
+      {
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+        cashReceivedAmount: 60_000,
+      },
+      actor,
+    );
+
+    expect(mocks.tx.order.aggregate).toHaveBeenCalled();
+    expect(mocks.tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          queueNumber: 8,
+          kitchenStatus: "received",
+        }),
       }),
     );
   });

@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
-export async function getSettings() {
-  const existing = await prisma.appSetting.findFirst({
+type SettingsClient = typeof prisma | Prisma.TransactionClient;
+
+export async function getSettings(client: SettingsClient = prisma) {
+  const existing = await client.appSetting.findFirst({
     orderBy: { createdAt: "asc" },
   });
 
@@ -9,7 +12,7 @@ export async function getSettings() {
     return existing;
   }
 
-  return prisma.appSetting.create({
+  return client.appSetting.create({
     data: {
       storeName: "Maza Cafe",
       taxRate: "0",
@@ -30,6 +33,18 @@ export async function updateSettings(data: {
   refundWindowHours: number | null;
   autoRestoreStockOnRefund: boolean;
   receiptFooter: string | null;
+  locale: string;
+  currencyCode: string;
+  timeZone: string;
+  businessDayStartTime: string;
+  cashPaymentEnabled: boolean;
+  qrisPaymentEnabled: boolean;
+  kitchenEnabled: boolean;
+  queueEnabled: boolean;
+  inventoryEnabled: boolean;
+  accountingEnabled: boolean;
+  reportingEnabled: boolean;
+  receiptPrintingEnabled: boolean;
 }) {
   const settings = await getSettings();
 

@@ -92,8 +92,10 @@ export function parseHoldOrderPayload(payload: Record<string, unknown>) {
 
 async function prepareCheckoutItems(
   items: CheckoutLineInput[],
-  options: { validateStock: boolean } = { validateStock: true },
+  options: { validateStock?: boolean } = {},
 ) {
+  const settings = await getSettings();
+  const validateStock = options.validateStock ?? settings.inventoryEnabled ?? true;
   const productIds = [...new Set(items.map((item) => item.productId))];
   const products = await findProductsForCheckout(productIds);
   const productById = new Map(products.map((product) => [product.id, product]));
@@ -118,7 +120,7 @@ async function prepareCheckoutItems(
     }
 
     if (
-      options.validateStock &&
+      validateStock &&
       product.trackStock &&
       product.stockQuantity !== null &&
       Number(product.stockQuantity) < item.quantity
@@ -128,7 +130,7 @@ async function prepareCheckoutItems(
       });
     }
 
-    if (options.validateStock) {
+    if (validateStock) {
       const recipeRows = product.ingredients ?? [];
       const baseRecipes = recipeRows.filter((recipe) => recipe.variantId === null);
       const variantRecipes = item.variantId
@@ -170,7 +172,6 @@ async function prepareCheckoutItems(
     };
   });
 
-  const settings = await getSettings();
   const totals = calculateCartTotals(
     preparedItems.map((item) => ({
       id: `${item.productId}:${item.variantId ?? "base"}`,
@@ -195,7 +196,7 @@ async function prepareCheckoutItems(
     },
   );
 
-  return { preparedItems, totals };
+  return { preparedItems, totals, settings };
 }
 
 function calculateIngredientDeductions(
@@ -248,7 +249,13 @@ function calculateIngredientDeductions(
 }
 
 export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User) {
-  const { preparedItems, totals } = await prepareCheckoutItems(input.items);
+  const { preparedItems, totals, settings } = await prepareCheckoutItems(input.items);
+
+  if (settings.cashPaymentEnabled === false) {
+    throw new ValidationError("Cash payment is disabled.", {
+      cashReceivedAmount: "Cash payment is disabled.",
+    });
+  }
 
   if (input.cashReceivedAmount < totals.totalAmount) {
     throw new ValidationError("Cash received is less than the order total.", {
@@ -258,22 +265,40 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
 
   const paidAt = new Date();
   const order = await prisma.$transaction(async (tx) => {
-    const queueBusinessDate = getQueueBusinessDate(paidAt);
-    const queueNumber = await getNextQueueNumber(tx, queueBusinessDate);
-    const ingredientDeductions = calculateIngredientDeductions(preparedItems);
-    for (const deduction of ingredientDeductions) {
-      const ingredient = await tx.ingredient.findUnique({
-        where: { id: deduction.ingredientId },
-      });
-      if (!ingredient || !ingredient.isActive) {
-        throw new ValidationError("Ingredient is not available for checkout.", {
-          items: `${deduction.ingredientName} is unavailable.`,
+    const kitchenEnabled = settings.kitchenEnabled ?? true;
+    const queueEnabled = settings.queueEnabled ?? true;
+    const inventoryEnabled = settings.inventoryEnabled ?? true;
+    const accountingEnabled = settings.accountingEnabled ?? true;
+    const requiresQueueNumber = queueEnabled || kitchenEnabled;
+    const queueBusinessDate = requiresQueueNumber
+      ? getQueueBusinessDate(
+          paidAt,
+          settings.timeZone ?? "Asia/Jakarta",
+          settings.businessDayStartTime ?? "00:00",
+        )
+      : null;
+    const queueNumber = queueBusinessDate
+      ? await getNextQueueNumber(tx, queueBusinessDate)
+      : null;
+    const ingredientDeductions = inventoryEnabled
+      ? calculateIngredientDeductions(preparedItems)
+      : [];
+
+    if (inventoryEnabled) {
+      for (const deduction of ingredientDeductions) {
+        const ingredient = await tx.ingredient.findUnique({
+          where: { id: deduction.ingredientId },
         });
-      }
-      if (Number(ingredient.currentStock) < deduction.quantityRequired) {
-        throw new ValidationError("Insufficient ingredient stock for checkout.", {
-          items: `${deduction.ingredientName} only has ${ingredient.currentStock} ${deduction.unit} available.`,
-        });
+        if (!ingredient || !ingredient.isActive) {
+          throw new ValidationError("Ingredient is not available for checkout.", {
+            items: `${deduction.ingredientName} is unavailable.`,
+          });
+        }
+        if (Number(ingredient.currentStock) < deduction.quantityRequired) {
+          throw new ValidationError("Insufficient ingredient stock for checkout.", {
+            items: `${deduction.ingredientName} only has ${ingredient.currentStock} ${deduction.unit} available.`,
+          });
+        }
       }
     }
 
@@ -290,7 +315,7 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
         notes: input.notes,
         queueBusinessDate,
         queueNumber,
-        kitchenStatus: "received",
+        kitchenStatus: kitchenEnabled ? "received" : null,
         paidAt,
         items: {
           create: preparedItems.map((item) => ({
@@ -321,51 +346,53 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
       include: checkoutOrderInclude,
     });
 
-    for (const deduction of ingredientDeductions) {
-      await tx.ingredient.update({
-        where: { id: deduction.ingredientId },
-        data: {
-          currentStock: {
-            decrement: new Prisma.Decimal(deduction.quantityRequired),
+    if (inventoryEnabled) {
+      for (const deduction of ingredientDeductions) {
+        await tx.ingredient.update({
+          where: { id: deduction.ingredientId },
+          data: {
+            currentStock: {
+              decrement: new Prisma.Decimal(deduction.quantityRequired),
+            },
           },
-        },
-      });
+        });
 
-      await tx.stockMovement.create({
-        data: {
-          ingredientId: deduction.ingredientId,
-          productId: deduction.productId,
-          orderId: createdOrder.id,
-          type: "sale_deduction",
-          quantityChange: new Prisma.Decimal(-deduction.quantityRequired),
-          reason: "Cash order payment confirmed",
-          createdByUserId: actor.id,
-        },
-      });
-    }
-
-    for (const item of preparedItems) {
-      if (!item.product.trackStock) continue;
-
-      await tx.product.update({
-        where: { id: item.productId },
-        data: {
-          stockQuantity: {
-            decrement: new Prisma.Decimal(item.quantity),
+        await tx.stockMovement.create({
+          data: {
+            ingredientId: deduction.ingredientId,
+            productId: deduction.productId,
+            orderId: createdOrder.id,
+            type: "sale_deduction",
+            quantityChange: new Prisma.Decimal(-deduction.quantityRequired),
+            reason: "Cash order payment confirmed",
+            createdByUserId: actor.id,
           },
-        },
-      });
+        });
+      }
 
-      await tx.stockMovement.create({
-        data: {
-          productId: item.productId,
-          orderId: createdOrder.id,
-          type: "sale_deduction",
-          quantityChange: new Prisma.Decimal(-item.quantity),
-          reason: "Cash order payment confirmed",
-          createdByUserId: actor.id,
-        },
-      });
+      for (const item of preparedItems) {
+        if (!item.product.trackStock) continue;
+
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stockQuantity: {
+              decrement: new Prisma.Decimal(item.quantity),
+            },
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            orderId: createdOrder.id,
+            type: "sale_deduction",
+            quantityChange: new Prisma.Decimal(-item.quantity),
+            reason: "Cash order payment confirmed",
+            createdByUserId: actor.id,
+          },
+        });
+      }
     }
 
     await tx.activityLog.create({
@@ -384,34 +411,44 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
       },
     });
 
-    await tx.activityLog.create({
-      data: {
-        userId: actor.id,
-        action: "queue.assigned",
-        entityType: "order",
-        entityId: createdOrder.id,
-        metadata: {
-          orderNumber: createdOrder.orderNumber,
-          queueBusinessDate,
-          queueNumber,
+    if (queueNumber !== null && queueBusinessDate !== null) {
+      await tx.activityLog.create({
+        data: {
+          userId: actor.id,
+          action: "queue.assigned",
+          entityType: "order",
+          entityId: createdOrder.id,
+          metadata: {
+            orderNumber: createdOrder.orderNumber,
+            queueBusinessDate,
+            queueNumber,
+          },
         },
-      },
-    });
+      });
+    }
 
     const payment = createdOrder.payments[0];
     if (payment) {
-      await createSalesAccountingForPaidCashOrder(tx, {
-        orderId: createdOrder.id,
-        orderNumber: createdOrder.orderNumber,
-        paymentId: payment.id,
-        businessDate: queueBusinessDate,
-        actorId: actor.id,
-        subtotalAmount: totals.subtotalAmount,
-        discountAmount: totals.discountAmount,
-        taxAmount: totals.taxAmount,
-        serviceChargeAmount: totals.serviceChargeAmount,
-        totalAmount: totals.totalAmount,
-      });
+      if (accountingEnabled) {
+        await createSalesAccountingForPaidCashOrder(tx, {
+          orderId: createdOrder.id,
+          orderNumber: createdOrder.orderNumber,
+          paymentId: payment.id,
+          businessDate:
+            queueBusinessDate ??
+            getQueueBusinessDate(
+              paidAt,
+              settings.timeZone ?? "Asia/Jakarta",
+              settings.businessDayStartTime ?? "00:00",
+            ),
+          actorId: actor.id,
+          subtotalAmount: totals.subtotalAmount,
+          discountAmount: totals.discountAmount,
+          taxAmount: totals.taxAmount,
+          serviceChargeAmount: totals.serviceChargeAmount,
+          totalAmount: totals.totalAmount,
+        });
+      }
 
       await tx.activityLog.create({
         data: {

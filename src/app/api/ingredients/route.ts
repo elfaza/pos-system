@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
 import { requireUser } from "@/features/auth/services/session-service";
+import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   createIngredientFromPayload,
   getIngredientList,
@@ -9,6 +10,7 @@ import {
 export async function GET(request: NextRequest) {
   try {
     await requireUser(["admin"]);
+    await requireModuleEnabled("inventoryEnabled");
 
     return jsonOk({
       ingredients: await getIngredientList(request.nextUrl),
@@ -21,6 +23,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser(["admin"]);
+    await requireModuleEnabled("inventoryEnabled");
     const payload = await readJsonObject(request);
 
     return jsonOk(

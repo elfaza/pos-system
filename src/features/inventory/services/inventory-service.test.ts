@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   listStockMovements: vi.fn(),
   updateIngredient: vi.fn(),
   countLowStockIngredients: vi.fn(),
+  requireModuleEnabled: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -31,6 +32,10 @@ vi.mock("../repositories/inventory-repository", () => ({
   listIngredients: mocks.listIngredients,
   listStockMovements: mocks.listStockMovements,
   updateIngredient: mocks.updateIngredient,
+}));
+
+vi.mock("@/features/catalog/services/module-config", () => ({
+  requireModuleEnabled: mocks.requireModuleEnabled,
 }));
 
 const actor = {
@@ -55,6 +60,7 @@ const ingredientRecord = {
 describe("inventory service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requireModuleEnabled.mockResolvedValue({});
     mocks.createIngredient.mockResolvedValue(ingredientRecord);
     mocks.updateIngredient.mockResolvedValue(ingredientRecord);
     mocks.findIngredientById.mockResolvedValue(ingredientRecord);
@@ -165,5 +171,17 @@ describe("inventory service", () => {
         actor,
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("rejects inventory workflows when the module is disabled", async () => {
+    const { ForbiddenError } = await import("@/lib/api-response");
+    mocks.requireModuleEnabled.mockRejectedValueOnce(
+      new ForbiddenError("Inventory module is disabled."),
+    );
+
+    await expect(
+      createIngredientFromPayload({ name: "Milk", unit: "ml" }, actor),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(mocks.createIngredient).not.toHaveBeenCalled();
   });
 });

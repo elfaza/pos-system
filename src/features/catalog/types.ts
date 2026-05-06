@@ -61,4 +61,16 @@ export interface SettingsRecord {
   refundWindowHours: number | null;
   autoRestoreStockOnRefund: boolean;
   receiptFooter: string | null;
+  locale: string;
+  currencyCode: string;
+  timeZone: string;
+  businessDayStartTime: string;
+  cashPaymentEnabled: boolean;
+  qrisPaymentEnabled: boolean;
+  kitchenEnabled: boolean;
+  queueEnabled: boolean;
+  inventoryEnabled: boolean;
+  accountingEnabled: boolean;
+  reportingEnabled: boolean;
+  receiptPrintingEnabled: boolean;
 }

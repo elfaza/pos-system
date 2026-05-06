@@ -10,6 +10,11 @@ const mocks = vi.hoisted(() => ({
   listReportOrders: vi.fn(),
   listReportProducts: vi.fn(),
   listReportStockMovements: vi.fn(),
+  requireModuleEnabled: vi.fn(),
+}));
+
+vi.mock("@/features/catalog/services/module-config", () => ({
+  requireModuleEnabled: mocks.requireModuleEnabled,
 }));
 
 vi.mock("../repositories/reporting-repository", () => ({
@@ -83,6 +88,10 @@ function buildOrder(overrides: Record<string, unknown> = {}) {
 describe("reporting service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requireModuleEnabled.mockResolvedValue({
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
     mocks.listReportIngredients.mockResolvedValue([
       {
         id: "ingredient-1",
@@ -253,5 +262,17 @@ describe("reporting service", () => {
       refundAmount: 25000,
     });
     expect(range.dateFrom).toBe("2026-04-29");
+  });
+
+  it("rejects dashboard reports when reporting is disabled", async () => {
+    const { ForbiddenError } = await import("@/lib/api-response");
+    mocks.requireModuleEnabled.mockRejectedValueOnce(
+      new ForbiddenError("Reporting module is disabled."),
+    );
+
+    await expect(
+      getDashboardReport(new URL("http://localhost/api/reports/dashboard")),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(mocks.listReportOrders).not.toHaveBeenCalled();
   });
 });

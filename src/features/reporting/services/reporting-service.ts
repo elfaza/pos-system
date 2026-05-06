@@ -1,5 +1,6 @@
 import { PaymentMethod, Prisma } from "@prisma/client";
 import { ValidationError } from "@/lib/api-response";
+import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   listReportIngredients,
   listReportOrders,
@@ -20,7 +21,8 @@ import type {
 
 const maxReportDays = 31;
 const defaultTopProductLimit = 10;
-const storeTimeZoneOffset = "+07:00";
+const defaultTimeZone = "Asia/Jakarta";
+const defaultBusinessDayStartTime = "00:00";
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined): number {
   if (value === null || value === undefined) return 0;
@@ -32,9 +34,9 @@ function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function formatDateInput(date: Date): string {
+function formatDateInput(date: Date, timeZone = defaultTimeZone): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -65,22 +67,88 @@ function parseDateInput(value: string | null, field: "dateFrom" | "dateTo") {
   return value;
 }
 
-function startOfBusinessDate(value: string): Date {
-  return new Date(`${value}T00:00:00.000${storeTimeZoneOffset}`);
+function parseBusinessTime(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  return {
+    hour: Number.isInteger(hour) ? hour : 0,
+    minute: Number.isInteger(minute) ? minute : 0,
+  };
 }
 
-function exclusiveEndOfBusinessDate(value: string): Date {
-  const end = new Date(`${value}T00:00:00.000${storeTimeZoneOffset}`);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return end;
+function zonedLocalTimeToUtc(
+  value: string,
+  timeZone = defaultTimeZone,
+  businessDayStartTime = defaultBusinessDayStartTime,
+) {
+  const [year, month, day] = value.split("-").map(Number);
+  const { hour, minute } = parseBusinessTime(businessDayStartTime);
+  const desiredLocalAsUtc = Date.UTC(year, month - 1, day, hour, minute);
+  const estimatedUtc = new Date(desiredLocalAsUtc);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(estimatedUtc);
+  const byType = new Map(parts.map((part) => [part.type, part.value]));
+  const actualLocalAsUtc = Date.UTC(
+    Number(byType.get("year")),
+    Number(byType.get("month")) - 1,
+    Number(byType.get("day")),
+    Number(byType.get("hour")),
+    Number(byType.get("minute")),
+    Number(byType.get("second")),
+  );
+
+  return new Date(desiredLocalAsUtc + (desiredLocalAsUtc - actualLocalAsUtc));
 }
 
-export function parseReportDateRange(url: URL) {
-  const today = formatDateInput(new Date());
+function addBusinessDays(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatDateInput(date, "UTC");
+}
+
+function startOfBusinessDate(
+  value: string,
+  timeZone = defaultTimeZone,
+  businessDayStartTime = defaultBusinessDayStartTime,
+): Date {
+  return zonedLocalTimeToUtc(value, timeZone, businessDayStartTime);
+}
+
+function exclusiveEndOfBusinessDate(
+  value: string,
+  timeZone = defaultTimeZone,
+  businessDayStartTime = defaultBusinessDayStartTime,
+): Date {
+  return zonedLocalTimeToUtc(
+    addBusinessDays(value, 1),
+    timeZone,
+    businessDayStartTime,
+  );
+}
+
+export function parseReportDateRange(
+  url: URL,
+  config: {
+    timeZone?: string;
+    businessDayStartTime?: string;
+  } = {},
+) {
+  const timeZone = config.timeZone ?? defaultTimeZone;
+  const businessDayStartTime =
+    config.businessDayStartTime ?? defaultBusinessDayStartTime;
+  const today = formatDateInput(new Date(), timeZone);
   const dateFrom = parseDateInput(url.searchParams.get("dateFrom"), "dateFrom") ?? today;
   const dateTo = parseDateInput(url.searchParams.get("dateTo"), "dateTo") ?? dateFrom;
-  const from = startOfBusinessDate(dateFrom);
-  const to = exclusiveEndOfBusinessDate(dateTo);
+  const from = startOfBusinessDate(dateFrom, timeZone, businessDayStartTime);
+  const to = exclusiveEndOfBusinessDate(dateTo, timeZone, businessDayStartTime);
 
   if (from.getTime() >= to.getTime()) {
     throw new ValidationError("Report date range is invalid.", {
@@ -322,7 +390,11 @@ function buildCashierReport(orders: ReportOrderRow[]): CashierReportItem[] {
 }
 
 export async function getDashboardReport(url: URL): Promise<DashboardReport> {
-  const dateRange = parseReportDateRange(url);
+  const settings = await requireModuleEnabled("reportingEnabled");
+  const dateRange = parseReportDateRange(url, {
+    timeZone: settings.timeZone,
+    businessDayStartTime: settings.businessDayStartTime,
+  });
   const [orders, ingredients, products, movements] = await Promise.all([
     listReportOrders({ paidFrom: dateRange.from, paidTo: dateRange.to }),
     listReportIngredients(),
