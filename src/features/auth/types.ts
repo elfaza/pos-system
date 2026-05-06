@@ -19,3 +19,10 @@ export interface AuthState {
   loading: boolean;
   isAuthenticated: boolean;
 }
+
+export interface ModuleAvailability {
+  kitchenEnabled: boolean;
+  queueEnabled: boolean;
+  inventoryEnabled: boolean;
+  accountingEnabled: boolean;
+}

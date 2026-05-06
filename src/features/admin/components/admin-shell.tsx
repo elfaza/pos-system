@@ -5,15 +5,9 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import type { ModuleAvailability } from "@/features/auth/types";
 
 type OptionalModuleKey = "kitchen" | "queue" | "inventory" | "accounting";
-
-interface ModuleAvailability {
-  kitchenEnabled: boolean;
-  queueEnabled: boolean;
-  inventoryEnabled: boolean;
-  accountingEnabled: boolean;
-}
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
@@ -75,10 +69,20 @@ export default function AdminShell({
   eyebrow: string;
   children: ReactNode;
 }) {
-  const { logout, loading, user } = useAuth();
+  const {
+    logout,
+    loading,
+    moduleAvailability: initialModuleAvailability,
+    setModuleAvailability: setInitialModuleAvailability,
+    user,
+  } = useAuth();
   const pathname = usePathname();
-  const [moduleAvailability, setModuleAvailability] = useState<ModuleAvailability | null>(null);
-  const [moduleAvailabilityLoading, setModuleAvailabilityLoading] = useState(true);
+  const [moduleAvailability, setModuleAvailability] = useState<ModuleAvailability | null>(
+    initialModuleAvailability,
+  );
+  const [moduleAvailabilityLoading, setModuleAvailabilityLoading] = useState(
+    !initialModuleAvailability,
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,6 +99,7 @@ export default function AdminShell({
             accountingEnabled: data.settings?.accountingEnabled ?? true,
           };
           setModuleAvailability(nextAvailability);
+          setInitialModuleAvailability(nextAvailability);
         }
       } catch (loadError) {
         if (loadError instanceof DOMException && loadError.name === "AbortError") return;
@@ -107,7 +112,7 @@ export default function AdminShell({
     void loadModuleAvailability();
 
     return () => controller.abort();
-  }, []);
+  }, [setInitialModuleAvailability]);
 
   const currentModuleItem = navItems.find(
     (item) =>
