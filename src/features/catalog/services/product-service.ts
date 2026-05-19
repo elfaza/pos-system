@@ -22,30 +22,75 @@ function optionalString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
-function parseVariants(value: unknown) {
+function parseOptionSelectionType(value: unknown): "single" | "multiple" {
+  return value === "multiple" ? "multiple" : "single";
+}
+
+function parseOptionGroups(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  return value.map((rawVariant, index) => {
-    const variant =
-      rawVariant && typeof rawVariant === "object"
-        ? (rawVariant as Record<string, unknown>)
+  return value.map((rawGroup, groupIndex) => {
+    const group =
+      rawGroup && typeof rawGroup === "object"
+        ? (rawGroup as Record<string, unknown>)
         : {};
-    const name = optionalString(variant.name) ?? "";
+    const name = optionalString(group.name) ?? "";
+    const rawValues = Array.isArray(group.values) ? group.values : [];
+    const values = rawValues.map((rawValue, valueIndex) => {
+      const optionValue =
+        rawValue && typeof rawValue === "object"
+          ? (rawValue as Record<string, unknown>)
+          : {};
+      const valueName = optionalString(optionValue.name) ?? "";
+      const fieldErrors: Record<string, string> = {};
+
+      if (!valueName) {
+        fieldErrors[`optionGroups.${groupIndex}.values.${valueIndex}.name`] =
+          "Option value name is required.";
+      }
+
+      const priceDelta = toDecimalString(optionValue.priceDelta, "0");
+      if (priceDelta === "" || Number(priceDelta) < 0) {
+        fieldErrors[`optionGroups.${groupIndex}.values.${valueIndex}.priceDelta`] =
+          "Option price delta must be greater than or equal to 0.";
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        throw new ValidationError("Product option validation failed.", fieldErrors);
+      }
+
+      return {
+        id: optionalString(optionValue.id) ?? undefined,
+        name: valueName,
+        priceDelta,
+        sortOrder: valueIndex,
+        isActive: toBoolean(optionValue.isActive, true),
+      };
+    });
+    const fieldErrors: Record<string, string> = {};
+
     if (!name) {
-      throw new ValidationError("Product validation failed.", {
-        [`variants.${index}.name`]: "Variant name is required.",
-      });
+      fieldErrors[`optionGroups.${groupIndex}.name`] = "Option group name is required.";
+    }
+    if (!values.some((optionValue) => optionValue.isActive)) {
+      fieldErrors[`optionGroups.${groupIndex}.values`] =
+        "Add at least one active option value.";
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError("Product option validation failed.", fieldErrors);
     }
 
     return {
-      id: optionalString(variant.id) ?? undefined,
+      id: optionalString(group.id) ?? undefined,
       name,
-      sku: optionalString(variant.sku),
-      priceDelta: toDecimalString(variant.priceDelta, "0"),
-      costDelta: toOptionalDecimalString(variant.costDelta),
-      isActive: toBoolean(variant.isActive, true),
+      selectionType: parseOptionSelectionType(group.selectionType),
+      isRequired: toBoolean(group.isRequired, false),
+      sortOrder: groupIndex,
+      isActive: toBoolean(group.isActive, true),
+      values,
     };
   });
 }
@@ -63,10 +108,10 @@ function parseRecipes(value: unknown) {
         ? (rawRecipe as Record<string, unknown>)
         : {};
     const ingredientId = optionalString(recipe.ingredientId) ?? "";
-    const variantId = optionalString(recipe.variantId);
+    const variantId = null;
     const quantityRequired = toDecimalString(recipe.quantityRequired, "");
     const fieldErrors: Record<string, string> = {};
-    const duplicateKey = `${variantId ?? "base"}:${ingredientId}`;
+    const duplicateKey = ingredientId;
 
     if (!ingredientId) {
       fieldErrors[`recipes.${index}.ingredientId`] = "Ingredient is required.";
@@ -77,7 +122,7 @@ function parseRecipes(value: unknown) {
     }
     if (ingredientId && seen.has(duplicateKey)) {
       fieldErrors[`recipes.${index}.ingredientId`] =
-        "This ingredient is already used for the same product or variant.";
+        "This ingredient is already used for this product.";
     }
     seen.add(duplicateKey);
 
@@ -131,7 +176,7 @@ function parseProductPayload(payload: Record<string, unknown>) {
     stockQuantity: trackStock ? stockQuantity : null,
     lowStockThreshold: trackStock ? lowStockThreshold : null,
     isAvailable: toBoolean(payload.isAvailable, true),
-    variants: parseVariants(payload.variants),
+    optionGroups: parseOptionGroups(payload.optionGroups),
     recipes: parseRecipes(payload.recipes),
   };
 }

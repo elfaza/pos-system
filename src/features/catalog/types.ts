@@ -7,13 +7,25 @@ export interface CategoryRecord {
   productCount: number;
 }
 
-export interface ProductVariantRecord {
+export type ProductOptionSelectionType = "single" | "multiple";
+
+export interface ProductOptionValueRecord {
+  id: string;
+  groupId: string;
+  name: string;
+  priceDelta: number;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface ProductOptionGroupRecord {
   id: string;
   name: string;
-  sku: string | null;
-  priceDelta: number;
-  costDelta: number | null;
+  selectionType: ProductOptionSelectionType;
+  isRequired: boolean;
+  sortOrder: number;
   isActive: boolean;
+  values: ProductOptionValueRecord[];
 }
 
 export interface ProductIngredientRecipeRecord {
@@ -44,7 +56,7 @@ export interface ProductRecord {
   ingredientRecipeCount: number;
   canSellOne: boolean;
   unavailableReason: string | null;
-  variants: ProductVariantRecord[];
+  optionGroups: ProductOptionGroupRecord[];
   recipes: ProductIngredientRecipeRecord[];
 }
 

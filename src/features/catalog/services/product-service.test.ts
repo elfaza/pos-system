@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NotFoundError, ValidationError } from "@/lib/api-response";
+import { NotFoundError } from "@/lib/api-response";
 import {
   createProductFromPayload,
   getProductList,
@@ -51,7 +51,8 @@ const productRecord = {
   stockQuantity: null,
   lowStockThreshold: null,
   isAvailable: true,
-  variants: [],
+  optionGroups: [],
+  ingredients: [],
 };
 
 describe("product service", () => {
@@ -72,13 +73,6 @@ describe("product service", () => {
         price: "20000",
         trackStock: false,
         stockQuantity: "99",
-        variants: [
-          {
-            name: " Large ",
-            priceDelta: "5000",
-            isActive: false,
-          },
-        ],
       },
       actor,
     );
@@ -95,16 +89,7 @@ describe("product service", () => {
       stockQuantity: null,
       lowStockThreshold: null,
       isAvailable: true,
-      variants: [
-        {
-          id: undefined,
-          name: "Large",
-          sku: null,
-          priceDelta: "5000",
-          costDelta: null,
-          isActive: false,
-        },
-      ],
+      optionGroups: [],
       recipes: [],
     });
     expect(mocks.activityLogCreate).toHaveBeenCalledWith({
@@ -115,6 +100,100 @@ describe("product service", () => {
         entityId: "product-1",
       },
     });
+  });
+
+  it("creates products with normalized option groups and values", async () => {
+    await createProductFromPayload(
+      {
+        categoryId: "category-1",
+        name: "Coffee",
+        price: "20000",
+        optionGroups: [
+          {
+            name: " Temperature ",
+            selectionType: "single",
+            isRequired: true,
+            values: [
+              { name: " Hot ", priceDelta: "0" },
+              { name: " Iced ", priceDelta: "3000", isActive: false },
+            ],
+          },
+          {
+            name: " Extra topping ",
+            selectionType: "multiple",
+            values: [{ name: " Oat milk ", priceDelta: "5000" }],
+          },
+        ],
+      },
+      actor,
+    );
+
+    expect(mocks.createProduct).toHaveBeenCalledWith(
+      expect.objectContaining({
+        optionGroups: [
+          {
+            id: undefined,
+            name: "Temperature",
+            selectionType: "single",
+            isRequired: true,
+            sortOrder: 0,
+            isActive: true,
+            values: [
+              {
+                id: undefined,
+                name: "Hot",
+                priceDelta: "0",
+                sortOrder: 0,
+                isActive: true,
+              },
+              {
+                id: undefined,
+                name: "Iced",
+                priceDelta: "3000",
+                sortOrder: 1,
+                isActive: false,
+              },
+            ],
+          },
+          {
+            id: undefined,
+            name: "Extra topping",
+            selectionType: "multiple",
+            isRequired: false,
+            sortOrder: 1,
+            isActive: true,
+            values: [
+              {
+                id: undefined,
+                name: "Oat milk",
+                priceDelta: "5000",
+                sortOrder: 0,
+                isActive: true,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+  });
+
+  it("rejects option groups without active values", async () => {
+    await expect(
+      createProductFromPayload(
+        {
+          categoryId: "category-1",
+          name: "Coffee",
+          price: "20000",
+          optionGroups: [{ name: "Temperature", values: [] }],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        "optionGroups.0.values": "Add at least one active option value.",
+      },
+    });
+    expect(mocks.createProduct).not.toHaveBeenCalled();
   });
 
   it("rejects missing required product fields and negative prices", async () => {
@@ -130,21 +209,23 @@ describe("product service", () => {
     expect(mocks.createProduct).not.toHaveBeenCalled();
   });
 
-  it("rejects variants without names", async () => {
-    await expect(
-      createProductFromPayload(
-        {
-          categoryId: "category-1",
-          name: "Coffee",
-          price: "20000",
-          variants: [{ name: "" }],
-        },
-        actor,
-      ),
-    ).rejects.toBeInstanceOf(ValidationError);
+  it("ignores legacy variant payloads on product writes", async () => {
+    await createProductFromPayload(
+      {
+        categoryId: "category-1",
+        name: "Coffee",
+        price: "20000",
+        variants: [{ name: "Large", priceDelta: "5000" }],
+      },
+      actor,
+    );
+
+    expect(mocks.createProduct).toHaveBeenCalledWith(
+      expect.not.objectContaining({ variants: expect.anything() }),
+    );
   });
 
-  it("rejects duplicate recipe rows for the same product or variant", async () => {
+  it("rejects duplicate recipe rows for the same product", async () => {
     await expect(
       createProductFromPayload(
         {
@@ -161,7 +242,7 @@ describe("product service", () => {
     ).rejects.toMatchObject({
       fieldErrors: {
         "recipes.1.ingredientId":
-          "This ingredient is already used for the same product or variant.",
+          "This ingredient is already used for this product.",
       },
     });
   });

@@ -1,10 +1,16 @@
-import type { Order, OrderItem, Payment, User as PrismaUser } from "@prisma/client";
+import type {
+  Order,
+  OrderItem,
+  OrderItemOptionSelection,
+  Payment,
+  User as PrismaUser,
+} from "@prisma/client";
 import type { CheckoutOrderRecord } from "../types";
 
 export function mapCheckoutOrder(
   order: Order & {
     cashier?: Pick<PrismaUser, "name" | "email">;
-    items: OrderItem[];
+    items: Array<OrderItem & { optionSelections?: OrderItemOptionSelection[] }>;
     payments: Payment[];
   },
 ): CheckoutOrderRecord {
@@ -42,6 +48,14 @@ export function mapCheckoutOrder(
       discountAmount: Number(item.discountAmount),
       lineTotal: Number(item.lineTotal),
       notes: item.notes,
+      optionSelections: (item.optionSelections ?? []).map((selection) => ({
+        id: selection.id,
+        optionGroupId: selection.optionGroupId,
+        optionValueId: selection.optionValueId,
+        groupNameSnapshot: selection.groupNameSnapshot,
+        valueNameSnapshot: selection.valueNameSnapshot,
+        priceDelta: Number(selection.priceDelta),
+      })),
     })),
     payment: payment
       ? {

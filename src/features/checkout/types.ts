@@ -1,4 +1,16 @@
-import type { ProductRecord, ProductVariantRecord, SettingsRecord } from "@/features/catalog/types";
+import type {
+  ProductOptionValueRecord,
+  ProductRecord,
+  SettingsRecord,
+} from "@/features/catalog/types";
+
+export interface SelectedOptionRecord {
+  optionGroupId: string | null;
+  optionValueId: string | null;
+  groupName: string;
+  valueName: string;
+  priceDelta: number;
+}
 
 export interface CartItem {
   id: string;
@@ -6,6 +18,7 @@ export interface CartItem {
   variantId: string | null;
   productName: string;
   variantName: string | null;
+  selectedOptions: SelectedOptionRecord[];
   categoryName: string;
   unitPrice: number;
   quantity: number;
@@ -25,12 +38,13 @@ export interface CartTotals {
 
 export interface AddCartItemInput {
   product: ProductRecord;
-  variant?: ProductVariantRecord | null;
+  selectedOptions?: ProductOptionValueRecord[];
 }
 
 export interface CheckoutLineInput {
   productId: string;
   variantId: string | null;
+  selectedOptionValueIds: string[];
   quantity: number;
   discountAmount: number;
   notes: string;
@@ -65,6 +79,16 @@ export interface CheckoutOrderItemRecord {
   discountAmount: number;
   lineTotal: number;
   notes: string | null;
+  optionSelections: CheckoutOrderItemOptionSelectionRecord[];
+}
+
+export interface CheckoutOrderItemOptionSelectionRecord {
+  id: string;
+  optionGroupId: string | null;
+  optionValueId: string | null;
+  groupNameSnapshot: string;
+  valueNameSnapshot: string;
+  priceDelta: number;
 }
 
 export interface CheckoutPaymentRecord {

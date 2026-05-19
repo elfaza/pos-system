@@ -8,8 +8,8 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 import ReceiptPreview from "@/features/checkout/components/receipt-preview";
 import type {
   CategoryRecord,
+  ProductOptionValueRecord,
   ProductRecord,
-  ProductVariantRecord,
   SettingsRecord,
 } from "@/features/catalog/types";
 import { calculateCartTotals, formatRupiah } from "@/features/checkout/services/checkout-calculations";
@@ -128,6 +128,15 @@ function PosCart({
                       <p className="text-sm text-[var(--muted-foreground)]">
                         {item.variantName}
                       </p>
+                    ) : null}
+                    {item.selectedOptions.length > 0 ? (
+                      <div className="mt-1 grid gap-0.5 text-xs text-[var(--muted-foreground)]">
+                        {item.selectedOptions.map((option) => (
+                          <p key={`${option.optionGroupId}:${option.optionValueId}`}>
+                            {option.groupName}: {option.valueName}
+                          </p>
+                        ))}
+                      </div>
                     ) : null}
                     <p className="mt-1 break-words text-sm text-[var(--muted-foreground)]">
                       {formatRupiah(item.unitPrice)}
@@ -321,7 +330,10 @@ function CashPaymentModal({
           cashReceivedAmount: activePaymentMethod === "cash" ? cashAmount : null,
           items: items.map((item) => ({
             productId: item.productId,
-            variantId: item.variantId,
+            variantId: null,
+            selectedOptionValueIds: item.selectedOptions.flatMap((option) =>
+              option.optionValueId ? [option.optionValueId] : [],
+            ),
             quantity: item.quantity,
             discountAmount: item.discountAmount,
             notes: item.notes,
@@ -561,25 +573,56 @@ function HeldOrdersModal({
   );
 }
 
-function VariantPicker({
+function ProductPicker({
   product,
   onSelect,
   onClose,
 }: {
   product: ProductRecord;
-  onSelect: (variant: ProductVariantRecord | null) => void;
+  onSelect: (selectedOptions: ProductOptionValueRecord[]) => void;
   onClose: () => void;
 }) {
-  const activeVariants = product.variants.filter((variant) => variant.isActive);
+  const activeOptionGroups = product.optionGroups.filter((group) => group.isActive);
+  const [selectedOptionValueIds, setSelectedOptionValueIds] = useState<string[]>([]);
+  const selectedOptions = activeOptionGroups.flatMap((group) =>
+    group.values.filter((value) => selectedOptionValueIds.includes(value.id)),
+  );
+  const requiredMissing = activeOptionGroups.some(
+    (group) =>
+      group.isRequired &&
+      !group.values.some((value) => selectedOptionValueIds.includes(value.id)),
+  );
+  const unitPrice =
+    product.price +
+    selectedOptions.reduce((total, option) => total + option.priceDelta, 0);
+
+  function toggleOption(groupId: string, valueId: string) {
+    const group = activeOptionGroups.find((candidate) => candidate.id === groupId);
+    if (!group) return;
+
+    setSelectedOptionValueIds((current) => {
+      const groupValueIds = new Set(group.values.map((value) => value.id));
+      if (group.selectionType === "single") {
+        return [
+          ...current.filter((currentId) => !groupValueIds.has(currentId)),
+          valueId,
+        ];
+      }
+
+      return current.includes(valueId)
+        ? current.filter((currentId) => currentId !== valueId)
+        : [...current, valueId];
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-20 grid place-items-end bg-black/20 p-0 md:place-items-center md:p-4">
-      <div className="w-full rounded-t-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:max-w-md md:rounded-md">
+      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:max-w-md md:rounded-md">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">{product.name}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              Select a variant for this item.
+              Configure this item.
             </p>
           </div>
           <button
@@ -589,25 +632,52 @@ function VariantPicker({
             Cancel
           </button>
         </div>
-        <div className="mt-4 grid gap-2">
-          <button
-            onClick={() => onSelect(null)}
-            className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-[var(--border)] px-3 py-2 text-left font-medium hover:bg-[var(--muted)]"
-          >
-            <span className="min-w-0 break-words">Base</span>
-            <span>{formatRupiah(product.price)}</span>
-          </button>
-          {activeVariants.map((variant) => (
-            <button
-              key={variant.id}
-              onClick={() => onSelect(variant)}
-              className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-[var(--border)] px-3 py-2 text-left font-medium hover:bg-[var(--muted)]"
-            >
-              <span className="min-w-0 break-words">{variant.name}</span>
-              <span>{formatRupiah(product.price + variant.priceDelta)}</span>
-            </button>
-          ))}
-        </div>
+
+        {activeOptionGroups.map((group) => (
+          <div key={group.id} className="mt-4 grid gap-2">
+            <p className="text-sm font-semibold">
+              {group.name}
+              {group.isRequired ? <span className="text-[var(--danger)]"> *</span> : null}
+            </p>
+            <div className="grid gap-2">
+              {group.values
+                .filter((value) => value.isActive)
+                .map((value) => {
+                  const selected = selectedOptionValueIds.includes(value.id);
+
+                  return (
+                    <button
+                      key={value.id}
+                      type="button"
+                      onClick={() => toggleOption(group.id, value.id)}
+                      className={`grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-3 py-2 text-left text-sm font-medium ${
+                        selected
+                          ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
+                          : "border-[var(--border)] hover:bg-[var(--muted)]"
+                      }`}
+                    >
+                      <span className="min-w-0 break-words">
+                        {group.selectionType === "multiple" ? (selected ? "[x] " : "[ ] ") : ""}
+                        {value.name}
+                      </span>
+                      <span>
+                        {value.priceDelta > 0 ? `+${formatRupiah(value.priceDelta)}` : "Included"}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={() => onSelect(selectedOptions)}
+          disabled={requiredMissing}
+          className="mt-4 h-11 w-full rounded-md bg-[var(--primary)] px-4 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Add {formatRupiah(unitPrice)}
+        </button>
       </div>
     </div>
   );
@@ -627,7 +697,7 @@ function PosContent() {
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tappedProductId, setTappedProductId] = useState<string | null>(null);
-  const [variantProduct, setVariantProduct] = useState<ProductRecord | null>(null);
+  const [pickerProduct, setPickerProduct] = useState<ProductRecord | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [paidOrder, setPaidOrder] = useState<CheckoutOrderRecord | null>(null);
@@ -711,7 +781,10 @@ function PosContent() {
           orderType: selectedOrderType,
           items: cartItems.map((item) => ({
             productId: item.productId,
-            variantId: item.variantId,
+            variantId: null,
+            selectedOptionValueIds: item.selectedOptions.flatMap((option) =>
+              option.optionValueId ? [option.optionValueId] : [],
+            ),
             quantity: item.quantity,
             discountAmount: item.discountAmount,
             notes: item.notes,
@@ -841,9 +914,9 @@ function PosContent() {
     setTappedProductId(product.id);
     window.setTimeout(() => setTappedProductId(null), 260);
 
-    const activeVariants = product.variants.filter((variant) => variant.isActive);
-    if (activeVariants.length > 0) {
-      setVariantProduct(product);
+    const activeOptionGroups = product.optionGroups.filter((group) => group.isActive);
+    if (activeOptionGroups.length > 0) {
+      setPickerProduct(product);
       return;
     }
 
@@ -1068,8 +1141,8 @@ function PosContent() {
                           <p className="text-sm text-[var(--muted-foreground)]">
                             {formatRupiah(product.price)}
                           </p>
-                          {product.variants.some((variant) => variant.isActive) ? (
-                            <p className="mt-1 text-xs text-[var(--info)]">Variants</p>
+                          {product.optionGroups.some((group) => group.isActive) ? (
+                            <p className="mt-1 text-xs text-[var(--info)]">Options</p>
                           ) : null}
                           {selectedOrderType === null ? (
                             <p className="mt-1 text-xs text-[var(--warning)]">
@@ -1164,13 +1237,13 @@ function PosContent() {
         </div>
       ) : null}
 
-      {variantProduct ? (
-        <VariantPicker
-          product={variantProduct}
-          onClose={() => setVariantProduct(null)}
-          onSelect={(variant) => {
-            addItem({ product: variantProduct, variant });
-            setVariantProduct(null);
+      {pickerProduct ? (
+        <ProductPicker
+          product={pickerProduct}
+          onClose={() => setPickerProduct(null)}
+          onSelect={(selectedOptions) => {
+            addItem({ product: pickerProduct, selectedOptions });
+            setPickerProduct(null);
           }}
         />
       ) : null}

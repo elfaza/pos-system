@@ -69,12 +69,42 @@ const checkoutProduct = {
     name: "Drinks",
     isActive: true,
   },
-  variants: [
+  optionGroups: [
     {
-      id: "variant-large",
-      name: "Large",
-      priceDelta: "5000",
+      id: "group-temp",
+      name: "Temperature",
+      selectionType: "single",
+      isRequired: false,
+      sortOrder: 0,
       isActive: true,
+      values: [
+        {
+          id: "value-iced",
+          groupId: "group-temp",
+          name: "Iced",
+          priceDelta: "3000",
+          sortOrder: 0,
+          isActive: true,
+        },
+      ],
+    },
+    {
+      id: "group-topping",
+      name: "Extra topping",
+      selectionType: "multiple",
+      isRequired: false,
+      sortOrder: 1,
+      isActive: true,
+      values: [
+        {
+          id: "value-oat",
+          groupId: "group-topping",
+          name: "Oat milk",
+          priceDelta: "5000",
+          sortOrder: 0,
+          isActive: true,
+        },
+      ],
     },
   ],
   ingredients: [],
@@ -120,11 +150,11 @@ describe("checkout service", () => {
       kitchenPreparingAt: null,
       kitchenReadyAt: null,
       kitchenCompletedAt: null,
-      subtotalAmount: "50000",
+      subtotalAmount: "40000",
       discountAmount: "0",
-      taxAmount: "5000",
+      taxAmount: "4000",
       serviceChargeAmount: "0",
-      totalAmount: "55000",
+      totalAmount: "44000",
       heldAt: null,
       paidAt: new Date("2026-04-29T09:00:00.000Z"),
       createdAt: new Date("2026-04-29T09:00:00.000Z"),
@@ -133,13 +163,13 @@ describe("checkout service", () => {
         {
           id: "item-1",
           productId: "product-1",
-          variantId: "variant-large",
+          variantId: null,
           productNameSnapshot: "Coffee",
-          variantNameSnapshot: "Large",
+          variantNameSnapshot: null,
           quantity: "2",
-          unitPrice: "25000",
+          unitPrice: "20000",
           discountAmount: "0",
-          lineTotal: "50000",
+          lineTotal: "40000",
           notes: null,
           createdAt: new Date("2026-04-29T09:00:00.000Z"),
         },
@@ -149,9 +179,9 @@ describe("checkout service", () => {
           id: "payment-1",
           method: "cash",
           status: "paid",
-          amount: "55000",
+          amount: "44000",
           cashReceivedAmount: "60000",
-          changeAmount: "5000",
+          changeAmount: "16000",
           paidAt: new Date("2026-04-29T09:00:00.000Z"),
         },
       ],
@@ -179,6 +209,7 @@ describe("checkout service", () => {
         {
           productId: "product-1",
           variantId: null,
+          selectedOptionValueIds: [],
           quantity: 2,
           discountAmount: 1000,
           notes: "less ice",
@@ -198,6 +229,7 @@ describe("checkout service", () => {
           {
             productId: "product-1",
             variantId: "",
+            selectedOptionValueIds: ["value-iced"],
             quantity: "1",
             discountAmount: "0",
             notes: " iced ",
@@ -212,6 +244,7 @@ describe("checkout service", () => {
         {
           productId: "product-1",
           variantId: null,
+          selectedOptionValueIds: ["value-iced"],
           quantity: 1,
           discountAmount: 0,
           notes: "iced",
@@ -219,6 +252,216 @@ describe("checkout service", () => {
       ],
       notes: null,
     });
+  });
+
+  it("rejects legacy checkout payloads with variants", () => {
+    expect(() =>
+      parseCheckoutPayload({
+        orderType: "takeaway",
+        paymentMethod: "cash",
+        cashReceivedAmount: "50000",
+        items: [
+          {
+            productId: "product-1",
+            variantId: "variant-large",
+            quantity: "1",
+          },
+        ],
+      }),
+    ).toThrowError(ValidationError);
+  });
+
+  it("rejects checkout when a required option group is not selected", async () => {
+    mocks.findProductsForCheckout.mockResolvedValueOnce([
+      {
+        ...checkoutProduct,
+        optionGroups: [
+          {
+            ...checkoutProduct.optionGroups[0],
+            isRequired: true,
+          },
+        ],
+      },
+    ]);
+
+    await expect(
+      finalizeCheckout(
+        {
+          orderType: "takeaway",
+          paymentMethod: "qris",
+          cashReceivedAmount: null,
+          items: [
+            {
+              productId: "product-1",
+              variantId: null,
+              selectedOptionValueIds: [],
+              quantity: 1,
+              discountAmount: 0,
+              notes: "",
+            },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        "items.0.selectedOptionValueIds": "Choose an option for Temperature.",
+      },
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("prices and snapshots selected product options on checkout", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      qrisPaymentEnabled: true,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: true,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+    mocks.tx.order.create.mockResolvedValueOnce({
+      id: "order-options",
+      orderNumber: "ORD-OPTIONS",
+      orderType: "takeaway",
+      status: "paid",
+      queueBusinessDate: "2026-04-29",
+      queueNumber: 8,
+      kitchenStatus: "received",
+      kitchenPreparingAt: null,
+      kitchenReadyAt: null,
+      kitchenCompletedAt: null,
+      subtotalAmount: "28000",
+      discountAmount: "0",
+      taxAmount: "0",
+      serviceChargeAmount: "0",
+      totalAmount: "28000",
+      heldAt: null,
+      paidAt: new Date("2026-04-29T09:00:00.000Z"),
+      createdAt: new Date("2026-04-29T09:00:00.000Z"),
+      cashier: { name: actor.name, email: actor.email },
+      items: [
+        {
+          id: "item-options",
+          productId: "product-1",
+          variantId: null,
+          productNameSnapshot: "Coffee",
+          variantNameSnapshot: null,
+          quantity: "1",
+          unitPrice: "28000",
+          discountAmount: "0",
+          lineTotal: "28000",
+          notes: null,
+          createdAt: new Date("2026-04-29T09:00:00.000Z"),
+          optionSelections: [
+            {
+              id: "selection-1",
+              optionGroupId: "group-temp",
+              optionValueId: "value-iced",
+              groupNameSnapshot: "Temperature",
+              valueNameSnapshot: "Iced",
+              priceDelta: "3000",
+            },
+            {
+              id: "selection-2",
+              optionGroupId: "group-topping",
+              optionValueId: "value-oat",
+              groupNameSnapshot: "Extra topping",
+              valueNameSnapshot: "Oat milk",
+              priceDelta: "5000",
+            },
+          ],
+        },
+      ],
+      payments: [
+        {
+          id: "payment-options",
+          method: "qris",
+          status: "paid",
+          amount: "28000",
+          cashReceivedAmount: null,
+          changeAmount: null,
+          paidAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+    });
+
+    const order = await finalizeCheckout(
+      {
+        orderType: "takeaway",
+        paymentMethod: "qris",
+        cashReceivedAmount: null,
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            selectedOptionValueIds: ["value-iced", "value-oat"],
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+      },
+      actor,
+    );
+
+    expect(order.items[0]).toMatchObject({
+      unitPrice: 28_000,
+      lineTotal: 28_000,
+      optionSelections: [
+        {
+          optionGroupId: "group-temp",
+          optionValueId: "value-iced",
+          groupNameSnapshot: "Temperature",
+          valueNameSnapshot: "Iced",
+          priceDelta: 3_000,
+        },
+        {
+          optionGroupId: "group-topping",
+          optionValueId: "value-oat",
+          groupNameSnapshot: "Extra topping",
+          valueNameSnapshot: "Oat milk",
+          priceDelta: 5_000,
+        },
+      ],
+    });
+    expect(mocks.tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subtotalAmount: expect.any(Object),
+          items: {
+            create: [
+              expect.objectContaining({
+                unitPrice: expect.any(Object),
+                lineTotal: expect.any(Object),
+                optionSelections: {
+                  create: [
+                    expect.objectContaining({
+                      optionGroupId: "group-temp",
+                      optionValueId: "value-iced",
+                      groupNameSnapshot: "Temperature",
+                      valueNameSnapshot: "Iced",
+                    }),
+                    expect.objectContaining({
+                      optionGroupId: "group-topping",
+                      optionValueId: "value-oat",
+                      groupNameSnapshot: "Extra topping",
+                      valueNameSnapshot: "Oat milk",
+                    }),
+                  ],
+                },
+              }),
+            ],
+          },
+        }),
+      }),
+    );
   });
 
   it("rejects checkout when order type is missing", () => {
@@ -381,7 +624,7 @@ describe("checkout service", () => {
           items: [
             {
               productId: "product-1",
-              variantId: "variant-large",
+              variantId: null,
               quantity: 1,
               discountAmount: 0,
               notes: "",
@@ -675,7 +918,7 @@ describe("checkout service", () => {
         items: [
           {
             productId: "product-1",
-            variantId: "variant-large",
+            variantId: null,
             quantity: 2,
             discountAmount: 0,
             notes: "",
@@ -690,9 +933,9 @@ describe("checkout service", () => {
     expect(order.payment).toMatchObject({
       method: "cash",
       status: "paid",
-      amount: 55_000,
+      amount: 44_000,
       cashReceivedAmount: 60_000,
-      changeAmount: 5_000,
+      changeAmount: 16_000,
     });
     expect(mocks.tx.order.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -748,7 +991,7 @@ describe("checkout service", () => {
           previousStatus: "pending",
           status: "paid",
           method: "cash",
-          amount: 55_000,
+          amount: 44_000,
         }),
       }),
     });
@@ -759,7 +1002,7 @@ describe("checkout service", () => {
         orderNumber: "ORD-001",
         paymentId: "payment-1",
         paymentMethod: "cash",
-        totalAmount: 55_000,
+        totalAmount: 44_000,
       }),
     );
   });

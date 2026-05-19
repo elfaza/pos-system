@@ -1,7 +1,12 @@
 "use client";
 
 import { create } from "zustand";
-import type { AddCartItemInput, CartItem, CheckoutOrderRecord } from "../types";
+import type {
+  AddCartItemInput,
+  CartItem,
+  CheckoutOrderRecord,
+  SelectedOptionRecord,
+} from "../types";
 
 interface CartState {
   items: CartItem[];
@@ -14,20 +19,52 @@ interface CartState {
 }
 
 function buildCartItemId(input: AddCartItemInput): string {
-  return `${input.product.id}:${input.variant?.id ?? "base"}`;
+  const selectedOptionIds = (input.selectedOptions ?? [])
+    .map((option) => option.id)
+    .sort()
+    .join(":");
+
+  return [
+    input.product.id,
+    "base",
+    selectedOptionIds,
+  ]
+    .filter(Boolean)
+    .join(":");
+}
+
+function mapSelectedOptions(input: AddCartItemInput): SelectedOptionRecord[] {
+  return (input.selectedOptions ?? []).map((option) => {
+    const group = input.product.optionGroups.find(
+      (candidate) => candidate.id === option.groupId,
+    );
+
+    return {
+      optionGroupId: option.groupId,
+      optionValueId: option.id,
+      groupName: group?.name ?? "Option",
+      valueName: option.name,
+      priceDelta: option.priceDelta,
+    };
+  });
 }
 
 function buildCartItem(input: AddCartItemInput): CartItem {
-  const variant = input.variant ?? null;
+  const selectedOptions = mapSelectedOptions(input);
+  const optionPriceDelta = selectedOptions.reduce(
+    (total, option) => total + option.priceDelta,
+    0,
+  );
 
   return {
     id: buildCartItemId(input),
     productId: input.product.id,
-    variantId: variant?.id ?? null,
+    variantId: null,
     productName: input.product.name,
-    variantName: variant?.name ?? null,
+    variantName: null,
+    selectedOptions,
     categoryName: input.product.categoryName,
-    unitPrice: input.product.price + (variant?.priceDelta ?? 0),
+    unitPrice: input.product.price + optionPriceDelta,
     quantity: 1,
     discountAmount: 0,
     notes: "",
@@ -78,11 +115,28 @@ export const useCartStore = create<CartState>((set) => ({
   replaceFromHeldOrder: (order) =>
     set({
       items: order.items.map((item) => ({
-        id: `${item.productId}:${item.variantId ?? "base"}`,
+        id: [
+          item.productId,
+          "base",
+          item.optionSelections
+            .map((selection) => selection.optionValueId)
+            .filter(Boolean)
+            .sort()
+            .join(":"),
+        ]
+          .filter(Boolean)
+          .join(":"),
         productId: item.productId,
-        variantId: item.variantId,
+        variantId: null,
         productName: item.productNameSnapshot,
-        variantName: item.variantNameSnapshot,
+        variantName: null,
+        selectedOptions: item.optionSelections.map((selection) => ({
+          optionGroupId: selection.optionGroupId,
+          optionValueId: selection.optionValueId,
+          groupName: selection.groupNameSnapshot,
+          valueName: selection.valueNameSnapshot,
+          priceDelta: selection.priceDelta,
+        })),
         categoryName: "",
         unitPrice: item.unitPrice,
         quantity: item.quantity,

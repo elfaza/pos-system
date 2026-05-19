@@ -6,8 +6,8 @@ import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency";
 import { sanitizeDecimalInput } from "@/lib/number";
 import type {
   CategoryRecord,
+  ProductOptionGroupRecord,
   ProductRecord,
-  ProductVariantRecord,
   SettingsRecord,
 } from "@/features/catalog/types";
 import type { IngredientRecord } from "@/features/inventory/types";
@@ -25,13 +25,18 @@ interface ProductForm {
   stockQuantity: string;
   lowStockThreshold: string;
   isAvailable: boolean;
-  variants: Array<{
+  optionGroups: Array<{
     id?: string;
     name: string;
-    sku: string;
-    priceDelta: number;
-    costDelta: string;
+    selectionType: "single" | "multiple";
+    isRequired: boolean;
     isActive: boolean;
+    values: Array<{
+      id?: string;
+      name: string;
+      priceDelta: number;
+      isActive: boolean;
+    }>;
   }>;
   recipes: Array<{
     ingredientId: string;
@@ -53,7 +58,7 @@ const emptyForm: ProductForm = {
   stockQuantity: "",
   lowStockThreshold: "",
   isAvailable: true,
-  variants: [],
+  optionGroups: [],
   recipes: [],
 };
 
@@ -101,14 +106,21 @@ function getProductStatus(product: ProductRecord, inventoryEnabled: boolean) {
   };
 }
 
-function toVariantForm(variant: ProductVariantRecord): ProductForm["variants"][number] {
+function toOptionGroupForm(
+  group: ProductOptionGroupRecord,
+): ProductForm["optionGroups"][number] {
   return {
-    id: variant.id,
-    name: variant.name,
-    sku: variant.sku ?? "",
-    priceDelta: variant.priceDelta,
-    costDelta: variant.costDelta?.toString() ?? "",
-    isActive: variant.isActive,
+    id: group.id,
+    name: group.name,
+    selectionType: group.selectionType,
+    isRequired: group.isRequired,
+    isActive: group.isActive,
+    values: group.values.map((value) => ({
+      id: value.id,
+      name: value.name,
+      priceDelta: value.priceDelta,
+      isActive: value.isActive,
+    })),
   };
 }
 
@@ -126,7 +138,7 @@ function toProductForm(product: ProductRecord): ProductForm {
     stockQuantity: product.stockQuantity?.toString() ?? "",
     lowStockThreshold: product.lowStockThreshold?.toString() ?? "",
     isAvailable: product.isAvailable,
-    variants: product.variants.map(toVariantForm),
+    optionGroups: product.optionGroups.map(toOptionGroupForm),
     recipes: product.recipes.map((recipe) => ({
       ingredientId: recipe.ingredientId,
       variantId: recipe.variantId ?? "",
@@ -232,10 +244,12 @@ export default function ProductsPage() {
           costPrice: form.costPrice || null,
           stockQuantity: form.stockQuantity || null,
           lowStockThreshold: form.lowStockThreshold || null,
-          variants: form.variants.map((variant) => ({
-            ...variant,
-            sku: variant.sku || null,
-            costDelta: variant.costDelta || null,
+          optionGroups: form.optionGroups.map((group) => ({
+            ...group,
+            values: group.values.map((value) => ({
+              ...value,
+              priceDelta: value.priceDelta,
+            })),
           })),
           recipes: form.recipes.map((recipe) => ({
             ingredientId: recipe.ingredientId,
@@ -258,32 +272,89 @@ export default function ProductsPage() {
     }
   }
 
-  function addVariant() {
+  function addOptionGroup() {
     setForm((current) => ({
       ...current,
-      variants: [
-        ...current.variants,
-        { name: "", sku: "", priceDelta: 0, costDelta: "", isActive: true },
+      optionGroups: [
+        ...current.optionGroups,
+        {
+          name: "",
+          selectionType: "single",
+          isRequired: false,
+          isActive: true,
+          values: [{ name: "", priceDelta: 0, isActive: true }],
+        },
       ],
     }));
   }
 
-  function updateVariant(
+  function updateOptionGroup(
     index: number,
-    patch: Partial<ProductForm["variants"][number]>,
+    patch: Partial<ProductForm["optionGroups"][number]>,
   ) {
     setForm((current) => ({
       ...current,
-      variants: current.variants.map((variant, variantIndex) =>
-        variantIndex === index ? { ...variant, ...patch } : variant,
+      optionGroups: current.optionGroups.map((group, groupIndex) =>
+        groupIndex === index ? { ...group, ...patch } : group,
       ),
     }));
   }
 
-  function removeVariant(index: number) {
+  function removeOptionGroup(index: number) {
     setForm((current) => ({
       ...current,
-      variants: current.variants.filter((_, variantIndex) => variantIndex !== index),
+      optionGroups: current.optionGroups.filter((_, groupIndex) => groupIndex !== index),
+    }));
+  }
+
+  function addOptionValue(groupIndex: number) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: [
+                ...group.values,
+                { name: "", priceDelta: 0, isActive: true },
+              ],
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function updateOptionValue(
+    groupIndex: number,
+    valueIndex: number,
+    patch: Partial<ProductForm["optionGroups"][number]["values"][number]>,
+  ) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.map((value, currentValueIndex) =>
+                currentValueIndex === valueIndex ? { ...value, ...patch } : value,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function removeOptionValue(groupIndex: number, valueIndex: number) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.filter((_, currentValueIndex) => currentValueIndex !== valueIndex),
+            }
+          : group,
+      ),
     }));
   }
 
@@ -408,9 +479,9 @@ export default function ProductsPage() {
                       <tr key={product.id} className="border-b border-[var(--border)]">
                         <td className="px-4 py-3">
                           <p className="font-medium">{product.name}</p>
-                          {product.variants.length > 0 ? (
+                          {product.optionGroups.length > 0 ? (
                             <p className="text-xs text-[var(--muted-foreground)]">
-                              {product.variants.length} variant(s)
+                              {product.optionGroups.length} option group(s)
                             </p>
                           ) : null}
                         </td>
@@ -618,67 +689,144 @@ export default function ProductsPage() {
             ) : null}
 
             <div className="rounded-md border border-[var(--border)] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">Variants</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Options</h3>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Add choices such as temperature, size, sugar level, or toppings.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={addVariant}
+                  onClick={addOptionGroup}
                   className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)]"
                 >
-                  Add variant
+                  Add option
                 </button>
               </div>
               <div className="mt-3 grid gap-3">
-                {form.variants.length === 0 ? (
+                {form.optionGroups.length === 0 ? (
                   <p className="text-sm text-[var(--muted-foreground)]">
-                    No variants. Checkout will use the base product price.
+                    No options. Cashier can add this product directly.
                   </p>
                 ) : (
-                  form.variants.map((variant, index) => (
-                    <div key={`${variant.id ?? "new"}-${index}`} className="grid gap-2 rounded-md bg-[var(--muted)] p-3">
+                  form.optionGroups.map((group, groupIndex) => (
+                    <div key={`${group.id ?? "new"}-${groupIndex}`} className="grid gap-3 rounded-md bg-[var(--muted)] p-3">
                       <input
-                        value={variant.name}
-                        onChange={(event) => updateVariant(index, { name: event.target.value })}
-                        placeholder="Variant name"
+                        value={group.name}
+                        onChange={(event) =>
+                          updateOptionGroup(groupIndex, { name: event.target.value })
+                        }
+                        placeholder="Option name"
                         className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
                         required
                       />
                       <div className="grid gap-2 sm:grid-cols-2">
-                        <input
-                          value={variant.sku}
-                          onChange={(event) => updateVariant(index, { sku: event.target.value })}
-                          placeholder="Variant SKU"
-                          className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
-                        />
-                        <input
-                          inputMode="numeric"
-                          value={formatCurrencyInput(variant.priceDelta)}
-                          onChange={(event) =>
-                            updateVariant(index, {
-                              priceDelta: Number(parseCurrencyInput(event.target.value) || 0),
-                            })
-                          }
-                          placeholder="Price delta"
-                          className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={variant.isActive}
+                        <label className="grid gap-1 text-xs font-medium">
+                          Selection
+                          <select
+                            value={group.selectionType}
                             onChange={(event) =>
-                              updateVariant(index, { isActive: event.target.checked })
+                              updateOptionGroup(groupIndex, {
+                                selectionType: event.target.value as "single" | "multiple",
+                              })
                             }
-                          />
-                          Active
+                            className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                          >
+                            <option value="single">Single choice</option>
+                            <option value="multiple">Multiple choices</option>
+                          </select>
                         </label>
+                        <div className="flex items-end gap-4 pb-2">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={group.isRequired}
+                              onChange={(event) =>
+                                updateOptionGroup(groupIndex, {
+                                  isRequired: event.target.checked,
+                                })
+                              }
+                            />
+                            Required
+                          </label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={group.isActive}
+                              onChange={(event) =>
+                                updateOptionGroup(groupIndex, {
+                                  isActive: event.target.checked,
+                                })
+                              }
+                            />
+                            Active
+                          </label>
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        {group.values.map((value, valueIndex) => (
+                          <div key={`${value.id ?? "new"}-${valueIndex}`} className="grid gap-2 rounded-md bg-[var(--card)] p-2">
+                            <input
+                              value={value.name}
+                              onChange={(event) =>
+                                updateOptionValue(groupIndex, valueIndex, {
+                                  name: event.target.value,
+                                })
+                              }
+                              placeholder="Value name"
+                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                              required
+                            />
+                            <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                              <input
+                                inputMode="numeric"
+                                value={formatCurrencyInput(value.priceDelta)}
+                                onChange={(event) =>
+                                  updateOptionValue(groupIndex, valueIndex, {
+                                    priceDelta: Number(parseCurrencyInput(event.target.value) || 0),
+                                  })
+                                }
+                                placeholder="Price delta"
+                                className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                              />
+                              <label className="flex h-10 items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={value.isActive}
+                                  onChange={(event) =>
+                                    updateOptionValue(groupIndex, valueIndex, {
+                                      isActive: event.target.checked,
+                                    })
+                                  }
+                                />
+                                Active
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => removeOptionValue(groupIndex, valueIndex)}
+                                className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)]"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => removeVariant(index)}
-                          className="h-10 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--card)]"
+                          onClick={() => addOptionValue(groupIndex)}
+                          className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-white"
                         >
-                          Remove
+                          Add value
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeOptionGroup(groupIndex)}
+                          className="h-10 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium hover:bg-white"
+                        >
+                          Remove option
                         </button>
                       </div>
                     </div>
@@ -734,41 +882,20 @@ export default function ProductsPage() {
                             ))}
                           </select>
                         </label>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <label className="grid gap-1 text-xs font-medium">
-                            Variant
-                            <select
-                              value={recipe.variantId}
-                              onChange={(event) =>
-                                updateRecipe(index, { variantId: event.target.value })
-                              }
-                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
-                            >
-                              <option value="">Base product</option>
-                              {form.variants
-                                .filter((variant) => variant.id)
-                                .map((variant) => (
-                                  <option key={variant.id} value={variant.id}>
-                                    {variant.name}
-                                  </option>
-                                ))}
-                            </select>
-                          </label>
-                          <label className="grid gap-1 text-xs font-medium">
-                            Quantity
-                            <input
-                              inputMode="decimal"
-                              value={recipe.quantityRequired}
-                              onChange={(event) =>
-                                updateRecipe(index, {
-                                  quantityRequired: sanitizeDecimalInput(event.target.value),
-                                })
-                              }
-                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
-                              required
-                            />
-                          </label>
-                        </div>
+                        <label className="grid gap-1 text-xs font-medium">
+                          Quantity
+                          <input
+                            inputMode="decimal"
+                            value={recipe.quantityRequired}
+                            onChange={(event) =>
+                              updateRecipe(index, {
+                                quantityRequired: sanitizeDecimalInput(event.target.value),
+                              })
+                            }
+                            className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                            required
+                          />
+                        </label>
                         <button
                           type="button"
                           onClick={() => removeRecipe(index)}

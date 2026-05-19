@@ -82,6 +82,15 @@ function KitchenOrderCard({
                 {formatRupiah(item.lineTotal)}
               </span>
             </div>
+            {item.optionSelections.length > 0 ? (
+              <div className="mt-1 grid gap-0.5 text-xs text-[var(--muted-foreground)]">
+                {item.optionSelections.map((selection) => (
+                  <p key={selection.id}>
+                    {selection.groupNameSnapshot}: {selection.valueNameSnapshot}
+                  </p>
+                ))}
+              </div>
+            ) : null}
             {item.notes ? (
               <p className="mt-1 break-words text-xs text-[var(--muted-foreground)]">
                 Note: {item.notes}

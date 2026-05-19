@@ -36,12 +36,20 @@ function parseCheckoutItems(payload: Record<string, unknown>): CheckoutLineInput
     const productId = typeof item.productId === "string" ? item.productId : "";
     const variantId =
       typeof item.variantId === "string" && item.variantId ? item.variantId : null;
+    const selectedOptionValueIds = Array.isArray(item.selectedOptionValueIds)
+      ? item.selectedOptionValueIds.filter(
+          (valueId): valueId is string => typeof valueId === "string" && valueId.length > 0,
+        )
+      : [];
     const quantity = Number(item.quantity);
     const discountAmount = Number(item.discountAmount ?? 0);
     const notes = typeof item.notes === "string" ? item.notes.trim() : "";
     const fieldErrors: Record<string, string> = {};
 
     if (!productId) fieldErrors[`items.${index}.productId`] = "Product is required.";
+    if (variantId) {
+      fieldErrors[`items.${index}.variantId`] = "Variants are no longer supported.";
+    }
     if (!Number.isFinite(quantity) || quantity <= 0) {
       fieldErrors[`items.${index}.quantity`] = "Quantity must be greater than 0.";
     }
@@ -56,7 +64,8 @@ function parseCheckoutItems(payload: Record<string, unknown>): CheckoutLineInput
 
     return {
       productId,
-      variantId,
+      variantId: null,
+      selectedOptionValueIds,
       quantity,
       discountAmount,
       notes,
@@ -154,14 +163,50 @@ async function prepareCheckoutItems(
       });
     }
 
-    const variant = item.variantId
-      ? product.variants.find((candidate) => candidate.id === item.variantId)
-      : null;
+    const activeOptionGroups = (product.optionGroups ?? []).filter(
+      (group) => group.isActive,
+    );
+    const selectedOptionValueIds = item.selectedOptionValueIds ?? [];
+    const selectedOptionValues = selectedOptionValueIds.map((valueId) => {
+      for (const group of activeOptionGroups) {
+        const value = group.values.find((candidate) => candidate.id === valueId);
+        if (value) {
+          return { group, value };
+        }
+      }
 
-    if (item.variantId && (!variant || !variant.isActive)) {
-      throw new ValidationError("Variant is not available for checkout.", {
-        [`items.${index}.variantId`]: "Variant is unavailable.",
+      throw new ValidationError("Option is not available for checkout.", {
+        [`items.${index}.selectedOptionValueIds`]: "Option is unavailable.",
       });
+    });
+    const selectedValueIds = new Set<string>();
+    for (const selected of selectedOptionValues) {
+      if (selectedValueIds.has(selected.value.id) || !selected.value.isActive) {
+        throw new ValidationError("Option is not available for checkout.", {
+          [`items.${index}.selectedOptionValueIds`]: "Option is unavailable.",
+        });
+      }
+      selectedValueIds.add(selected.value.id);
+    }
+    const selectedValuesByGroupId = new Map<string, typeof selectedOptionValues>();
+    for (const selected of selectedOptionValues) {
+      const selections = selectedValuesByGroupId.get(selected.group.id) ?? [];
+      selections.push(selected);
+      selectedValuesByGroupId.set(selected.group.id, selections);
+    }
+
+    for (const group of activeOptionGroups) {
+      const selections = selectedValuesByGroupId.get(group.id) ?? [];
+      if (group.isRequired && selections.length === 0) {
+        throw new ValidationError("Required product option is missing.", {
+          [`items.${index}.selectedOptionValueIds`]: `Choose an option for ${group.name}.`,
+        });
+      }
+      if (group.selectionType === "single" && selections.length > 1) {
+        throw new ValidationError("Too many product options selected.", {
+          [`items.${index}.selectedOptionValueIds`]: `Choose only one option for ${group.name}.`,
+        });
+      }
     }
 
     if (
@@ -178,16 +223,9 @@ async function prepareCheckoutItems(
     if (validateStock) {
       const recipeRows = product.ingredients ?? [];
       const baseRecipes = recipeRows.filter((recipe) => recipe.variantId === null);
-      const variantRecipes = item.variantId
-        ? recipeRows.filter((recipe) => recipe.variantId === item.variantId)
-        : [];
       const recipeByIngredientId = new Map(
         baseRecipes.map((recipe) => [recipe.ingredientId, recipe]),
       );
-
-      for (const recipe of variantRecipes) {
-        recipeByIngredientId.set(recipe.ingredientId, recipe);
-      }
 
       for (const recipe of recipeByIngredientId.values()) {
         if (!recipe.ingredient.isActive) {
@@ -205,13 +243,25 @@ async function prepareCheckoutItems(
       }
     }
 
-    const unitPrice = Number(product.price) + (variant ? Number(variant.priceDelta) : 0);
+    const selectedOptions = selectedOptionValues.map(({ group, value }) => ({
+      optionGroupId: group.id,
+      optionValueId: value.id,
+      groupNameSnapshot: group.name,
+      valueNameSnapshot: value.name,
+      priceDelta: Number(value.priceDelta),
+    }));
+    const optionPriceDelta = selectedOptions.reduce(
+      (total, option) => total + option.priceDelta,
+      0,
+    );
+    const unitPrice =
+      Number(product.price) + optionPriceDelta;
     const lineTotal = Math.max(unitPrice * item.quantity - item.discountAmount, 0);
 
     return {
       ...item,
       product,
-      variant,
+      selectedOptions,
       unitPrice,
       lineTotal,
     };
@@ -219,11 +269,18 @@ async function prepareCheckoutItems(
 
   const totals = calculateCartTotals(
     preparedItems.map((item) => ({
-      id: `${item.productId}:${item.variantId ?? "base"}`,
+      id: `${item.productId}:base`,
       productId: item.productId,
-      variantId: item.variantId,
+      variantId: null,
       productName: item.product.name,
-      variantName: item.variant?.name ?? null,
+      variantName: null,
+      selectedOptions: item.selectedOptions.map((option) => ({
+        optionGroupId: option.optionGroupId,
+        optionValueId: option.optionValueId,
+        groupName: option.groupNameSnapshot,
+        valueName: option.valueNameSnapshot,
+        priceDelta: option.priceDelta,
+      })),
       categoryName: item.product.category.name,
       unitPrice: item.unitPrice,
       quantity: item.quantity,
@@ -262,18 +319,9 @@ function calculateIngredientDeductions(
     const baseRecipes = (item.product.ingredients ?? []).filter(
       (recipe) => recipe.variantId === null,
     );
-    const variantRecipes = item.variantId
-      ? (item.product.ingredients ?? []).filter(
-          (recipe) => recipe.variantId === item.variantId,
-        )
-      : [];
     const recipeByIngredientId = new Map(
       baseRecipes.map((recipe) => [recipe.ingredientId, recipe]),
     );
-
-    for (const recipe of variantRecipes) {
-      recipeByIngredientId.set(recipe.ingredientId, recipe);
-    }
 
     for (const recipe of recipeByIngredientId.values()) {
       const existing = deductions.get(recipe.ingredientId);
@@ -376,14 +424,23 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
         items: {
           create: preparedItems.map((item) => ({
             productId: item.productId,
-            variantId: item.variantId,
+            variantId: null,
             productNameSnapshot: item.product.name,
-            variantNameSnapshot: item.variant?.name ?? null,
+            variantNameSnapshot: null,
             quantity: new Prisma.Decimal(item.quantity),
             unitPrice: new Prisma.Decimal(item.unitPrice),
             discountAmount: new Prisma.Decimal(item.discountAmount),
             lineTotal: new Prisma.Decimal(item.lineTotal),
             notes: item.notes || null,
+            optionSelections: {
+              create: item.selectedOptions.map((option) => ({
+                optionGroupId: option.optionGroupId,
+                optionValueId: option.optionValueId,
+                groupNameSnapshot: option.groupNameSnapshot,
+                valueNameSnapshot: option.valueNameSnapshot,
+                priceDelta: new Prisma.Decimal(option.priceDelta),
+              })),
+            },
           })),
         },
         payments: {
@@ -574,14 +631,23 @@ export async function holdOrder(
         items: {
           create: preparedItems.map((item) => ({
             productId: item.productId,
-            variantId: item.variantId,
+            variantId: null,
             productNameSnapshot: item.product.name,
-            variantNameSnapshot: item.variant?.name ?? null,
+            variantNameSnapshot: null,
             quantity: new Prisma.Decimal(item.quantity),
             unitPrice: new Prisma.Decimal(item.unitPrice),
             discountAmount: new Prisma.Decimal(item.discountAmount),
             lineTotal: new Prisma.Decimal(item.lineTotal),
             notes: item.notes || null,
+            optionSelections: {
+              create: item.selectedOptions.map((option) => ({
+                optionGroupId: option.optionGroupId,
+                optionValueId: option.optionValueId,
+                groupNameSnapshot: option.groupNameSnapshot,
+                valueNameSnapshot: option.valueNameSnapshot,
+                priceDelta: new Prisma.Decimal(option.priceDelta),
+              })),
+            },
           })),
         },
       },

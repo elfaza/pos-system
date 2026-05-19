@@ -156,6 +156,11 @@ export default function ReceiptPreview({
                   </span>
                 </div>
               ) : null}
+              {item.optionSelections.map((selection) => (
+                <div key={selection.id} className="pl-2">
+                  * {selection.groupNameSnapshot}: {selection.valueNameSnapshot}
+                </div>
+              ))}
               {item.notes ? (
                 <div className="pl-2">* {item.notes}</div>
               ) : null}

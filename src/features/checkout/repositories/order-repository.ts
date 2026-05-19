@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 export const checkoutOrderInclude = {
   items: {
     orderBy: { createdAt: "asc" },
+    include: {
+      optionSelections: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
   },
   payments: {
     orderBy: { createdAt: "desc" },
@@ -20,6 +25,11 @@ export const orderHistoryInclude = {
   },
   items: {
     orderBy: { createdAt: "asc" },
+    include: {
+      optionSelections: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
   },
   payments: {
     orderBy: { createdAt: "desc" },
@@ -36,7 +46,11 @@ export async function findProductsForCheckout(productIds: string[]) {
     where: { id: { in: productIds } },
     include: {
       category: true,
-      variants: true,
+      optionGroups: {
+        include: {
+          values: true,
+        },
+      },
       ingredients: {
         include: { ingredient: true },
       },

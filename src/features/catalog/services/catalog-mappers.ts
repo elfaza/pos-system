@@ -4,13 +4,14 @@ import type {
   Ingredient,
   Product,
   ProductIngredient,
-  ProductVariant,
+  ProductOptionGroup,
+  ProductOptionValue,
 } from "@prisma/client";
 import type {
   CategoryRecord,
+  ProductOptionGroupRecord,
   ProductRecord,
   ProductIngredientRecipeRecord,
-  ProductVariantRecord,
   SettingsRecord,
 } from "../types";
 
@@ -27,14 +28,24 @@ export function mapCategory(
   };
 }
 
-export function mapVariant(variant: ProductVariant): ProductVariantRecord {
+export function mapOptionGroup(
+  group: ProductOptionGroup & { values: ProductOptionValue[] },
+): ProductOptionGroupRecord {
   return {
-    id: variant.id,
-    name: variant.name,
-    sku: variant.sku,
-    priceDelta: Number(variant.priceDelta),
-    costDelta: variant.costDelta === null ? null : Number(variant.costDelta),
-    isActive: variant.isActive,
+    id: group.id,
+    name: group.name,
+    selectionType: group.selectionType,
+    isRequired: group.isRequired,
+    sortOrder: group.sortOrder,
+    isActive: group.isActive,
+    values: group.values.map((value) => ({
+      id: value.id,
+      groupId: value.groupId,
+      name: value.name,
+      priceDelta: Number(value.priceDelta),
+      sortOrder: value.sortOrder,
+      isActive: value.isActive,
+    })),
   };
 }
 
@@ -96,7 +107,7 @@ function getCanSellOne(product: Product & {
 export function mapProduct(
   product: Product & {
     category: { name: string };
-    variants: ProductVariant[];
+    optionGroups?: Array<ProductOptionGroup & { values: ProductOptionValue[] }>;
     ingredients?: Array<
       ProductIngredient & {
         ingredient: Pick<Ingredient, "name" | "sku" | "unit" | "currentStock" | "isActive">;
@@ -124,7 +135,7 @@ export function mapProduct(
     ingredientRecipeCount: product.ingredients?.length ?? 0,
     canSellOne: availability.canSellOne,
     unavailableReason: availability.unavailableReason,
-    variants: product.variants.map(mapVariant),
+    optionGroups: (product.optionGroups ?? []).map(mapOptionGroup),
     recipes: (product.ingredients ?? []).map(mapProductRecipe),
   };
 }

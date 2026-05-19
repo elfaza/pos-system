@@ -16,14 +16,42 @@ const product: ProductRecord = {
   stockQuantity: 5,
   lowStockThreshold: 1,
   isAvailable: true,
-  variants: [
+  optionGroups: [
     {
-      id: "variant-large",
-      name: "Large",
-      sku: null,
-      priceDelta: 5_000,
-      costDelta: null,
+      id: "group-temp",
+      name: "Temperature",
+      selectionType: "single",
+      isRequired: true,
+      sortOrder: 0,
       isActive: true,
+      values: [
+        {
+          id: "value-iced",
+          groupId: "group-temp",
+          name: "Iced",
+          priceDelta: 3_000,
+          sortOrder: 0,
+          isActive: true,
+        },
+      ],
+    },
+    {
+      id: "group-topping",
+      name: "Extra topping",
+      selectionType: "multiple",
+      isRequired: false,
+      sortOrder: 1,
+      isActive: true,
+      values: [
+        {
+          id: "value-oat",
+          groupId: "group-topping",
+          name: "Oat milk",
+          priceDelta: 5_000,
+          sortOrder: 0,
+          isActive: true,
+        },
+      ],
     },
   ],
 };
@@ -49,7 +77,7 @@ describe("cart store", () => {
     ]);
   });
 
-  it("increments quantity when the same product and variant are added again", () => {
+  it("increments quantity when the same product is added again", () => {
     useCartStore.getState().addItem({ product });
     useCartStore.getState().addItem({ product });
 
@@ -57,13 +85,40 @@ describe("cart store", () => {
     expect(useCartStore.getState().items[0].quantity).toBe(2);
   });
 
-  it("keeps variants as separate cart lines with adjusted pricing", () => {
-    useCartStore.getState().addItem({ product });
-    useCartStore.getState().addItem({ product, variant: product.variants[0] });
+  it("keeps selected options as separate cart lines with adjusted pricing", () => {
+    useCartStore.getState().addItem({
+      product,
+      selectedOptions: [product.optionGroups[0].values[0]],
+    });
+    useCartStore.getState().addItem({
+      product,
+      selectedOptions: [product.optionGroups[1].values[0]],
+    });
+    useCartStore.getState().addItem({
+      product,
+      selectedOptions: [product.optionGroups[0].values[0]],
+    });
 
     expect(useCartStore.getState().items).toMatchObject([
-      { id: "product-1:base", unitPrice: 20_000 },
-      { id: "product-1:variant-large", variantName: "Large", unitPrice: 25_000 },
+      {
+        id: "product-1:base:value-iced",
+        unitPrice: 23_000,
+        quantity: 2,
+        selectedOptions: [
+          {
+            optionGroupId: "group-temp",
+            optionValueId: "value-iced",
+            groupName: "Temperature",
+            valueName: "Iced",
+            priceDelta: 3_000,
+          },
+        ],
+      },
+      {
+        id: "product-1:base:value-oat",
+        unitPrice: 25_000,
+        quantity: 1,
+      },
     ]);
   });
 
@@ -102,17 +157,36 @@ describe("cart store", () => {
           discountAmount: 1_000,
           lineTotal: 39_000,
           notes: "less ice",
+          optionSelections: [
+            {
+              id: "selection-1",
+              optionGroupId: "group-temp",
+              optionValueId: "value-iced",
+              groupNameSnapshot: "Temperature",
+              valueNameSnapshot: "Iced",
+              priceDelta: 3_000,
+            },
+          ],
         },
       ],
     });
 
     expect(useCartStore.getState().items).toMatchObject([
       {
-        id: "product-1:base",
+        id: "product-1:base:value-iced",
         productName: "Coffee",
         quantity: 2,
         discountAmount: 1_000,
         notes: "less ice",
+        selectedOptions: [
+          {
+            optionGroupId: "group-temp",
+            optionValueId: "value-iced",
+            groupName: "Temperature",
+            valueName: "Iced",
+            priceDelta: 3_000,
+          },
+        ],
       },
     ]);
   });

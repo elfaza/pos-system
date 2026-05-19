@@ -5,8 +5,13 @@ export const productListLimit = 200;
 
 const productInclude = {
   category: true,
-  variants: {
-    orderBy: { name: "asc" },
+  optionGroups: {
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    include: {
+      values: {
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      },
+    },
   },
   ingredients: {
     include: {
@@ -59,12 +64,18 @@ export async function createProduct(data: {
   stockQuantity: string | null;
   lowStockThreshold: string | null;
   isAvailable: boolean;
-  variants: Array<{
+  optionGroups: Array<{
     name: string;
-    sku: string | null;
-    priceDelta: string;
-    costDelta: string | null;
+    selectionType: "single" | "multiple";
+    isRequired: boolean;
+    sortOrder: number;
     isActive: boolean;
+    values: Array<{
+      name: string;
+      priceDelta: string;
+      sortOrder: number;
+      isActive: boolean;
+    }>;
   }>;
   recipes: Array<{
     ingredientId: string;
@@ -85,8 +96,17 @@ export async function createProduct(data: {
       stockQuantity: data.stockQuantity,
       lowStockThreshold: data.lowStockThreshold,
       isAvailable: data.isAvailable,
-      variants: {
-        create: data.variants,
+      optionGroups: {
+        create: data.optionGroups.map((group) => ({
+          name: group.name,
+          selectionType: group.selectionType,
+          isRequired: group.isRequired,
+          sortOrder: group.sortOrder,
+          isActive: group.isActive,
+          values: {
+            create: group.values,
+          },
+        })),
       },
       ingredients: {
         create: data.recipes,
@@ -110,13 +130,20 @@ export async function updateProduct(
     stockQuantity: string | null;
     lowStockThreshold: string | null;
     isAvailable: boolean;
-    variants: Array<{
+    optionGroups: Array<{
       id?: string;
       name: string;
-      sku: string | null;
-      priceDelta: string;
-      costDelta: string | null;
+      selectionType: "single" | "multiple";
+      isRequired: boolean;
+      sortOrder: number;
       isActive: boolean;
+      values: Array<{
+        id?: string;
+        name: string;
+        priceDelta: string;
+        sortOrder: number;
+        isActive: boolean;
+      }>;
     }>;
     recipes: Array<{
       ingredientId: string;
@@ -125,19 +152,25 @@ export async function updateProduct(
     }>;
   },
 ) {
-  const existingVariants = await prisma.productVariant.findMany({
+  const existingOptionGroups = await prisma.productOptionGroup.findMany({
     where: { productId: id },
-    select: { id: true },
+    include: { values: true },
   });
-  const incomingIds = new Set(data.variants.flatMap((variant) => (variant.id ? [variant.id] : [])));
-  const deletedIds = existingVariants
-    .map((variant) => variant.id)
-    .filter((variantId) => !incomingIds.has(variantId));
+  const incomingOptionGroupIds = new Set(
+    data.optionGroups.flatMap((group) => (group.id ? [group.id] : [])),
+  );
+  const deletedOptionGroupIds = existingOptionGroups
+    .map((group) => group.id)
+    .filter((groupId) => !incomingOptionGroupIds.has(groupId));
 
   return prisma.$transaction(async (tx) => {
-    if (deletedIds.length > 0) {
-      await tx.productVariant.updateMany({
-        where: { id: { in: deletedIds }, productId: id },
+    if (deletedOptionGroupIds.length > 0) {
+      await tx.productOptionGroup.updateMany({
+        where: { id: { in: deletedOptionGroupIds }, productId: id },
+        data: { isActive: false },
+      });
+      await tx.productOptionValue.updateMany({
+        where: { groupId: { in: deletedOptionGroupIds } },
         data: { isActive: false },
       });
     }
@@ -163,29 +196,74 @@ export async function updateProduct(
       where: { productId: id },
     });
 
-    for (const variant of data.variants) {
-      if (variant.id) {
-        await tx.productVariant.update({
-          where: { id: variant.id },
+    for (const group of data.optionGroups) {
+      if (group.id) {
+        await tx.productOptionGroup.update({
+          where: { id: group.id },
           data: {
-            name: variant.name,
-            sku: variant.sku,
-            priceDelta: variant.priceDelta,
-            costDelta: variant.costDelta,
-            isActive: variant.isActive,
+            name: group.name,
+            selectionType: group.selectionType,
+            isRequired: group.isRequired,
+            sortOrder: group.sortOrder,
+            isActive: group.isActive,
           },
         });
       } else {
-        await tx.productVariant.create({
+        await tx.productOptionGroup.create({
           data: {
             productId: id,
-            name: variant.name,
-            sku: variant.sku,
-            priceDelta: variant.priceDelta,
-            costDelta: variant.costDelta,
-            isActive: variant.isActive,
+            name: group.name,
+            selectionType: group.selectionType,
+            isRequired: group.isRequired,
+            sortOrder: group.sortOrder,
+            isActive: group.isActive,
+            values: {
+              create: group.values,
+            },
           },
         });
+        continue;
+      }
+
+      const existingGroup = existingOptionGroups.find(
+        (candidate) => candidate.id === group.id,
+      );
+      const incomingValueIds = new Set(
+        group.values.flatMap((value) => (value.id ? [value.id] : [])),
+      );
+      const deletedValueIds = (existingGroup?.values ?? [])
+        .map((value) => value.id)
+        .filter((valueId) => !incomingValueIds.has(valueId));
+
+      if (deletedValueIds.length > 0) {
+        await tx.productOptionValue.updateMany({
+          where: { id: { in: deletedValueIds }, groupId: group.id },
+          data: { isActive: false },
+        });
+      }
+
+      for (const value of group.values) {
+        if (value.id) {
+          await tx.productOptionValue.update({
+            where: { id: value.id },
+            data: {
+              name: value.name,
+              priceDelta: value.priceDelta,
+              sortOrder: value.sortOrder,
+              isActive: value.isActive,
+            },
+          });
+        } else {
+          await tx.productOptionValue.create({
+            data: {
+              groupId: group.id,
+              name: value.name,
+              priceDelta: value.priceDelta,
+              sortOrder: value.sortOrder,
+              isActive: value.isActive,
+            },
+          });
+        }
       }
     }
 
