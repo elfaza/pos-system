@@ -5,6 +5,12 @@ import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import type { KitchenQueueRecord, QueueDisplayRecord } from "@/features/kitchen/types";
 
+function formatOrderTypeLabel(orderType: KitchenQueueRecord["orderType"]) {
+  if (orderType === "dine_in") return "Dine-in";
+  if (orderType === "delivery") return "Delivery";
+  return "Take-away";
+}
+
 function QueueNumberTile({
   order,
   tone,
@@ -23,6 +29,7 @@ function QueueNumberTile({
     <div className={`min-w-0 rounded-md border p-4 text-center shadow-[0_1px_2px_rgba(20,32,51,0.08)] ${className}`}>
       <p className="max-w-full break-words text-3xl font-semibold sm:text-4xl">#{order.queueNumber}</p>
       <p className="mt-1 truncate text-sm" title={order.orderNumber}>{order.orderNumber}</p>
+      <p className="mt-1 text-sm">{formatOrderTypeLabel(order.orderType)}</p>
     </div>
   );
 }

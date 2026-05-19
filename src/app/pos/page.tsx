@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
@@ -14,7 +14,22 @@ import type {
 } from "@/features/catalog/types";
 import { calculateCartTotals, formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import { useCartStore } from "@/features/checkout/stores/cart-store";
-import type { CartItem, CheckoutOrderRecord } from "@/features/checkout/types";
+import type {
+  CartItem,
+  CheckoutOrderRecord,
+  CheckoutPaymentMethod,
+  OrderType,
+} from "@/features/checkout/types";
+
+const orderTypeOptions: Array<{ value: OrderType; label: string }> = [
+  { value: "dine_in", label: "Dine-in" },
+  { value: "takeaway", label: "Take-away" },
+  { value: "delivery", label: "Delivery" },
+];
+
+function formatOrderTypeLabel(orderType: OrderType | null | undefined) {
+  return orderTypeOptions.find((option) => option.value === orderType)?.label ?? "-";
+}
 
 function isInsufficientStock(item: CartItem, inventoryEnabled: boolean): boolean {
   return (
@@ -28,6 +43,7 @@ function isInsufficientStock(item: CartItem, inventoryEnabled: boolean): boolean
 function PosCart({
   isOnline,
   settings,
+  orderType,
   onPay,
   onHold,
   holding,
@@ -35,6 +51,7 @@ function PosCart({
 }: {
   isOnline: boolean;
   settings: SettingsRecord | null;
+  orderType: OrderType | null;
   onPay: () => void;
   onHold: () => void;
   holding: boolean;
@@ -56,8 +73,10 @@ function PosCart({
   );
   const inventoryEnabled = settings?.inventoryEnabled ?? true;
   const hasStockIssue = items.some((item) => isInsufficientStock(item, inventoryEnabled));
-  const finalActionsDisabled = !isOnline || items.length === 0 || hasStockIssue;
-  const holdDisabled = !isOnline || items.length === 0 || holding;
+  const needsOrderType = orderType === null;
+  const finalActionsDisabled =
+    !isOnline || needsOrderType || items.length === 0 || hasStockIssue;
+  const holdDisabled = !isOnline || needsOrderType || items.length === 0 || holding;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -69,6 +88,9 @@ function PosCart({
           <h2 className="text-lg font-semibold tracking-tight">Cart</h2>
           <p className="text-sm text-[var(--muted-foreground)]">
             {items.length} item type(s)
+          </p>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            {formatOrderTypeLabel(orderType)}
           </p>
         </div>
         <div className="flex gap-2">
@@ -194,6 +216,11 @@ function PosCart({
             Resolve stock issues before checkout.
           </p>
         ) : null}
+        {needsOrderType ? (
+          <p className="mt-3 rounded-md bg-orange-50 p-2 text-sm text-[var(--warning)]">
+            Choose Dine-in, Take-away, or Delivery before checkout.
+          </p>
+        ) : null}
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
@@ -219,14 +246,29 @@ function PosCart({
 function CashPaymentModal({
   items,
   settings,
+  orderType,
   onClose,
   onPaid,
 }: {
   items: CartItem[];
   settings: SettingsRecord | null;
+  orderType: OrderType;
   onClose: () => void;
   onPaid: (order: CheckoutOrderRecord) => void;
 }) {
+  const enabledMethods = useMemo<CheckoutPaymentMethod[]>(
+    () => [
+      ...(settings?.cashPaymentEnabled ?? true ? (["cash"] as const) : []),
+      ...(settings?.qrisPaymentEnabled ? (["qris"] as const) : []),
+    ],
+    [settings?.cashPaymentEnabled, settings?.qrisPaymentEnabled],
+  );
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>(
+    enabledMethods[0] ?? "cash",
+  );
+  const activePaymentMethod = enabledMethods.includes(paymentMethod)
+    ? paymentMethod
+    : enabledMethods[0] ?? "cash";
   const [cashReceived, setCashReceived] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,16 +291,21 @@ function CashPaymentModal({
     Math.ceil(totals.totalAmount / 50000) * 50000,
     Math.ceil(totals.totalAmount / 100000) * 100000,
   ].filter((amount, index, amounts) => amount > 0 && amounts.indexOf(amount) === index);
-  const canSubmit = Number.isFinite(cashAmount) && cashAmount >= totals.totalAmount;
+  const canSubmit =
+    enabledMethods.includes(activePaymentMethod) &&
+    (activePaymentMethod === "qris" ||
+      (Number.isFinite(cashAmount) && cashAmount >= totals.totalAmount));
 
   useEffect(() => {
+    if (activePaymentMethod !== "cash") return;
+
     const timeout = window.setTimeout(() => {
       const input = document.getElementById("cash-received-input");
       if (input instanceof HTMLInputElement) input.focus();
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [activePaymentMethod]);
 
   async function submitPayment() {
     setSubmitting(true);
@@ -269,7 +316,9 @@ function CashPaymentModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cashReceivedAmount: cashAmount,
+          orderType,
+          paymentMethod: activePaymentMethod,
+          cashReceivedAmount: activePaymentMethod === "cash" ? cashAmount : null,
           items: items.map((item) => ({
             productId: item.productId,
             variantId: item.variantId,
@@ -302,9 +351,9 @@ function CashPaymentModal({
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:max-w-md md:rounded-md">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Cash Payment</h2>
+            <h2 className="text-lg font-semibold">Payment</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              Confirm payment from the cashier counter.
+              {formatOrderTypeLabel(orderType)} order
             </p>
           </div>
           <button
@@ -327,34 +376,59 @@ function CashPaymentModal({
           <p className="text-2xl font-semibold">{formatRupiah(totals.totalAmount)}</p>
         </div>
 
-        <label className="mt-4 grid gap-1 text-sm font-medium">
-          Cash received
-          <input
-            id="cash-received-input"
-            inputMode="numeric"
-            value={formatCurrencyInput(cashReceived)}
-            onChange={(event) => setCashReceived(parseCurrencyInput(event.target.value))}
-            className="h-11 rounded-md border border-[var(--border)] px-3 text-lg focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-          />
-        </label>
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {quickAmounts.map((amount) => (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {enabledMethods.map((method) => (
             <button
-              key={amount}
+              key={method}
               type="button"
-              onClick={() => setCashReceived(amount.toString())}
-              className="h-11 touch-manipulation rounded-md border border-[var(--border)] px-3 text-sm font-medium transition-[background-color,border-color,box-shadow,transform] duration-150 hover:bg-[var(--muted)] active:scale-[0.98] active:border-[var(--primary)] active:bg-[var(--primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              onClick={() => setPaymentMethod(method)}
+              className={`h-11 touch-manipulation rounded-md border px-3 text-sm font-medium ${
+                activePaymentMethod === method
+                  ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[var(--muted)]"
+              }`}
             >
-              {formatRupiah(amount)}
+              {method === "cash" ? "Cash" : "QRIS"}
             </button>
           ))}
         </div>
 
-        <div className="mt-4 flex justify-between rounded-md border border-[var(--border)] p-3">
-          <span className="text-[var(--muted-foreground)]">Change</span>
-          <span className="font-semibold">{formatRupiah(changeAmount)}</span>
-        </div>
+        {activePaymentMethod === "cash" ? (
+          <>
+            <label className="mt-4 grid gap-1 text-sm font-medium">
+              Cash received
+              <input
+                id="cash-received-input"
+                inputMode="numeric"
+                value={formatCurrencyInput(cashReceived)}
+                onChange={(event) => setCashReceived(parseCurrencyInput(event.target.value))}
+                className="h-11 rounded-md border border-[var(--border)] px-3 text-lg focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              />
+            </label>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {quickAmounts.map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  onClick={() => setCashReceived(amount.toString())}
+                  className="h-11 touch-manipulation rounded-md border border-[var(--border)] px-3 text-sm font-medium transition-[background-color,border-color,box-shadow,transform] duration-150 hover:bg-[var(--muted)] active:scale-[0.98] active:border-[var(--primary)] active:bg-[var(--primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                >
+                  {formatRupiah(amount)}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 flex justify-between rounded-md border border-[var(--border)] p-3">
+              <span className="text-[var(--muted-foreground)]">Change</span>
+              <span className="font-semibold">{formatRupiah(changeAmount)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="mt-4 rounded-md border border-[var(--border)] p-3 text-sm text-[var(--muted-foreground)]">
+            Confirm after the customer has completed the QRIS payment.
+          </div>
+        )}
 
         <button
           onClick={submitPayment}
@@ -452,7 +526,7 @@ function HeldOrdersModal({
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                      {order.items.length} item type(s) -{" "}
+                      {formatOrderTypeLabel(order.orderType)} - {order.items.length} item type(s) -{" "}
                       {order.heldAt
                         ? new Date(order.heldAt).toLocaleString()
                         : "No hold time"}
@@ -546,6 +620,7 @@ function PosContent() {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [settings, setSettings] = useState<SettingsRecord | null>(null);
+  const [selectedOrderType, setSelectedOrderType] = useState<OrderType | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [search, setSearch] = useState("");
   const [isOnline, setIsOnline] = useState(true);
@@ -623,7 +698,7 @@ function PosContent() {
   }
 
   async function holdCurrentOrder() {
-    if (!isOnline || cartItems.length === 0) return;
+    if (!isOnline || selectedOrderType === null || cartItems.length === 0) return;
 
     setHoldingOrder(true);
     setCartMessage(null);
@@ -633,6 +708,7 @@ function PosContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          orderType: selectedOrderType,
           items: cartItems.map((item) => ({
             productId: item.productId,
             variantId: item.variantId,
@@ -649,6 +725,7 @@ function PosContent() {
       }
 
       clearCart();
+      setSelectedOrderType(null);
       setCartMessage(`Held order ${data.order.orderNumber}.`);
       void loadHeldOrders();
     } catch (holdError) {
@@ -674,6 +751,7 @@ function PosContent() {
     }
 
     replaceFromHeldOrder(order);
+    setSelectedOrderType(order.orderType);
     setCartMessage(`Resumed order ${order.orderNumber}.`);
     setShowHeldOrders(false);
   }
@@ -755,6 +833,11 @@ function PosContent() {
   );
 
   function handleProductClick(product: ProductRecord) {
+    if (selectedOrderType === null) {
+      setCartMessage("Choose Dine-in, Take-away, or Delivery before selecting products.");
+      return;
+    }
+
     setTappedProductId(product.id);
     window.setTimeout(() => setTappedProductId(null), 260);
 
@@ -894,6 +977,34 @@ function PosContent() {
               </div>
             ) : null}
 
+            <div className="rounded-lg border border-white/80 bg-white/85 p-4 shadow-[0_10px_30px_rgba(20,32,51,0.08)]">
+              <p className="text-sm font-semibold">Order type</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {orderTypeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrderType(option.value);
+                      setCartMessage(null);
+                    }}
+                    className={`h-11 rounded-md border px-3 font-medium ${
+                      selectedOrderType === option.value
+                        ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
+                        : "border-[var(--border)] bg-white hover:bg-[var(--surface)]"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              {selectedOrderType === null ? (
+                <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                  Choose an order type before selecting products.
+                </p>
+              ) : null}
+            </div>
+
             {loadingCatalog ? (
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
                 {Array.from({ length: 8 }).map((_, index) => (
@@ -930,7 +1041,10 @@ function PosContent() {
                   const unavailableByInventory =
                     inventoryEnabled && !product.canSellOne;
                   const disabled =
-                    !product.isAvailable || outOfStock || unavailableByInventory;
+                    selectedOrderType === null ||
+                    !product.isAvailable ||
+                    outOfStock ||
+                    unavailableByInventory;
 
                   return (
                     <button
@@ -957,6 +1071,11 @@ function PosContent() {
                           {product.variants.some((variant) => variant.isActive) ? (
                             <p className="mt-1 text-xs text-[var(--info)]">Variants</p>
                           ) : null}
+                          {selectedOrderType === null ? (
+                            <p className="mt-1 text-xs text-[var(--warning)]">
+                              Choose order type
+                            </p>
+                          ) : null}
                           {outOfStock ? (
                             <p className="mt-1 text-xs text-[var(--warning)]">Out of stock</p>
                           ) : null}
@@ -979,6 +1098,7 @@ function PosContent() {
           <PosCart
             isOnline={isOnline}
             settings={settings}
+            orderType={selectedOrderType}
             onPay={() => setShowPayment(true)}
             onHold={holdCurrentOrder}
             holding={holdingOrder}
@@ -998,14 +1118,24 @@ function PosContent() {
           </button>
           <div className="grid shrink-0 grid-cols-2 gap-2">
             <button
-              disabled={!isOnline || cartItems.length === 0 || holdingOrder}
+              disabled={
+                !isOnline ||
+                selectedOrderType === null ||
+                cartItems.length === 0 ||
+                holdingOrder
+              }
               onClick={holdCurrentOrder}
               className="h-11 rounded-md border border-[var(--border)] px-3 font-medium disabled:opacity-60"
             >
               Hold
             </button>
             <button
-              disabled={!isOnline || cartItems.length === 0 || mobileHasStockIssue}
+              disabled={
+                !isOnline ||
+                selectedOrderType === null ||
+                cartItems.length === 0 ||
+                mobileHasStockIssue
+              }
               onClick={() => setShowPayment(true)}
               className="h-11 rounded-md bg-[var(--primary)] px-3 font-medium text-[var(--primary-foreground)] disabled:opacity-60"
             >
@@ -1021,6 +1151,7 @@ function PosContent() {
             <PosCart
               isOnline={isOnline}
               settings={settings}
+              orderType={selectedOrderType}
               onPay={() => {
                 setShowMobileCart(false);
                 setShowPayment(true);
@@ -1044,13 +1175,15 @@ function PosContent() {
         />
       ) : null}
 
-      {showPayment ? (
+      {showPayment && selectedOrderType ? (
         <CashPaymentModal
           items={cartItems}
           settings={settings}
+          orderType={selectedOrderType}
           onClose={() => setShowPayment(false)}
           onPaid={(order) => {
             clearCart();
+            setSelectedOrderType(null);
             setShowPayment(false);
             setPaidOrder(order);
             setCartMessage(`Paid order ${order.orderNumber}. Printing receipt.`);

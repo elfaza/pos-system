@@ -53,6 +53,7 @@ These tests cover configurable modules and settings. They should be implemented 
 | CFG-PAY-002 | `payments.cash.enabled = false`, QRIS enabled | Submit cash checkout | Cash checkout is rejected; no order/payment is created. | API |
 | CFG-PAY-003 | `payments.cash.enabled = false`, QRIS disabled | Save settings | Settings validation rejects disabling all payment methods. | API |
 | CFG-PAY-004 | `payments.qris.enabled = false` | Attempt QRIS checkout or callback | QRIS action is rejected. | API |
+| CFG-PAY-007 | `payments.qris.enabled = true` | Submit manual QRIS checkout | Paid order and QRIS payment are created without cash received/change values. | Integration |
 | CFG-PAY-005 | Cash rounding increment configured | Submit cash checkout with total requiring rounding | Payable amount and change follow configured rounding rule. | Unit/Integration |
 | CFG-PAY-006 | Payment provider credentials missing | Enable provider-backed QRIS | Settings validation rejects or marks provider unavailable. | API |
 
@@ -183,17 +184,19 @@ These tests cover configurable modules and settings. They should be implemented 
 | CHK-004 | `calculateCartTotals` | Tax enabled, service disabled | Calculate | Only tax is applied. | Unit |
 | CHK-005 | `formatRupiah` | Numeric value | Format | Returns expected Rupiah display string. | Unit |
 | CHK-006 | `createOrderNumber` | Fixed date | Create number | Prefix/timestamp format is stable. | Unit |
-| CHK-007 | `parseCashCheckoutPayload` | Valid payload | Parse | Returns normalized checkout input. | Unit |
-| CHK-008 | `parseCashCheckoutPayload` | Empty items | Parse | Validation error. | Unit |
-| CHK-009 | `parseCashCheckoutPayload` | Invalid quantity/discount/cash | Parse | Field validation errors. | Unit |
-| CHK-010 | `parseHoldOrderPayload` | Valid payload | Parse | Returns normalized held-order input. | Unit |
-| CHK-011 | `finalizeCashCheckout` | Valid cart, exact cash | Finalize | Paid order, items, payment, queue/kitchen, stock, and accounting side effects are created according to config. | Integration |
-| CHK-012 | `finalizeCashCheckout` | Cash received below total | Finalize | Validation error and no mutation. | Integration |
-| CHK-013 | `finalizeCashCheckout` | Unavailable product/category | Finalize | Validation error. | Integration |
-| CHK-014 | `finalizeCashCheckout` | Inactive variant | Finalize | Validation error. | Integration |
-| CHK-015 | `finalizeCashCheckout` | Product stock insufficient | Finalize | Validation error. | Integration |
-| CHK-016 | `finalizeCashCheckout` | Ingredient stock insufficient | Finalize | Validation error. | Integration |
-| CHK-017 | `finalizeCashCheckout` | Overpaid cash | Finalize | Change amount is persisted. | Integration |
+| CHK-007 | `parseCheckoutPayload` | Valid cash payload | Parse | Returns normalized checkout input. | Unit |
+| CHK-008 | `parseCheckoutPayload` | Empty items | Parse | Validation error. | Unit |
+| CHK-009 | `parseCheckoutPayload` | Invalid quantity/discount/cash | Parse | Field validation errors. | Unit |
+| CHK-010 | `parseHoldOrderPayload` | Valid payload | Parse | Returns normalized held-order input with order type. | Unit |
+| CHK-011 | `finalizeCheckout` | Valid cart, exact cash | Finalize | Paid order, items, payment, queue/kitchen, stock, and accounting side effects are created according to config. | Integration |
+| CHK-012 | `finalizeCheckout` | Cash received below total | Finalize | Validation error and no mutation. | Integration |
+| CHK-013 | `finalizeCheckout` | Unavailable product/category | Finalize | Validation error. | Integration |
+| CHK-014 | `finalizeCheckout` | Inactive variant | Finalize | Validation error. | Integration |
+| CHK-015 | `finalizeCheckout` | Product stock insufficient | Finalize | Validation error. | Integration |
+| CHK-016 | `finalizeCheckout` | Ingredient stock insufficient | Finalize | Validation error. | Integration |
+| CHK-017 | `finalizeCheckout` | Overpaid cash | Finalize | Change amount is persisted. | Integration |
+| CHK-033 | `parseCheckoutPayload` | Missing or invalid order type | Parse | Validation error. | Unit |
+| CHK-034 | `finalizeCheckout` | Valid manual QRIS payment | Finalize | Paid QRIS payment is created without cash received or change. | Integration |
 | CHK-018 | `holdOrder` | Valid cart | Hold order | Held order is created without payment, stock deduction, kitchen status, or accounting side effects. | Integration |
 | CHK-019 | `getHeldOrders` | Cashier actor | List held orders | Returns only cashier-owned held orders. | Integration |
 | CHK-020 | `getHeldOrders` | Admin actor | List held orders | Returns all held orders according to repository rules. | Integration |
@@ -278,9 +281,10 @@ These tests cover configurable modules and settings. They should be implemented 
 
 | ID | Function | Context | Action | Expected result | Type |
 | --- | --- | --- | --- | --- | --- |
-| ACC-001 | `createSalesAccountingForPaidCashOrder` | Paid cash order totals | Create accounting | Balanced journal and cash ledger entry are created. | Integration |
-| ACC-002 | `createSalesAccountingForPaidCashOrder` | Called twice for same order | Create accounting | Idempotent journal behavior; no duplicate source journal. | Integration |
-| ACC-003 | `createSalesAccountingForPaidCashOrder` | Tax and service amounts zero | Create accounting | Tax/service lines are omitted and entry still balances. | Integration |
+| ACC-001 | `createSalesAccountingForPaidOrder` | Paid cash order totals | Create accounting | Balanced journal and cash ledger entry are created. | Integration |
+| ACC-002 | `createSalesAccountingForPaidOrder` | Called twice for same order | Create accounting | Idempotent journal behavior; no duplicate source journal. | Integration |
+| ACC-003 | `createSalesAccountingForPaidOrder` | Tax and service amounts zero | Create accounting | Tax/service lines are omitted and entry still balances. | Integration |
+| ACC-014 | `createSalesAccountingForPaidOrder` | Paid QRIS order totals | Create accounting | Balanced QRIS clearing journal is created without cash ledger entry. | Integration |
 | ACC-004 | `getAccountsAndCategories` | Empty accounting setup | Load setup | Default accounts/categories exist or are created according to config. | Integration |
 | ACC-005 | `createAccountFromPayload` | Valid account payload | Create account | Account is created. | Integration |
 | ACC-006 | `createAccountFromPayload` | Invalid account type | Create account | Validation error. | Unit/Integration |

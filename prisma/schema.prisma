@@ -21,6 +21,12 @@ enum OrderStatus {
   refunded
 }
 
+enum OrderType {
+  dine_in
+  takeaway
+  delivery
+}
+
 enum PaymentMethod {
   cash
   qris
@@ -228,7 +234,7 @@ model AppSetting {
   timeZone                 String   @default("Asia/Jakarta") @map("time_zone")
   businessDayStartTime     String   @default("00:00") @map("business_day_start_time")
   cashPaymentEnabled       Boolean  @default(true) @map("cash_payment_enabled")
-  qrisPaymentEnabled       Boolean  @default(false) @map("qris_payment_enabled")
+  qrisPaymentEnabled       Boolean  @default(true) @map("qris_payment_enabled")
   kitchenEnabled           Boolean  @default(true) @map("kitchen_enabled")
   queueEnabled             Boolean  @default(true) @map("queue_enabled")
   inventoryEnabled         Boolean  @default(true) @map("inventory_enabled")
@@ -245,6 +251,7 @@ model Order {
   id                  String              @id @default(cuid())
   orderNumber         String              @unique @map("order_number")
   cashierId           String              @map("cashier_id")
+  orderType           OrderType           @default(takeaway) @map("order_type")
   status              OrderStatus         @default(draft)
   subtotalAmount      Decimal             @default(0) @map("subtotal_amount") @db.Decimal(12, 2)
   discountAmount      Decimal             @default(0) @map("discount_amount") @db.Decimal(12, 2)

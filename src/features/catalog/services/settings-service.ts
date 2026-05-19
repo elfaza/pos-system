@@ -66,7 +66,7 @@ function parseSettingsPayload(payload: Record<string, unknown>) {
   const timeZone = optionalString(payload.timeZone) ?? "";
   const businessDayStartTime = parseBusinessDayStartTime(payload.businessDayStartTime);
   const cashPaymentEnabled = toBoolean(payload.cashPaymentEnabled, true);
-  const qrisPaymentEnabled = toBoolean(payload.qrisPaymentEnabled, false);
+  const qrisPaymentEnabled = toBoolean(payload.qrisPaymentEnabled, true);
   const refundWindowRaw = payload.refundWindowHours;
   const refundWindowHours =
     refundWindowRaw === null || refundWindowRaw === "" || refundWindowRaw === undefined
@@ -111,7 +111,6 @@ function parseSettingsPayload(payload: Record<string, unknown>) {
     fieldErrors.cashPaymentEnabled = "At least one payment method must be enabled.";
     fieldErrors.qrisPaymentEnabled = "At least one payment method must be enabled.";
   }
-
   if (Object.keys(fieldErrors).length > 0) {
     throw new ValidationError("Settings validation failed.", fieldErrors);
   }

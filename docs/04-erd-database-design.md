@@ -43,6 +43,7 @@ User 1--* DailyClose
 | Enum | Values |
 | --- | --- |
 | `UserRole` | `admin`, `cashier` |
+| `OrderType` | `dine_in`, `takeaway`, `delivery` |
 | `OrderStatus` | `draft`, `held`, `pending_payment`, `paid`, `cancelled`, `refunded` |
 | `PaymentMethod` | `cash`, `qris` |
 | `PaymentStatus` | `pending`, `paid`, `failed`, `expired`, `refunded` |
@@ -215,6 +216,7 @@ Important fields:
 
 - `order_number`
 - `cashier_id`
+- `order_type`
 - `status`
 - `subtotal_amount`
 - `discount_amount`
@@ -232,6 +234,7 @@ Important fields:
 Rules:
 
 - Order number is unique.
+- Existing and unspecified orders default to `takeaway`.
 - Queue date and queue number are unique together.
 - Paid orders can have queue and kitchen state.
 - Kitchen status does not replace order payment/refund status.
@@ -279,7 +282,8 @@ Rules:
 
 - `order_id` is unique, enforcing one payment per order in the MVP.
 - Cash payments require cash received and change amounts when paid.
-- Provider fields are reserved for future QRIS support.
+- Manual QRIS payments are recorded as paid QRIS payments without provider callback, cash received, or change amounts.
+- Provider fields are reserved for future provider-backed QRIS support.
 
 ### `refunds`
 

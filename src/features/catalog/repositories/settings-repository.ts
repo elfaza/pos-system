@@ -17,6 +17,7 @@ export async function getSettings(client: SettingsClient = prisma) {
       storeName: "Maza Cafe",
       taxRate: "0",
       serviceChargeRate: "0",
+      qrisPaymentEnabled: true,
     },
   });
 }

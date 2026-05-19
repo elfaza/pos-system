@@ -13,6 +13,7 @@ export function mapCheckoutOrder(
   return {
     id: order.id,
     orderNumber: order.orderNumber,
+    orderType: order.orderType,
     cashierName: order.cashier?.name ?? null,
     cashierEmail: order.cashier?.email ?? null,
     status: order.status,

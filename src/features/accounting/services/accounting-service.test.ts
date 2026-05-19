@@ -3,6 +3,7 @@ import { ValidationError } from "@/lib/api-response";
 import {
   createDailyCloseFromPayload,
   createExpenseFromPayload,
+  createSalesAccountingForPaidOrder,
   createSalesAccountingForPaidCashOrder,
 } from "./accounting-service";
 
@@ -144,6 +145,40 @@ describe("accounting service", () => {
         },
       }),
     );
+  });
+
+  it("creates a QRIS sales journal without a cash ledger row", async () => {
+    await createSalesAccountingForPaidOrder(mocks.tx as never, {
+      orderId: "order-qris",
+      orderNumber: "ORD-QRIS",
+      paymentId: "payment-qris",
+      paymentMethod: "qris",
+      businessDate: "2026-05-04",
+      actorId: actor.id,
+      subtotalAmount: 100000,
+      discountAmount: 0,
+      taxAmount: 10000,
+      serviceChargeAmount: 5000,
+      totalAmount: 115000,
+    });
+
+    expect(mocks.tx.journalEntry.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          sourceType: "order",
+          description: "QRIS sale ORD-QRIS",
+          lines: {
+            create: expect.arrayContaining([
+              expect.objectContaining({ accountId: "qris-account" }),
+              expect.objectContaining({ accountId: "sales-account" }),
+              expect.objectContaining({ accountId: "tax-account" }),
+              expect.objectContaining({ accountId: "service-account" }),
+            ]),
+          },
+        }),
+      }),
+    );
+    expect(mocks.tx.cashLedgerEntry.upsert).not.toHaveBeenCalled();
   });
 
   it("records a cash expense with journal lines, cash ledger, and activity log", async () => {

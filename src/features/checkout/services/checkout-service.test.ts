@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ValidationError } from "@/lib/api-response";
 import {
   finalizeCashCheckout,
+  finalizeCheckout,
+  parseCheckoutPayload,
   parseCashCheckoutPayload,
   parseHoldOrderPayload,
   parseOrderStatusFilter,
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   findProductsForCheckout: vi.fn(),
   getSettings: vi.fn(),
   createSalesAccountingForPaidCashOrder: vi.fn(),
+  createSalesAccountingForPaidOrder: vi.fn(),
   transaction: vi.fn(),
   tx: {
     activityLog: { create: vi.fn() },
@@ -45,6 +48,7 @@ vi.mock("@/features/catalog/repositories/settings-repository", () => ({
 
 vi.mock("@/features/accounting/services/accounting-service", () => ({
   createSalesAccountingForPaidCashOrder: mocks.createSalesAccountingForPaidCashOrder,
+  createSalesAccountingForPaidOrder: mocks.createSalesAccountingForPaidOrder,
 }));
 
 const actor = {
@@ -86,6 +90,7 @@ describe("checkout service", () => {
       serviceChargeEnabled: false,
       serviceChargeRate: "0",
       cashPaymentEnabled: true,
+      qrisPaymentEnabled: true,
       inventoryEnabled: true,
       kitchenEnabled: true,
       queueEnabled: true,
@@ -100,12 +105,14 @@ describe("checkout service", () => {
     mocks.tx.stockMovement.create.mockResolvedValue({});
     mocks.tx.activityLog.create.mockResolvedValue({});
     mocks.createSalesAccountingForPaidCashOrder.mockResolvedValue(undefined);
+    mocks.createSalesAccountingForPaidOrder.mockResolvedValue(undefined);
     mocks.tx.order.aggregate.mockResolvedValue({
       _max: { queueNumber: 7 },
     });
     mocks.tx.order.create.mockResolvedValue({
       id: "order-1",
       orderNumber: "ORD-001",
+      orderType: "takeaway",
       status: "paid",
       queueBusinessDate: "2026-04-29",
       queueNumber: 8,
@@ -167,6 +174,7 @@ describe("checkout service", () => {
         notes: " paid in cash ",
       }),
     ).toEqual({
+      orderType: "takeaway",
       items: [
         {
           productId: "product-1",
@@ -181,6 +189,48 @@ describe("checkout service", () => {
     });
   });
 
+  it("parses a valid QRIS checkout payload with order type", () => {
+    expect(
+      parseCheckoutPayload({
+        orderType: "dine_in",
+        paymentMethod: "qris",
+        items: [
+          {
+            productId: "product-1",
+            variantId: "",
+            quantity: "1",
+            discountAmount: "0",
+            notes: " iced ",
+          },
+        ],
+      }),
+    ).toEqual({
+      orderType: "dine_in",
+      paymentMethod: "qris",
+      cashReceivedAmount: null,
+      items: [
+        {
+          productId: "product-1",
+          variantId: null,
+          quantity: 1,
+          discountAmount: 0,
+          notes: "iced",
+        },
+      ],
+      notes: null,
+    });
+  });
+
+  it("rejects checkout when order type is missing", () => {
+    expect(() =>
+      parseCheckoutPayload({
+        paymentMethod: "cash",
+        cashReceivedAmount: "50000",
+        items: [{ productId: "product-1", quantity: 1 }],
+      }),
+    ).toThrow(ValidationError);
+  });
+
   it("rejects checkout with no cart items", () => {
     expect(() => parseCashCheckoutPayload({ items: [], cashReceivedAmount: 0 }))
       .toThrow(ValidationError);
@@ -189,7 +239,16 @@ describe("checkout service", () => {
   it("reports item-level validation errors", () => {
     expect(() =>
       parseHoldOrderPayload({
+        orderType: "takeaway",
         items: [{ productId: "", quantity: 0, discountAmount: -1 }],
+      }),
+    ).toThrowError(ValidationError);
+  });
+
+  it("rejects held orders when order type is missing", () => {
+    expect(() =>
+      parseHoldOrderPayload({
+        items: [{ productId: "product-1", quantity: 1 }],
       }),
     ).toThrowError(ValidationError);
   });
@@ -379,10 +438,165 @@ describe("checkout service", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects QRIS checkout when QRIS payment is disabled", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      qrisPaymentEnabled: false,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: true,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+
+    await expect(
+      finalizeCheckout(
+        {
+          orderType: "takeaway",
+          paymentMethod: "qris",
+          cashReceivedAmount: null,
+          items: [
+            {
+              productId: "product-1",
+              variantId: null,
+              quantity: 1,
+              discountAmount: 0,
+              notes: "",
+            },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        paymentMethod: "QRIS payment is disabled.",
+      },
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates a paid QRIS payment without cash received or change", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      qrisPaymentEnabled: true,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: true,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+    mocks.tx.order.create.mockResolvedValueOnce({
+      id: "order-qris",
+      orderNumber: "ORD-QRIS",
+      orderType: "dine_in",
+      status: "paid",
+      queueBusinessDate: "2026-04-29",
+      queueNumber: 8,
+      kitchenStatus: "received",
+      kitchenPreparingAt: null,
+      kitchenReadyAt: null,
+      kitchenCompletedAt: null,
+      subtotalAmount: "20000",
+      discountAmount: "0",
+      taxAmount: "0",
+      serviceChargeAmount: "0",
+      totalAmount: "20000",
+      heldAt: null,
+      paidAt: new Date("2026-04-29T09:00:00.000Z"),
+      createdAt: new Date("2026-04-29T09:00:00.000Z"),
+      cashier: { name: actor.name, email: actor.email },
+      items: [
+        {
+          id: "item-qris",
+          productId: "product-1",
+          variantId: null,
+          productNameSnapshot: "Coffee",
+          variantNameSnapshot: null,
+          quantity: "1",
+          unitPrice: "20000",
+          discountAmount: "0",
+          lineTotal: "20000",
+          notes: null,
+          createdAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+      payments: [
+        {
+          id: "payment-qris",
+          method: "qris",
+          status: "paid",
+          amount: "20000",
+          cashReceivedAmount: null,
+          changeAmount: null,
+          paidAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+    });
+
+    const order = await finalizeCheckout(
+      {
+        orderType: "dine_in",
+        paymentMethod: "qris",
+        cashReceivedAmount: null,
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+      },
+      actor,
+    );
+
+    expect(order.orderType).toBe("dine_in");
+    expect(order.payment).toMatchObject({
+      method: "qris",
+      status: "paid",
+      amount: 20_000,
+      cashReceivedAmount: null,
+      changeAmount: null,
+    });
+    expect(mocks.tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderType: "dine_in",
+          payments: {
+            create: expect.objectContaining({
+              method: "qris",
+              cashReceivedAmount: null,
+              changeAmount: null,
+            }),
+          },
+        }),
+      }),
+    );
+    expect(mocks.createSalesAccountingForPaidOrder).toHaveBeenCalledWith(
+      mocks.tx,
+      expect.objectContaining({
+        paymentMethod: "qris",
+        totalAmount: 20_000,
+      }),
+    );
+  });
+
   it("completes cash payment with exact cash received", async () => {
     mocks.tx.order.create.mockResolvedValueOnce({
       id: "order-exact",
       orderNumber: "ORD-EXACT",
+      orderType: "takeaway",
       status: "paid",
       queueBusinessDate: "2026-04-29",
       queueNumber: 8,
@@ -538,12 +752,13 @@ describe("checkout service", () => {
         }),
       }),
     });
-    expect(mocks.createSalesAccountingForPaidCashOrder).toHaveBeenCalledWith(
+    expect(mocks.createSalesAccountingForPaidOrder).toHaveBeenCalledWith(
       mocks.tx,
       expect.objectContaining({
         orderId: "order-1",
         orderNumber: "ORD-001",
         paymentId: "payment-1",
+        paymentMethod: "cash",
         totalAmount: 55_000,
       }),
     );
@@ -638,7 +853,7 @@ describe("checkout service", () => {
       actor,
     );
 
-    expect(mocks.createSalesAccountingForPaidCashOrder).not.toHaveBeenCalled();
+    expect(mocks.createSalesAccountingForPaidOrder).not.toHaveBeenCalled();
   });
 
   it("omits queue and kitchen fields when both modules are disabled", async () => {

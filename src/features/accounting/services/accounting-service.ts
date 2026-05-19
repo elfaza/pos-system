@@ -174,12 +174,13 @@ async function createJournalEntry(
   });
 }
 
-export async function createSalesAccountingForPaidCashOrder(
+export async function createSalesAccountingForPaidOrder(
   tx: TransactionClient,
   input: {
     orderId: string;
     orderNumber: string;
     paymentId: string;
+    paymentMethod: "cash" | "qris";
     businessDate: string;
     actorId: string;
     subtotalAmount: number;
@@ -190,18 +191,18 @@ export async function createSalesAccountingForPaidCashOrder(
   },
 ) {
   const accounts = await ensureDefaultAccountingSetup(tx);
-  const cash = accounts.get("1000");
+  const paymentAccount = accounts.get(input.paymentMethod === "cash" ? "1000" : "1100");
   const sales = accounts.get("4000");
   const serviceCharge = accounts.get("4010");
   const tax = accounts.get("2100");
 
-  if (!cash || !sales || !serviceCharge || !tax) {
+  if (!paymentAccount || !sales || !serviceCharge || !tax) {
     throw new ValidationError("Accounting accounts are not configured.");
   }
 
   const netSales = roundMoney(input.subtotalAmount - input.discountAmount);
   const lines = [
-    { accountId: cash.id, debitAmount: input.totalAmount },
+    { accountId: paymentAccount.id, debitAmount: input.totalAmount },
     { accountId: sales.id, creditAmount: netSales },
   ];
   if (input.taxAmount > 0) {
@@ -218,27 +219,39 @@ export async function createSalesAccountingForPaidCashOrder(
     sourceType: "order",
     sourceId: input.orderId,
     businessDate: input.businessDate,
-    description: `Cash sale ${input.orderNumber}`,
+    description: `${input.paymentMethod === "cash" ? "Cash" : "QRIS"} sale ${input.orderNumber}`,
     createdByUserId: input.actorId,
     lines,
   });
 
-  await tx.cashLedgerEntry.upsert({
-    where: {
-      sourceType_sourceId: {
+  if (input.paymentMethod === "cash") {
+    await tx.cashLedgerEntry.upsert({
+      where: {
+        sourceType_sourceId: {
+          sourceType: "order",
+          sourceId: input.paymentId,
+        },
+      },
+      update: {},
+      create: {
         sourceType: "order",
         sourceId: input.paymentId,
+        businessDate: input.businessDate,
+        direction: "in",
+        amount: new Prisma.Decimal(input.totalAmount),
+        description: `Cash payment for ${input.orderNumber}`,
       },
-    },
-    update: {},
-    create: {
-      sourceType: "order",
-      sourceId: input.paymentId,
-      businessDate: input.businessDate,
-      direction: "in",
-      amount: new Prisma.Decimal(input.totalAmount),
-      description: `Cash payment for ${input.orderNumber}`,
-    },
+    });
+  }
+}
+
+export async function createSalesAccountingForPaidCashOrder(
+  tx: TransactionClient,
+  input: Omit<Parameters<typeof createSalesAccountingForPaidOrder>[1], "paymentMethod">,
+) {
+  return createSalesAccountingForPaidOrder(tx, {
+    ...input,
+    paymentMethod: "cash",
   });
 }
 

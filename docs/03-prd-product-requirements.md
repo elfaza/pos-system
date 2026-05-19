@@ -77,6 +77,7 @@ Acceptance criteria:
 
 Requirements:
 
+- Cashier must choose order type (`dine_in`, `takeaway`, or `delivery`) before adding products.
 - Cashier can search and filter products.
 - Cashier can add product/variant items to cart.
 - Cashier can update quantity, item notes, and item discounts.
@@ -90,19 +91,21 @@ Acceptance criteria:
 - Held orders do not deduct stock.
 - Server recalculates totals before payment.
 
-### 6. Cash Payment
+### 6. Payment
 
 Requirements:
 
-- Cashier enters cash received.
+- Cashier chooses cash or manual QRIS when the method is enabled in settings.
+- For cash, cashier enters cash received.
 - System calculates change.
-- Cash payment finalization creates a paid order and payment record.
+- Payment finalization creates a paid order and payment record.
 - Payment status is server-authoritative.
 
 Acceptance criteria:
 
 - Cash received below total is rejected.
 - Paid payment stores amount, cash received, change, and paid time.
+- Paid QRIS payment stores method and amount without cash received or change.
 - One order has one payment in the MVP.
 
 Current limitation:

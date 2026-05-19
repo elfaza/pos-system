@@ -40,13 +40,15 @@ Validate that the POS MVP is reliable for daily cafe operations across authentic
 - Service charge is applied only when enabled.
 - Total uses decimal-safe rounding.
 
-### Cash Checkout
+### Paid Checkout
 
 - Empty cart is rejected.
+- Missing order type is rejected.
 - Unavailable product is rejected.
 - Cash received below total is rejected.
 - Exact cash payment succeeds.
 - Overpaid cash payment succeeds and stores change.
+- Manual QRIS payment succeeds when QRIS is enabled and stores payment method without cash/change values.
 - Paid checkout creates order, items, and payment.
 - Paid checkout deducts stock exactly once.
 - Failed checkout does not assign queue number.
@@ -103,18 +105,19 @@ Minimum manual flows:
 3. Admin creates category, product, variant, ingredient, and recipe.
 4. Cashier completes cash checkout with exact cash.
 5. Cashier completes cash checkout with change.
-6. Held order is created, resumed, and paid.
-7. Held/cancelled unpaid order does not deduct stock.
-8. Paid order appears in kitchen and queue.
-9. Kitchen order moves through all valid statuses.
-10. Receipt preview and reprint show persisted data.
-11. Dashboard loads for admin.
-12. Dashboard is blocked for cashier.
-13. Admin records expense and sees it in accounting report.
-14. Admin records cash movement and sees it in cash ledger.
-15. Admin closes a business date.
-16. Accounting is blocked for cashier.
-17. Offline state disables checkout, kitchen, and accounting mutations.
+6. Cashier completes manual QRIS checkout.
+7. Held order is created, resumed, and paid.
+8. Held/cancelled unpaid order does not deduct stock.
+9. Paid order appears in kitchen and queue.
+10. Kitchen order moves through all valid statuses.
+11. Receipt preview and reprint show persisted data.
+12. Dashboard loads for admin.
+13. Dashboard is blocked for cashier.
+14. Admin records expense and sees it in accounting report.
+15. Admin records cash movement and sees it in cash ledger.
+16. Admin closes a business date.
+17. Accounting is blocked for cashier.
+18. Offline state disables checkout, kitchen, and accounting mutations.
 
 ## Responsive QA
 

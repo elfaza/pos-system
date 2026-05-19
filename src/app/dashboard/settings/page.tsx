@@ -59,7 +59,7 @@ const emptyForm: SettingsForm = {
   serviceChargeEnabled: false,
   serviceChargeRate: 0,
   cashPaymentEnabled: true,
-  qrisPaymentEnabled: false,
+  qrisPaymentEnabled: true,
   kitchenEnabled: true,
   queueEnabled: true,
   inventoryEnabled: true,
@@ -123,16 +123,19 @@ function ToggleField({
   checked,
   label,
   onChange,
+  disabled = false,
 }: {
   checked: boolean;
   label: string;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 text-sm font-medium">
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         className={checkboxClass}
       />

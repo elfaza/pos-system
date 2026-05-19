@@ -36,7 +36,19 @@ export interface CheckoutLineInput {
   notes: string;
 }
 
+export type OrderType = "dine_in" | "takeaway" | "delivery";
+export type CheckoutPaymentMethod = "cash" | "qris";
+
+export interface CheckoutInput {
+  orderType: OrderType;
+  paymentMethod: CheckoutPaymentMethod;
+  items: CheckoutLineInput[];
+  cashReceivedAmount: number | null;
+  notes?: string | null;
+}
+
 export interface CashCheckoutInput {
+  orderType?: OrderType;
   items: CheckoutLineInput[];
   cashReceivedAmount: number;
   notes?: string | null;
@@ -68,6 +80,7 @@ export interface CheckoutPaymentRecord {
 export interface CheckoutOrderRecord {
   id: string;
   orderNumber: string;
+  orderType: OrderType;
   cashierName: string | null;
   cashierEmail: string | null;
   status: "draft" | "held" | "pending_payment" | "paid" | "cancelled" | "refunded";

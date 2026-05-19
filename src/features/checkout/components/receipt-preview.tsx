@@ -19,6 +19,12 @@ function formatReceiptDate(value: Date): string {
   ].join(" ");
 }
 
+function formatReceiptOrderType(orderType: CheckoutOrderRecord["orderType"]): string {
+  if (orderType === "dine_in") return "DINE-IN";
+  if (orderType === "delivery") return "DELIVERY";
+  return "TAKE-AWAY";
+}
+
 function Separator({ strong = false }: { strong?: boolean }) {
   return (
     <div className="receipt-separator my-1 overflow-hidden whitespace-nowrap leading-none text-black">
@@ -118,6 +124,7 @@ export default function ReceiptPreview({
 
         <div className="text-center text-[12px] leading-tight">
           <p>BILL:{order.orderNumber}</p>
+          <p>TYPE: {formatReceiptOrderType(order.orderType)}</p>
           <p>POS:1|CSH:{(order.cashierName ?? "-").toUpperCase()}</p>
           <p>PAID: {paidAt ? formatReceiptDate(paidAt) : "-"}</p>
           <p>PRINT TIME: {formatReceiptDate(printTime)}</p>
@@ -216,22 +223,24 @@ export default function ReceiptPreview({
 
         <Separator />
 
-        <div className="grid gap-1">
-          <div className="grid grid-cols-[1fr_72px]">
-            <span>TUNAI</span>
-            <span className="text-right">
-              {formatReceiptAmount(
-                order.payment?.cashReceivedAmount ?? order.payment?.amount ?? order.totalAmount,
-              )}
-            </span>
+        {order.payment?.method === "cash" ? (
+          <div className="grid gap-1">
+            <div className="grid grid-cols-[1fr_72px]">
+              <span>TUNAI</span>
+              <span className="text-right">
+                {formatReceiptAmount(
+                  order.payment?.cashReceivedAmount ?? order.payment?.amount ?? order.totalAmount,
+                )}
+              </span>
+            </div>
+            <div className="grid grid-cols-[1fr_72px]">
+              <span>KEMBALIAN</span>
+              <span className="text-right">
+                {formatReceiptAmount(order.payment?.changeAmount ?? 0)}
+              </span>
+            </div>
           </div>
-          <div className="grid grid-cols-[1fr_72px]">
-            <span>KEMBALIAN</span>
-            <span className="text-right">
-              {formatReceiptAmount(order.payment?.changeAmount ?? 0)}
-            </span>
-          </div>
-        </div>
+        ) : null}
 
         <Separator strong />
 

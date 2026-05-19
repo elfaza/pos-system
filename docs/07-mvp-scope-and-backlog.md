@@ -10,7 +10,7 @@ The MVP is a production-ready single-store, online-only cafe POS with admin mana
 - Role-based access control.
 - User management.
 - Product categories, products, variants, and settings.
-- Cashier POS with cart, search/filter, notes, discounts, held orders, and cash checkout.
+- Cashier POS with order type selection, cart, search/filter, notes, discounts, held orders, cash checkout, and default-enabled manual QRIS checkout.
 - Receipt preview and reprint.
 - Ingredient inventory, recipes, adjustments, waste, and stock movement history.
 - Queue number assignment after payment.
@@ -92,19 +92,19 @@ Goal: complete the cash payment and receipt flow.
 
 Backlog:
 
-- Cash payment modal.
+- Cash/QRIS payment modal.
 - Cash received and change calculation.
 - Payment finalization.
 - Payment record persistence.
 - Receipt content and print/reprint.
 - Payment history visibility.
-- QRIS schema reservation only.
+- Manual QRIS payment type.
 
 Output:
 
-- Cashier can complete paid cash checkout.
+- Cashier can complete paid cash checkout and manual QRIS checkout.
 - Receipt shows reliable persisted transaction data.
-- Payment records are complete for cash.
+- Payment records are complete for cash and manual QRIS.
 
 ### Queue And Kitchen
 

@@ -109,16 +109,18 @@ Rules:
 | --- | --- | --- | --- |
 | `GET` | `/api/orders` | Admin, Cashier | List order history according to role |
 | `GET` | `/api/orders/[id]` | Admin, Cashier | Get order detail |
-| `POST` | `/api/orders/checkout` | Admin, Cashier | Finalize cash checkout |
+| `POST` | `/api/orders/checkout` | Admin, Cashier | Finalize paid checkout |
 | `POST` | `/api/orders/[id]/cancel` | Admin, Cashier | Cancel eligible unpaid/held order |
 | `GET` | `/api/orders/held` | Admin, Cashier | List held orders |
 | `POST` | `/api/orders/held` | Admin, Cashier | Hold current cart as order |
 | `GET` | `/api/orders/held/[id]` | Admin, Cashier | Get held order detail |
 
-Checkout request shape should include cart items, optional notes, discounts, and cash received data:
+Checkout request shape should include order type, payment method, cart items, optional notes, discounts, and cash received data for cash payments:
 
 ```json
 {
+  "orderType": "takeaway",
+  "paymentMethod": "cash",
   "items": [
     {
       "productId": "product_id",
@@ -135,6 +137,10 @@ Checkout request shape should include cart items, optional notes, discounts, and
 
 Rules:
 
+- `orderType` must be `dine_in`, `takeaway`, or `delivery`.
+- `paymentMethod` must be `cash` or `qris`.
+- Cash checkout requires `cashReceivedAmount` to cover the recalculated total.
+- Manual QRIS checkout is cashier-confirmed and creates a paid QRIS payment immediately without provider integration when QRIS is enabled.
 - Server recalculates totals from database products and settings.
 - Empty carts are rejected.
 - Unavailable products are rejected.

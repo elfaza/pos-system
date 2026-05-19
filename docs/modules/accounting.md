@@ -56,6 +56,7 @@ Rules:
 - Paid POS orders remain the source of truth for sales.
 - Accounting entries must not mutate paid orders, payments, receipts, stock movements, or kitchen/queue state.
 - Cash checkout should create or be represented by a sales journal entry and cash ledger entry.
+- Manual QRIS checkout should create a sales journal entry against QRIS clearing/bank-side assets without affecting cash ledger or expected drawer cash.
 - Accounting entry generation must be idempotent for each source order/payment.
 - Manual expenses require date, category/account, amount, payment source, description/reason, and actor.
 - Manual cash in/out requires amount, direction, reason, date, and actor.
@@ -141,8 +142,8 @@ UI rules:
 
 ## Integration Points
 
-- Checkout: paid cash orders create or expose source data for sales journal and cash ledger.
-- Payments: cash payment amount is source for cash ledger.
+- Checkout: paid orders create or expose source data for sales journals.
+- Payments: cash payment amount is source for cash ledger; QRIS payment amount is source for QRIS clearing.
 - Reports: dashboard can link to accounting reports but must not duplicate accounting logic.
 - Settings: store timezone/business date applies to daily close and reports.
 - Users: admin actor is stored on manual accounting mutations.

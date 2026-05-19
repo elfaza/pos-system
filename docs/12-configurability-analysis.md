@@ -145,7 +145,7 @@ Configurable candidates:
 | Feature | Recommendation | Priority |
 | --- | --- | --- |
 | Cash payment enabled | Add to payment settings. | High |
-| QRIS payment enabled | Add when active provider integration is implemented. | High |
+| QRIS payment enabled | Default enabled for manual QRIS; provider-backed QRIS can add separate provider availability later. | Current |
 | Payment expiry | Add for QRIS or pending payment flows. | Medium |
 | Cash rounding | Add if the store rounds cash totals or change to a denomination. | Medium |
 | Provider credentials | Keep in environment variables or secure secret storage, referenced by provider setting. | High |
@@ -268,7 +268,7 @@ Important constraint:
 | `accounting.enabled` | true | Accounting dashboard, journal creation, accounting reports |
 | `reporting.enabled` | true | Dashboard report APIs and widgets |
 | `payments.cash.enabled` | true | Cash checkout |
-| `payments.qris.enabled` | false | QRIS checkout and provider callbacks |
+| `payments.qris.enabled` | true | Manual QRIS checkout |
 | `refunds.enabled` | false | Refund UI/API workflow |
 | `receipts.printing.enabled` | true | Print actions and receipt rendering |
 
@@ -319,7 +319,7 @@ High-priority fields to add next:
 | `timeZone` | string | Store | Removes hard-coded `Asia/Jakarta` from queue and reporting logic. |
 | `businessDayStartTime` | string | Store | Supports stores operating past midnight. |
 | `cashPaymentEnabled` | boolean | Checkout/payment | Allows payment method control. |
-| `qrisPaymentEnabled` | boolean | Checkout/payment | Prepares QRIS activation without code changes. |
+| `qrisPaymentEnabled` | boolean | Checkout/payment | Controls manual QRIS availability; defaults to enabled. |
 | `kitchenEnabled` | boolean | Kitchen | Allows stores without preparation flow. |
 | `queueEnabled` | boolean | Queue | Allows disabling public queue display. |
 | `inventoryEnabled` | boolean | Inventory | Allows simpler POS deployments. |

@@ -10,6 +10,12 @@ import ReceiptPreview from "@/features/checkout/components/receipt-preview";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import type { CheckoutOrderRecord } from "@/features/checkout/types";
 
+function formatOrderTypeLabel(orderType: CheckoutOrderRecord["orderType"]) {
+  if (orderType === "dine_in") return "Dine-in";
+  if (orderType === "delivery") return "Delivery";
+  return "Take-away";
+}
+
 const statusOptions = [
   { value: "", label: "All" },
   { value: "paid", label: "Paid" },
@@ -374,6 +380,7 @@ function OrderHistoryContent() {
               <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]">
                 <tr>
                   <th className="px-3 py-3 font-medium">Order</th>
+                  <th className="px-3 py-3 font-medium">Type</th>
                   <th className="px-3 py-3 font-medium">Queue</th>
                   <th className="px-3 py-3 font-medium">Time</th>
                   <th className="px-3 py-3 font-medium">Cashier</th>
@@ -391,6 +398,9 @@ function OrderHistoryContent() {
                     <tr key={index} className="border-b border-[var(--border)]">
                       <td className="px-3 py-3">
                         <div className="h-4 w-40 rounded-md bg-[var(--muted)]" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="h-4 w-20 rounded-md bg-[var(--muted)]" />
                       </td>
                       <td className="px-3 py-3">
                         <div className="h-4 w-16 rounded-md bg-[var(--muted)]" />
@@ -424,7 +434,7 @@ function OrderHistoryContent() {
                 ) : visibleOrders.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="px-3 py-8 text-center text-[var(--muted-foreground)]"
                     >
                       No orders found.
@@ -434,6 +444,7 @@ function OrderHistoryContent() {
                   visibleOrders.map((order) => (
                     <tr key={order.id} className="border-b border-[var(--border)]">
                       <td className="px-3 py-3 font-medium">{order.orderNumber}</td>
+                      <td className="px-3 py-3">{formatOrderTypeLabel(order.orderType)}</td>
                       <td className="px-3 py-3 font-semibold">
                         {order.queueNumber ? `#${order.queueNumber}` : "-"}
                       </td>

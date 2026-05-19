@@ -42,7 +42,7 @@ const validPayload = {
   timeZone: "Asia/Jakarta",
   businessDayStartTime: "04:00",
   cashPaymentEnabled: true,
-  qrisPaymentEnabled: false,
+  qrisPaymentEnabled: true,
   kitchenEnabled: true,
   queueEnabled: true,
   inventoryEnabled: true,
@@ -75,7 +75,7 @@ describe("settings service", () => {
       timeZone: "Asia/Jakarta",
       businessDayStartTime: "04:00",
       cashPaymentEnabled: true,
-      qrisPaymentEnabled: false,
+      qrisPaymentEnabled: true,
       kitchenEnabled: true,
       queueEnabled: true,
       inventoryEnabled: true,
@@ -90,7 +90,7 @@ describe("settings service", () => {
         timeZone: "Asia/Jakarta",
         businessDayStartTime: "04:00",
         cashPaymentEnabled: true,
-        qrisPaymentEnabled: false,
+        qrisPaymentEnabled: true,
       }),
     );
     expect(mocks.activityLogCreate).toHaveBeenCalledWith({
@@ -101,7 +101,7 @@ describe("settings service", () => {
     });
   });
 
-  it("rejects invalid locale, timezone, time, money, and payment settings", async () => {
+  it("rejects invalid locale, timezone, time, and money settings", async () => {
     await expect(
       updateSettingsFromPayload(
         {
@@ -134,6 +134,23 @@ describe("settings service", () => {
       }),
     });
     expect(mocks.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("persists QRIS payment disabled when the admin unchecks it", async () => {
+    const settings = await updateSettingsFromPayload(
+      {
+        ...validPayload,
+        qrisPaymentEnabled: false,
+      },
+      actor,
+    );
+
+    expect(settings.qrisPaymentEnabled).toBe(false);
+    expect(mocks.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        qrisPaymentEnabled: false,
+      }),
+    );
   });
 
   it("throws a validation error for missing required new fields", async () => {

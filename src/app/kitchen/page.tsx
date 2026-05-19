@@ -8,6 +8,12 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import type { KitchenBoardRecord, KitchenQueueRecord, KitchenStatus } from "@/features/kitchen/types";
 
+function formatOrderTypeLabel(orderType: KitchenQueueRecord["orderType"]) {
+  if (orderType === "dine_in") return "Dine-in";
+  if (orderType === "delivery") return "Delivery";
+  return "Take-away";
+}
+
 const columns: Array<{
   key: keyof KitchenBoardRecord;
   title: string;
@@ -55,6 +61,9 @@ function KitchenOrderCard({
         <div className="min-w-0">
           <p className="break-words text-2xl font-semibold sm:text-3xl">#{order.queueNumber}</p>
           <p className="truncate text-sm text-[var(--muted-foreground)]" title={order.orderNumber}>{order.orderNumber}</p>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            {formatOrderTypeLabel(order.orderType)}
+          </p>
         </div>
         <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassName(order.kitchenStatus)}`}>
           {order.kitchenStatus}

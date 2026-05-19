@@ -1,9 +1,9 @@
-import { PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
+import { OrderType, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
 import { getSettings } from "@/features/catalog/repositories/settings-repository";
-import { createSalesAccountingForPaidCashOrder } from "@/features/accounting/services/accounting-service";
+import { createSalesAccountingForPaidOrder } from "@/features/accounting/services/accounting-service";
 import {
   getNextQueueNumber,
   getQueueBusinessDate,
@@ -19,7 +19,7 @@ import {
   listOrdersForUser,
   listHeldOrdersForUser,
 } from "../repositories/order-repository";
-import type { CashCheckoutInput, CheckoutLineInput } from "../types";
+import type { CashCheckoutInput, CheckoutInput, CheckoutLineInput } from "../types";
 
 function parseCheckoutItems(payload: Record<string, unknown>): CheckoutLineInput[] {
   if (!Array.isArray(payload.items) || payload.items.length === 0) {
@@ -67,16 +67,60 @@ function parseCheckoutItems(payload: Record<string, unknown>): CheckoutLineInput
 export function parseCashCheckoutPayload(
   payload: Record<string, unknown>,
 ): CashCheckoutInput {
-  const items = parseCheckoutItems(payload);
-  const cashReceivedAmount = Number(payload.cashReceivedAmount);
+  const input = parseCheckoutPayload({
+    ...payload,
+    orderType: payload.orderType ?? "takeaway",
+    paymentMethod: "cash",
+  });
 
-  if (!Number.isFinite(cashReceivedAmount) || cashReceivedAmount < 0) {
+  return {
+    orderType: input.orderType,
+    items: input.items,
+    cashReceivedAmount: input.cashReceivedAmount ?? 0,
+    notes: input.notes,
+  };
+}
+
+function parseOrderType(value: unknown) {
+  if (!Object.values(OrderType).includes(value as OrderType)) {
+    throw new ValidationError("Order type validation failed.", {
+      orderType: "Choose dine-in, take-away, or delivery.",
+    });
+  }
+
+  return value as OrderType;
+}
+
+function parsePaymentMethod(value: unknown) {
+  if (!Object.values(PaymentMethod).includes(value as PaymentMethod)) {
+    throw new ValidationError("Payment method validation failed.", {
+      paymentMethod: "Choose cash or QRIS.",
+    });
+  }
+
+  return value as PaymentMethod;
+}
+
+export function parseCheckoutPayload(payload: Record<string, unknown>): CheckoutInput {
+  const orderType = parseOrderType(payload.orderType);
+  const paymentMethod = parsePaymentMethod(payload.paymentMethod);
+  const items = parseCheckoutItems(payload);
+  const parsedCashReceivedAmount = Number(payload.cashReceivedAmount);
+  const cashReceivedAmount =
+    paymentMethod === "cash" ? parsedCashReceivedAmount : null;
+
+  if (
+    paymentMethod === "cash" &&
+    (!Number.isFinite(parsedCashReceivedAmount) || parsedCashReceivedAmount < 0)
+  ) {
     throw new ValidationError("Cash payment validation failed.", {
       cashReceivedAmount: "Cash received must be greater than or equal to 0.",
     });
   }
 
   return {
+    orderType,
+    paymentMethod,
     items,
     cashReceivedAmount,
     notes: typeof payload.notes === "string" ? payload.notes.trim() : null,
@@ -85,6 +129,7 @@ export function parseCashCheckoutPayload(
 
 export function parseHoldOrderPayload(payload: Record<string, unknown>) {
   return {
+    orderType: parseOrderType(payload.orderType),
     items: parseCheckoutItems(payload),
     notes: typeof payload.notes === "string" ? payload.notes.trim() : null,
   };
@@ -248,16 +293,26 @@ function calculateIngredientDeductions(
   return [...deductions.values()];
 }
 
-export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User) {
+export async function finalizeCheckout(input: CheckoutInput, actor: User) {
   const { preparedItems, totals, settings } = await prepareCheckoutItems(input.items);
+  const paymentLabel = input.paymentMethod === "cash" ? "Cash" : "QRIS";
 
-  if (settings.cashPaymentEnabled === false) {
+  if (input.paymentMethod === "cash" && settings.cashPaymentEnabled === false) {
     throw new ValidationError("Cash payment is disabled.", {
       cashReceivedAmount: "Cash payment is disabled.",
     });
   }
 
-  if (input.cashReceivedAmount < totals.totalAmount) {
+  if (input.paymentMethod === "qris" && settings.qrisPaymentEnabled === false) {
+    throw new ValidationError("QRIS payment is disabled.", {
+      paymentMethod: "QRIS payment is disabled.",
+    });
+  }
+
+  if (
+    input.paymentMethod === "cash" &&
+    (input.cashReceivedAmount ?? 0) < totals.totalAmount
+  ) {
     throw new ValidationError("Cash received is less than the order total.", {
       cashReceivedAmount: "Cash received must cover the total.",
     });
@@ -306,6 +361,7 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
       data: {
         orderNumber: createOrderNumber(paidAt),
         cashierId: actor.id,
+        orderType: input.orderType,
         status: "paid",
         subtotalAmount: new Prisma.Decimal(totals.subtotalAmount),
         discountAmount: new Prisma.Decimal(totals.discountAmount),
@@ -332,13 +388,17 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
         },
         payments: {
           create: {
-            method: "cash",
+            method: input.paymentMethod,
             status: "paid",
             amount: new Prisma.Decimal(totals.totalAmount),
-            cashReceivedAmount: new Prisma.Decimal(input.cashReceivedAmount),
-            changeAmount: new Prisma.Decimal(
-              input.cashReceivedAmount - totals.totalAmount,
-            ),
+            cashReceivedAmount:
+              input.paymentMethod === "cash"
+                ? new Prisma.Decimal(input.cashReceivedAmount ?? 0)
+                : null,
+            changeAmount:
+              input.paymentMethod === "cash"
+                ? new Prisma.Decimal((input.cashReceivedAmount ?? 0) - totals.totalAmount)
+                : null,
             paidAt,
           },
         },
@@ -364,7 +424,7 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
             orderId: createdOrder.id,
             type: "sale_deduction",
             quantityChange: new Prisma.Decimal(-deduction.quantityRequired),
-            reason: "Cash order payment confirmed",
+            reason: `${paymentLabel} order payment confirmed`,
             createdByUserId: actor.id,
           },
         });
@@ -388,7 +448,7 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
             orderId: createdOrder.id,
             type: "sale_deduction",
             quantityChange: new Prisma.Decimal(-item.quantity),
-            reason: "Cash order payment confirmed",
+            reason: `${paymentLabel} order payment confirmed`,
             createdByUserId: actor.id,
           },
         });
@@ -403,9 +463,10 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
         entityId: createdOrder.id,
         metadata: {
           orderNumber: createdOrder.orderNumber,
+          orderType: input.orderType,
           queueBusinessDate,
           queueNumber,
-          method: "cash",
+          method: input.paymentMethod,
           totalAmount: totals.totalAmount,
         },
       },
@@ -430,10 +491,11 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
     const payment = createdOrder.payments[0];
     if (payment) {
       if (accountingEnabled) {
-        await createSalesAccountingForPaidCashOrder(tx, {
+        await createSalesAccountingForPaidOrder(tx, {
           orderId: createdOrder.id,
           orderNumber: createdOrder.orderNumber,
           paymentId: payment.id,
+          paymentMethod: input.paymentMethod,
           businessDate:
             queueBusinessDate ??
             getQueueBusinessDate(
@@ -459,7 +521,7 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
           metadata: {
             orderId: createdOrder.id,
             orderNumber: createdOrder.orderNumber,
-            method: "cash",
+            method: input.paymentMethod,
             previousStatus: "pending",
             status: "paid",
             amount: totals.totalAmount,
@@ -475,8 +537,19 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
   return mapCheckoutOrder(order);
 }
 
+export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User) {
+  return finalizeCheckout(
+    {
+      ...input,
+      orderType: input.orderType ?? "takeaway",
+      paymentMethod: "cash",
+    },
+    actor,
+  );
+}
+
 export async function holdOrder(
-  input: { items: CheckoutLineInput[]; notes?: string | null },
+  input: { orderType: OrderType; items: CheckoutLineInput[]; notes?: string | null },
   actor: User,
 ) {
   const { preparedItems, totals } = await prepareCheckoutItems(input.items, {
@@ -489,6 +562,7 @@ export async function holdOrder(
       data: {
         orderNumber: createOrderNumber(heldAt),
         cashierId: actor.id,
+        orderType: input.orderType,
         status: "held",
         subtotalAmount: new Prisma.Decimal(totals.subtotalAmount),
         discountAmount: new Prisma.Decimal(totals.discountAmount),
@@ -522,6 +596,7 @@ export async function holdOrder(
         entityId: createdOrder.id,
         metadata: {
           orderNumber: createdOrder.orderNumber,
+          orderType: input.orderType,
           totalAmount: totals.totalAmount,
         },
       },

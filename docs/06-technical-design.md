@@ -33,7 +33,7 @@ Next.js UI
 | --- | --- |
 | `auth` | Login, sessions, password hashing, role checks, users |
 | `catalog` | Categories, products, variants, settings |
-| `checkout` | Cart state, calculations, orders, cash payments, receipts |
+| `checkout` | Cart state, calculations, orders, manual cash/QRIS payments, receipts |
 | `inventory` | Ingredients, recipes, stock adjustments, stock movements |
 | `kitchen` | Queue number assignment, kitchen order listing, status transitions |
 | `reporting` | Dashboard aggregation and report data |
@@ -62,14 +62,14 @@ Next.js UI
 | `/dashboard/accounting/cash` | Admin cash ledger and cash movements |
 | `/dashboard/accounting/close` | Admin daily close workflow |
 
-## Data Flow: Cash Checkout
+## Data Flow: Paid Checkout
 
 1. Cashier builds cart in Zustand state.
-2. Cashier submits checkout request with item IDs, quantities, discounts, notes, and cash received.
+2. Cashier chooses an order type, then submits checkout request with item IDs, quantities, discounts, notes, payment method, and cash received when paying by cash.
 3. API route authenticates user.
 4. Checkout service loads authoritative products, variants, recipes, and settings.
 5. Service recalculates subtotal, discount, tax, service charge, and total.
-6. Service validates product availability, cash received, and stock sufficiency.
+6. Service validates product availability, payment method settings, cash received for cash payments, and stock sufficiency.
 7. Database transaction creates paid order, order items, payment, stock movements, queue number, and kitchen status.
 8. Response returns paid order detail for success, receipt, and queue display.
 
@@ -91,7 +91,7 @@ Next.js UI
 
 ## Data Flow: Accounting Entry
 
-1. A paid cash checkout, expense, cash movement, or daily close creates accounting source data.
+1. A paid checkout, expense, cash movement, or daily close creates accounting source data.
 2. Accounting service validates admin permission for manual workflows.
 3. Accounting service builds balanced journal lines from the source event.
 4. Database transaction writes accounting records and activity log entries.
