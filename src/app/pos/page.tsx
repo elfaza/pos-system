@@ -101,14 +101,14 @@ function PosCart({
           <button
             onClick={clearCart}
             disabled={items.length === 0}
-            className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[var(--border)] bg-white px-4 text-sm font-medium hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Clear
           </button>
           {onClose ? (
             <button
               onClick={onClose}
-              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium hover:bg-[var(--surface)]"
+              className="h-11 rounded-md border border-[var(--border)] bg-white px-4 text-sm font-medium hover:bg-[var(--surface)]"
             >
               Close
             </button>
@@ -186,7 +186,7 @@ function PosCart({
                     value={item.notes}
                     onChange={(event) => updateNotes(item.id, event.target.value)}
                     placeholder="Less sugar, no ice"
-                    className="h-10 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                    className="h-11 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                   />
                 </label>
               </div>
@@ -511,13 +511,13 @@ function HeldOrdersModal({
             <button
               onClick={onReload}
               disabled={loading}
-              className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)] disabled:opacity-60"
+              className="h-11 rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)] disabled:opacity-60"
             >
               Refresh
             </button>
             <button
               onClick={onClose}
-              className="h-10 rounded-md border border-[var(--border)] px-3 font-medium hover:bg-[var(--muted)]"
+              className="h-11 rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]"
             >
               Close
             </button>
@@ -1074,7 +1074,7 @@ function PosContent() {
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               <button
                 onClick={() => applyFilters("")}
-                className={`h-10 whitespace-nowrap rounded-md border px-3 text-sm font-medium ${
+                className={`h-11 whitespace-nowrap rounded-md border px-4 text-sm font-medium ${
                   activeCategoryId === ""
                     ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-[0_6px_14px_rgba(37,87,199,0.12)]"
                     : "border-[var(--border)] bg-white hover:bg-[var(--surface)]"
@@ -1086,7 +1086,7 @@ function PosContent() {
                 <button
                   key={category.id}
                   onClick={() => applyFilters(category.id)}
-                  className={`h-10 whitespace-nowrap rounded-md border px-3 text-sm font-medium ${
+                  className={`h-11 whitespace-nowrap rounded-md border px-4 text-sm font-medium ${
                     activeCategoryId === category.id
                       ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-[0_6px_14px_rgba(37,87,199,0.12)]"
                       : "border-[var(--border)] bg-white hover:bg-[var(--surface)]"
