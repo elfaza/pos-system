@@ -96,12 +96,12 @@ Configurable candidates:
 | Feature | Recommendation | Priority |
 | --- | --- | --- |
 | Categories | Already configurable as master data. | Current |
-| Products and variants | Already configurable as master data. | Current |
-| Product availability | Already configurable per product/variant. | Current |
+| Products and option groups | Already configurable as master data. | Current |
+| Product availability | Already configurable per product. | Current |
 | SKU requirement | Add a store setting if operators need mandatory SKUs for inventory/accounting discipline. | Low |
 | Product image behavior | Add limits/default placeholder only if image upload is introduced. | Low |
 | Price and cost visibility | Add role or feature setting if cashier screens should hide cost data. | Medium |
-| Variant support | Could be module-configurable, but keep enabled while variants are part of the schema and checkout flow. | Low |
+| Option support | Keep enabled because checkout now depends on structured option groups and values. | Current |
 
 ### 3. Store Settings
 

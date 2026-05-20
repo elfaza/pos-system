@@ -244,7 +244,7 @@ Tailwind layout:
 - Category tabs are horizontally scrollable on small screens.
 - Product cards show name, price, availability, and optional image.
 - Unavailable products are visible but disabled, or hidden through a filter.
-- Variant selection appears after product click if variants exist.
+- Option selection appears after product click when active option groups exist.
 
 Recommended product card:
 - `button`

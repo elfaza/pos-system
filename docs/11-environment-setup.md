@@ -158,8 +158,8 @@ After deployment, smoke test:
 - Single-store only.
 - Online-only operation.
 - Admin and cashier roles only.
-- Cash payment only as active payment workflow.
-- QRIS integration deferred.
+- Cash and manual QRIS are active payment workflows.
+- QRIS integration/gateway settlement is deferred.
 - No split payments.
 - No offline sync.
 - No hardware integration.

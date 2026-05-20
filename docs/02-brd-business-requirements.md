@@ -35,9 +35,9 @@ Deliver a reliable single-store cafe POS MVP that helps a cafe run daily sales, 
 
 ### Catalog Management
 
-- Admin can manage categories, products, variants, pricing, images, availability, and stock tracking flags.
+- Admin can manage categories, products, configurable option groups, pricing, images, availability, and stock tracking flags.
 - Cashier can browse only active categories and available products.
-- Product and variant names/prices must be snapshotted into order items for historical accuracy.
+- Product and selected option names/prices must be snapshotted into order items for historical accuracy.
 
 ### Checkout
 
