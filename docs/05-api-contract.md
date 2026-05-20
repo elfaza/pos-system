@@ -194,6 +194,7 @@ Rules:
 | Method | Route | Role | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/api/kitchen/orders` | Admin, Cashier | List active kitchen orders |
+| `GET` | `/api/kitchen/orders/[id]/ticket` | Admin, Cashier | Return print-ready kitchen ticket payload |
 | `PATCH` | `/api/kitchen/orders/[id]/status` | Admin, Cashier | Update kitchen status |
 
 Status update request:
@@ -203,6 +204,8 @@ Status update request:
   "status": "preparing"
 }
 ```
+
+Kitchen ticket payloads include queue identity, order type, table or delivery context, paid time, item names, item notes, and selected option snapshots. The endpoint is print-ready data only; it does not trigger browser printing or hardware printing.
 
 Rules:
 

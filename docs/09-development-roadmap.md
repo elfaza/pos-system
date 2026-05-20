@@ -111,6 +111,7 @@ Focus:
 
 - Daily queue number assignment.
 - Kitchen order display.
+- Kitchen ticket payloads for future label printing.
 - Status transitions.
 - Ready queue display.
 
@@ -118,7 +119,17 @@ Done when:
 
 - Paid orders receive queue numbers.
 - Kitchen can move orders from received to completed.
+- Kitchen tickets include order type, table/delivery context, item notes, and selected options.
 - Queue display reflects active preparation state.
+
+## Phase 4 Current Feature Slice
+
+Implemented behavior:
+
+- KDS displays order type, table/customer context, item notes, and selected options.
+- Public queue display includes order type and table/customer context.
+- Kitchen ticket API exposes print-ready ticket data at `/api/kitchen/orders/[id]/ticket`.
+- Ticket data is prepared for future thermal label printing, but no automatic printer integration is active yet.
 
 ## Dashboard And Reports
 

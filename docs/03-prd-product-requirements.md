@@ -173,14 +173,17 @@ Requirements:
 - Paid checkout assigns daily queue number.
 - Paid order starts kitchen status as `received`.
 - Kitchen screen lists active paid orders.
+- Kitchen screen displays order type, table or delivery context, item notes, and selected options.
 - Staff can update kitchen status to `preparing`, `ready`, and `completed`.
 - Queue display highlights waiting, preparing, and ready orders.
+- Kitchen ticket data is available for future label printing.
 
 Acceptance criteria:
 
 - Queue number is unique for the business date.
 - Invalid backward kitchen transitions are rejected.
 - Completed kitchen orders leave active queue views.
+- Kitchen ticket payloads are derived from persisted order snapshots.
 
 ### 10. Dashboard And Reports
 
