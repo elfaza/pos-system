@@ -10,7 +10,12 @@ import {
   listReadyQueueOrders,
   updateKitchenOrderStatus,
 } from "../repositories/kitchen-repository";
-import { buildKitchenBoard, buildQueueDisplay, mapKitchenOrder } from "./kitchen-mappers";
+import {
+  buildKitchenBoard,
+  buildQueueDisplay,
+  mapKitchenOrder,
+  mapKitchenTicket,
+} from "./kitchen-mappers";
 import type { KitchenStatus } from "../types";
 
 const allowedTransitions: Record<KitchenStatus, KitchenStatus[]> = {
@@ -65,6 +70,17 @@ export async function getQueueDisplay() {
   await requireModuleEnabled("queueEnabled");
   const orders = await listReadyQueueOrders();
   return buildQueueDisplay(orders.map(mapKitchenOrder));
+}
+
+export async function getKitchenTicket(orderId: string) {
+  await requireModuleEnabled("kitchenEnabled");
+  const order = await findKitchenOrderById(orderId);
+
+  if (!order) {
+    throw new NotFoundError("Kitchen order was not found.");
+  }
+
+  return mapKitchenTicket(mapKitchenOrder(order));
 }
 
 export async function changeKitchenStatus(

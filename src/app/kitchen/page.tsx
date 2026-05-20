@@ -42,6 +42,16 @@ function statusClassName(status: KitchenStatus) {
   return "border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]";
 }
 
+function formatOrderContext(order: KitchenQueueRecord) {
+  if (order.tableName) return `Table ${order.tableName}`;
+  if (order.deliveryCustomerName && order.deliveryAddress) {
+    return `${order.deliveryCustomerName} - ${order.deliveryAddress}`;
+  }
+  if (order.deliveryCustomerName) return order.deliveryCustomerName;
+  if (order.deliveryAddress) return order.deliveryAddress;
+  return null;
+}
+
 function KitchenOrderCard({
   order,
   disabled,
@@ -64,6 +74,11 @@ function KitchenOrderCard({
           <p className="text-sm text-[var(--muted-foreground)]">
             {formatOrderTypeLabel(order.orderType)}
           </p>
+          {formatOrderContext(order) ? (
+            <p className="mt-1 break-words text-sm font-medium">
+              {formatOrderContext(order)}
+            </p>
+          ) : null}
         </div>
         <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassName(order.kitchenStatus)}`}>
           {order.kitchenStatus}
@@ -83,11 +98,14 @@ function KitchenOrderCard({
               </span>
             </div>
             {item.optionSelections.length > 0 ? (
-              <div className="mt-1 grid gap-0.5 text-xs text-[var(--muted-foreground)]">
+              <div className="mt-2 flex flex-wrap gap-1 text-xs">
                 {item.optionSelections.map((selection) => (
-                  <p key={selection.id}>
+                  <span
+                    key={selection.id}
+                    className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-[var(--muted-foreground)]"
+                  >
                     {selection.groupNameSnapshot}: {selection.valueNameSnapshot}
-                  </p>
+                  </span>
                 ))}
               </div>
             ) : null}

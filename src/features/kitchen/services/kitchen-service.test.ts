@@ -3,6 +3,7 @@ import { ValidationError } from "@/lib/api-response";
 import {
   changeKitchenStatus,
   getKitchenBoard,
+  getKitchenTicket,
   parseKitchenStatus,
 } from "./kitchen-service";
 
@@ -23,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("../repositories/kitchen-repository", () => ({
-  findKitchenOrderById: (id: string, tx: typeof mocks.tx) =>
+  findKitchenOrderById: (id: string, tx: typeof mocks.tx = mocks.tx) =>
     tx.order.findFirst({ where: { id } }),
   kitchenStatuses: ["received", "preparing", "ready", "completed"],
   listActiveKitchenOrders: mocks.listActiveKitchenOrders,
@@ -66,6 +67,13 @@ function buildOrder(overrides: Record<string, unknown> = {}) {
     paidAt: new Date("2026-04-29T09:00:00.000Z"),
     createdAt: new Date("2026-04-29T09:00:00.000Z"),
     cashier: { name: actor.name, email: actor.email },
+    tableId: null,
+    table: null,
+    orderType: "takeaway",
+    deliveryCustomerName: null,
+    deliveryCustomerPhone: null,
+    deliveryAddress: null,
+    deliveryNotes: null,
     items: [],
     payments: [],
     ...overrides,
@@ -103,6 +111,74 @@ describe("kitchen service", () => {
     expect(board.received).toHaveLength(1);
     expect(board.preparing).toHaveLength(0);
     expect(board.ready).toHaveLength(1);
+  });
+
+  it("builds print-ready kitchen ticket payload with context and options", async () => {
+    mocks.tx.order.findFirst.mockResolvedValue(
+      buildOrder({
+        orderType: "dine_in",
+        tableId: "table-2",
+        table: { name: "Table 2" },
+        items: [
+          {
+            id: "item-1",
+            productId: "product-1",
+            variantId: null,
+            productNameSnapshot: "Cafe Latte",
+            variantNameSnapshot: null,
+            quantity: "2",
+            unitPrice: "25000",
+            discountAmount: "0",
+            lineTotal: "50000",
+            notes: "No foam",
+            createdAt: new Date("2026-04-29T09:00:00.000Z"),
+            optionSelections: [
+              {
+                id: "selection-1",
+                orderItemId: "item-1",
+                optionGroupId: "group-temp",
+                optionValueId: "value-iced",
+                groupNameSnapshot: "Temperature",
+                valueNameSnapshot: "Iced",
+                priceDelta: "0",
+                createdAt: new Date("2026-04-29T09:00:00.000Z"),
+              },
+              {
+                id: "selection-2",
+                orderItemId: "item-1",
+                optionGroupId: "group-milk",
+                optionValueId: "value-oat",
+                groupNameSnapshot: "Milk",
+                valueNameSnapshot: "Oat milk",
+                priceDelta: "5000",
+                createdAt: new Date("2026-04-29T09:00:00.000Z"),
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const ticket = await getKitchenTicket("order-1");
+
+    expect(ticket).toMatchObject({
+      orderId: "order-1",
+      orderNumber: "ORD-001",
+      orderType: "dine_in",
+      queueNumber: 5,
+      tableName: "Table 2",
+      items: [
+        {
+          name: "Cafe Latte",
+          quantity: 2,
+          notes: "No foam",
+          options: [
+            { groupName: "Temperature", valueName: "Iced" },
+            { groupName: "Milk", valueName: "Oat milk" },
+          ],
+        },
+      ],
+    });
   });
 
   it("updates a valid status transition and logs it", async () => {

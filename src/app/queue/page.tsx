@@ -11,6 +11,13 @@ function formatOrderTypeLabel(orderType: KitchenQueueRecord["orderType"]) {
   return "Take-away";
 }
 
+function formatOrderContext(order: KitchenQueueRecord) {
+  if (order.tableName) return `Table ${order.tableName}`;
+  if (order.deliveryCustomerName) return order.deliveryCustomerName;
+  if (order.deliveryAddress) return order.deliveryAddress;
+  return null;
+}
+
 function QueueNumberTile({
   order,
   tone,
@@ -30,6 +37,11 @@ function QueueNumberTile({
       <p className="max-w-full break-words text-3xl font-semibold sm:text-4xl">#{order.queueNumber}</p>
       <p className="mt-1 truncate text-sm" title={order.orderNumber}>{order.orderNumber}</p>
       <p className="mt-1 text-sm">{formatOrderTypeLabel(order.orderType)}</p>
+      {formatOrderContext(order) ? (
+        <p className="mt-1 truncate text-sm font-medium" title={formatOrderContext(order) ?? undefined}>
+          {formatOrderContext(order)}
+        </p>
+      ) : null}
     </div>
   );
 }
