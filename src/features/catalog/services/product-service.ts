@@ -26,6 +26,111 @@ function parseOptionSelectionType(value: unknown): "single" | "multiple" {
   return value === "multiple" ? "multiple" : "single";
 }
 
+function parseRecipeRows(value: unknown, options: {
+  fieldPrefix: string;
+  duplicateMessage: string;
+  includeVariantId?: boolean;
+}) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value.map((rawRecipe, index) => {
+    const recipe =
+      rawRecipe && typeof rawRecipe === "object"
+        ? (rawRecipe as Record<string, unknown>)
+        : {};
+    const ingredientId = optionalString(recipe.ingredientId) ?? "";
+    const variantId = options.includeVariantId ? optionalString(recipe.variantId) : null;
+    const quantityRequired = toDecimalString(recipe.quantityRequired, "");
+    const fieldErrors: Record<string, string> = {};
+    const duplicateKey = options.includeVariantId
+      ? `${variantId ?? "base"}:${ingredientId}`
+      : ingredientId;
+
+    if (!ingredientId) {
+      fieldErrors[`${options.fieldPrefix}.${index}.ingredientId`] =
+        "Ingredient is required.";
+    }
+    if (quantityRequired === "" || Number(quantityRequired) <= 0) {
+      fieldErrors[`${options.fieldPrefix}.${index}.quantityRequired`] =
+        "Recipe quantity must be greater than 0.";
+    }
+    if (ingredientId && seen.has(duplicateKey)) {
+      fieldErrors[`${options.fieldPrefix}.${index}.ingredientId`] =
+        options.duplicateMessage;
+    }
+    seen.add(duplicateKey);
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError("Product recipe validation failed.", fieldErrors);
+    }
+
+    return {
+      ingredientId,
+      variantId,
+      quantityRequired,
+    };
+  });
+}
+
+function parseReplacementRules(value: unknown, fieldPrefix: string) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value.map((rawRule, index) => {
+    const rule =
+      rawRule && typeof rawRule === "object"
+        ? (rawRule as Record<string, unknown>)
+        : {};
+    const replacedIngredientId = optionalString(rule.replacedIngredientId) ?? "";
+    const replacementIngredientId = optionalString(rule.replacementIngredientId) ?? "";
+    const quantityRequired = toDecimalString(rule.quantityRequired, "");
+    const fieldErrors: Record<string, string> = {};
+
+    if (!replacedIngredientId) {
+      fieldErrors[`${fieldPrefix}.${index}.replacedIngredientId`] =
+        "Replaced ingredient is required.";
+    }
+    if (!replacementIngredientId) {
+      fieldErrors[`${fieldPrefix}.${index}.replacementIngredientId`] =
+        "Replacement ingredient is required.";
+    }
+    if (
+      replacedIngredientId &&
+      replacementIngredientId &&
+      replacedIngredientId === replacementIngredientId
+    ) {
+      fieldErrors[`${fieldPrefix}.${index}.replacementIngredientId`] =
+        "Replacement ingredient must be different.";
+    }
+    if (quantityRequired === "" || Number(quantityRequired) <= 0) {
+      fieldErrors[`${fieldPrefix}.${index}.quantityRequired`] =
+        "Replacement quantity must be greater than 0.";
+    }
+    if (replacedIngredientId && seen.has(replacedIngredientId)) {
+      fieldErrors[`${fieldPrefix}.${index}.replacedIngredientId`] =
+        "This ingredient already has a replacement rule for this option value.";
+    }
+    seen.add(replacedIngredientId);
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError("Product option validation failed.", fieldErrors);
+    }
+
+    return {
+      replacedIngredientId,
+      replacementIngredientId,
+      quantityRequired,
+    };
+  });
+}
+
 function parseOptionGroups(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
@@ -67,6 +172,17 @@ function parseOptionGroups(value: unknown) {
         priceDelta,
         sortOrder: valueIndex,
         isActive: toBoolean(optionValue.isActive, true),
+        recipes: parseRecipeRows(optionValue.recipes, {
+          fieldPrefix: `optionGroups.${groupIndex}.values.${valueIndex}.recipes`,
+          duplicateMessage: "This ingredient is already used for this option value.",
+        }).map((recipe) => ({
+          ingredientId: recipe.ingredientId,
+          quantityRequired: recipe.quantityRequired,
+        })),
+        replacementRules: parseReplacementRules(
+          optionValue.replacementRules,
+          `optionGroups.${groupIndex}.values.${valueIndex}.replacementRules`,
+        ),
       };
     });
     const fieldErrors: Record<string, string> = {};
@@ -96,45 +212,9 @@ function parseOptionGroups(value: unknown) {
 }
 
 function parseRecipes(value: unknown) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-
-  return value.map((rawRecipe, index) => {
-    const recipe =
-      rawRecipe && typeof rawRecipe === "object"
-        ? (rawRecipe as Record<string, unknown>)
-        : {};
-    const ingredientId = optionalString(recipe.ingredientId) ?? "";
-    const variantId = null;
-    const quantityRequired = toDecimalString(recipe.quantityRequired, "");
-    const fieldErrors: Record<string, string> = {};
-    const duplicateKey = ingredientId;
-
-    if (!ingredientId) {
-      fieldErrors[`recipes.${index}.ingredientId`] = "Ingredient is required.";
-    }
-    if (quantityRequired === "" || Number(quantityRequired) <= 0) {
-      fieldErrors[`recipes.${index}.quantityRequired`] =
-        "Recipe quantity must be greater than 0.";
-    }
-    if (ingredientId && seen.has(duplicateKey)) {
-      fieldErrors[`recipes.${index}.ingredientId`] =
-        "This ingredient is already used for this product.";
-    }
-    seen.add(duplicateKey);
-
-    if (Object.keys(fieldErrors).length > 0) {
-      throw new ValidationError("Product recipe validation failed.", fieldErrors);
-    }
-
-    return {
-      ingredientId,
-      variantId,
-      quantityRequired,
-    };
+  return parseRecipeRows(value, {
+    fieldPrefix: "recipes",
+    duplicateMessage: "This ingredient is already used for this product.",
   });
 }
 
@@ -205,6 +285,21 @@ async function assertRecipesUseActiveIngredients(
   }
 }
 
+function getAllRecipeRows(data: ReturnType<typeof parseProductPayload>) {
+  return [
+    ...data.recipes,
+    ...data.optionGroups.flatMap((group) =>
+      group.values.flatMap((value) => [
+        ...value.recipes,
+        ...value.replacementRules.flatMap((rule) => [
+          { ingredientId: rule.replacedIngredientId },
+          { ingredientId: rule.replacementIngredientId },
+        ]),
+      ]),
+    ),
+  ];
+}
+
 export async function getProductList(url: URL, includeUnavailable: boolean) {
   const products = await listProducts({
     search: url.searchParams.get("search") ?? undefined,
@@ -223,7 +318,7 @@ export async function createProductFromPayload(
   actor: User,
 ) {
   const data = parseProductPayload(payload);
-  await assertRecipesUseActiveIngredients(data.recipes);
+  await assertRecipesUseActiveIngredients(getAllRecipeRows(data));
   const product = await createProduct(data);
 
   await prisma.activityLog.create({
@@ -249,7 +344,7 @@ export async function updateProductFromPayload(
   }
 
   const data = parseProductPayload(payload);
-  await assertRecipesUseActiveIngredients(data.recipes);
+  await assertRecipesUseActiveIngredients(getAllRecipeRows(data));
   const product = await updateProduct(id, data);
 
   await prisma.activityLog.create({

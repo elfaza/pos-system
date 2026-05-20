@@ -40,6 +40,7 @@ export async function updateSettings(data: {
   businessDayStartTime: string;
   cashPaymentEnabled: boolean;
   qrisPaymentEnabled: boolean;
+  dineInPayLaterEnabled: boolean;
   kitchenEnabled: boolean;
   queueEnabled: boolean;
   inventoryEnabled: boolean;

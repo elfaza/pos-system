@@ -133,6 +133,7 @@ function parseSettingsPayload(payload: Record<string, unknown>) {
     businessDayStartTime,
     cashPaymentEnabled,
     qrisPaymentEnabled,
+    dineInPayLaterEnabled: toBoolean(payload.dineInPayLaterEnabled, false),
     kitchenEnabled: toBoolean(payload.kitchenEnabled, true),
     queueEnabled: toBoolean(payload.queueEnabled, true),
     inventoryEnabled: toBoolean(payload.inventoryEnabled, true),

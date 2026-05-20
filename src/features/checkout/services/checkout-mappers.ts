@@ -3,6 +3,7 @@ import type {
   OrderItem,
   OrderItemOptionSelection,
   Payment,
+  DiningTable,
   User as PrismaUser,
 } from "@prisma/client";
 import type { CheckoutOrderRecord } from "../types";
@@ -10,6 +11,7 @@ import type { CheckoutOrderRecord } from "../types";
 export function mapCheckoutOrder(
   order: Order & {
     cashier?: Pick<PrismaUser, "name" | "email">;
+    table?: Pick<DiningTable, "name"> | null;
     items: Array<OrderItem & { optionSelections?: OrderItemOptionSelection[] }>;
     payments: Payment[];
   },
@@ -20,6 +22,12 @@ export function mapCheckoutOrder(
     id: order.id,
     orderNumber: order.orderNumber,
     orderType: order.orderType,
+    tableId: order.tableId ?? null,
+    tableName: order.table?.name ?? null,
+    deliveryCustomerName: order.deliveryCustomerName ?? null,
+    deliveryCustomerPhone: order.deliveryCustomerPhone ?? null,
+    deliveryAddress: order.deliveryAddress ?? null,
+    deliveryNotes: order.deliveryNotes ?? null,
     cashierName: order.cashier?.name ?? null,
     cashierEmail: order.cashier?.email ?? null,
     status: order.status,

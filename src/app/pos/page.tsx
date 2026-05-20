@@ -18,6 +18,7 @@ import type {
   CartItem,
   CheckoutOrderRecord,
   CheckoutPaymentMethod,
+  DiningTableRecord,
   OrderType,
 } from "@/features/checkout/types";
 
@@ -74,9 +75,12 @@ function PosCart({
   const inventoryEnabled = settings?.inventoryEnabled ?? true;
   const hasStockIssue = items.some((item) => isInsufficientStock(item, inventoryEnabled));
   const needsOrderType = orderType === null;
+  const dineInPayLaterDisabled =
+    orderType === "dine_in" && settings?.dineInPayLaterEnabled === false;
   const finalActionsDisabled =
     !isOnline || needsOrderType || items.length === 0 || hasStockIssue;
-  const holdDisabled = !isOnline || needsOrderType || items.length === 0 || holding;
+  const holdDisabled =
+    !isOnline || needsOrderType || items.length === 0 || holding || dineInPayLaterDisabled;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -230,6 +234,11 @@ function PosCart({
             Choose Dine-in, Take-away, or Delivery before checkout.
           </p>
         ) : null}
+        {dineInPayLaterDisabled ? (
+          <p className="mt-3 rounded-md bg-orange-50 p-2 text-sm text-[var(--warning)]">
+            Dine-in pay later is disabled. Use Pay to complete this order.
+          </p>
+        ) : null}
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
@@ -237,7 +246,7 @@ function PosCart({
             disabled={holdDisabled}
             className="h-11 rounded-md border border-[var(--border)] bg-white px-4 font-medium hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {holding ? "Holding..." : "Hold"}
+            {holding ? "Holding..." : orderType === "dine_in" ? "Open" : "Hold"}
           </button>
           <button
             onClick={onPay}
@@ -256,12 +265,22 @@ function CashPaymentModal({
   items,
   settings,
   orderType,
+  tableId,
+  deliveryCustomerName,
+  deliveryCustomerPhone,
+  deliveryAddress,
+  deliveryNotes,
   onClose,
   onPaid,
 }: {
   items: CartItem[];
   settings: SettingsRecord | null;
   orderType: OrderType;
+  tableId: string | null;
+  deliveryCustomerName: string;
+  deliveryCustomerPhone: string;
+  deliveryAddress: string;
+  deliveryNotes: string;
   onClose: () => void;
   onPaid: (order: CheckoutOrderRecord) => void;
 }) {
@@ -326,6 +345,11 @@ function CashPaymentModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderType,
+          tableId,
+          deliveryCustomerName,
+          deliveryCustomerPhone,
+          deliveryAddress,
+          deliveryNotes,
           paymentMethod: activePaymentMethod,
           cashReceivedAmount: activePaymentMethod === "cash" ? cashAmount : null,
           items: items.map((item) => ({
@@ -543,6 +567,15 @@ function HeldOrdersModal({
                         ? new Date(order.heldAt).toLocaleString()
                         : "No hold time"}
                     </p>
+                    {order.tableName || order.deliveryCustomerName || order.deliveryAddress ? (
+                      <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                        {order.tableName ? `Table: ${order.tableName}` : null}
+                        {order.deliveryCustomerName
+                          ? `Customer: ${order.deliveryCustomerName}`
+                          : null}
+                        {order.deliveryAddress ? ` - ${order.deliveryAddress}` : null}
+                      </p>
+                    ) : null}
                     <p className="mt-2 font-semibold">
                       {formatRupiah(order.totalAmount)}
                     </p>
@@ -689,8 +722,14 @@ function PosContent() {
   const cartItems = useCartStore((state) => state.items);
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [tables, setTables] = useState<DiningTableRecord[]>([]);
   const [settings, setSettings] = useState<SettingsRecord | null>(null);
   const [selectedOrderType, setSelectedOrderType] = useState<OrderType | null>(null);
+  const [selectedTableId, setSelectedTableId] = useState<string>("");
+  const [deliveryCustomerName, setDeliveryCustomerName] = useState("");
+  const [deliveryCustomerPhone, setDeliveryCustomerPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryNotes, setDeliveryNotes] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [search, setSearch] = useState("");
   const [isOnline, setIsOnline] = useState(true);
@@ -720,24 +759,28 @@ function PosContent() {
       if (options?.categoryId) query.set("categoryId", options.categoryId);
       if (options?.search) query.set("search", options.search);
 
-      const [categoryResponse, productResponse, settingsResponse] = await Promise.all([
+      const [categoryResponse, productResponse, settingsResponse, tableResponse] = await Promise.all([
         fetch("/api/categories"),
         fetch(`/api/products?${query.toString()}`),
         fetch("/api/settings"),
+        fetch("/api/tables"),
       ]);
-      const [categoryData, productData, settingsData] = await Promise.all([
+      const [categoryData, productData, settingsData, tableData] = await Promise.all([
         categoryResponse.json(),
         productResponse.json(),
         settingsResponse.json(),
+        tableResponse.json(),
       ]);
 
       if (!categoryResponse.ok) throw new Error(categoryData.error ?? "Unable to load categories.");
       if (!productResponse.ok) throw new Error(productData.error ?? "Unable to load products.");
       if (!settingsResponse.ok) throw new Error(settingsData.error ?? "Unable to load settings.");
+      if (!tableResponse.ok) throw new Error(tableData.error ?? "Unable to load tables.");
 
       setCategories(categoryData.categories);
       setProducts(productData.products);
       setSettings(settingsData.settings);
+      setTables(tableData.tables);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load POS data.");
     } finally {
@@ -779,6 +822,13 @@ function PosContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderType: selectedOrderType,
+          tableId: selectedOrderType === "dine_in" ? selectedTableId || null : null,
+          deliveryCustomerName:
+            selectedOrderType === "delivery" ? deliveryCustomerName : null,
+          deliveryCustomerPhone:
+            selectedOrderType === "delivery" ? deliveryCustomerPhone : null,
+          deliveryAddress: selectedOrderType === "delivery" ? deliveryAddress : null,
+          deliveryNotes: selectedOrderType === "delivery" ? deliveryNotes : null,
           items: cartItems.map((item) => ({
             productId: item.productId,
             variantId: null,
@@ -799,6 +849,11 @@ function PosContent() {
 
       clearCart();
       setSelectedOrderType(null);
+      setSelectedTableId("");
+      setDeliveryCustomerName("");
+      setDeliveryCustomerPhone("");
+      setDeliveryAddress("");
+      setDeliveryNotes("");
       setCartMessage(`Held order ${data.order.orderNumber}.`);
       void loadHeldOrders();
     } catch (holdError) {
@@ -825,6 +880,11 @@ function PosContent() {
 
     replaceFromHeldOrder(order);
     setSelectedOrderType(order.orderType);
+    setSelectedTableId(order.tableId ?? "");
+    setDeliveryCustomerName(order.deliveryCustomerName ?? "");
+    setDeliveryCustomerPhone(order.deliveryCustomerPhone ?? "");
+    setDeliveryAddress(order.deliveryAddress ?? "");
+    setDeliveryNotes(order.deliveryNotes ?? "");
     setCartMessage(`Resumed order ${order.orderNumber}.`);
     setShowHeldOrders(false);
   }
@@ -1059,6 +1119,13 @@ function PosContent() {
                     type="button"
                     onClick={() => {
                       setSelectedOrderType(option.value);
+                      if (option.value !== "dine_in") setSelectedTableId("");
+                      if (option.value !== "delivery") {
+                        setDeliveryCustomerName("");
+                        setDeliveryCustomerPhone("");
+                        setDeliveryAddress("");
+                        setDeliveryNotes("");
+                      }
                       setCartMessage(null);
                     }}
                     className={`h-11 rounded-md border px-3 font-medium ${
@@ -1075,6 +1142,51 @@ function PosContent() {
                 <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                   Choose an order type before selecting products.
                 </p>
+              ) : null}
+              {selectedOrderType === "dine_in" ? (
+                <label className="mt-3 grid gap-1 text-sm font-medium">
+                  Table
+                  <select
+                    value={selectedTableId}
+                    onChange={(event) => setSelectedTableId(event.target.value)}
+                    className="h-11 rounded-md border border-[var(--border)] bg-white px-3"
+                  >
+                    <option value="">No table</option>
+                    {tables.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        {table.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {selectedOrderType === "delivery" ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <input
+                    value={deliveryCustomerName}
+                    onChange={(event) => setDeliveryCustomerName(event.target.value)}
+                    placeholder="Customer name"
+                    className="h-11 rounded-md border border-[var(--border)] bg-white px-3"
+                  />
+                  <input
+                    value={deliveryCustomerPhone}
+                    onChange={(event) => setDeliveryCustomerPhone(event.target.value)}
+                    placeholder="Customer phone"
+                    className="h-11 rounded-md border border-[var(--border)] bg-white px-3"
+                  />
+                  <input
+                    value={deliveryAddress}
+                    onChange={(event) => setDeliveryAddress(event.target.value)}
+                    placeholder="Delivery address"
+                    className="h-11 rounded-md border border-[var(--border)] bg-white px-3 sm:col-span-2"
+                  />
+                  <input
+                    value={deliveryNotes}
+                    onChange={(event) => setDeliveryNotes(event.target.value)}
+                    placeholder="Delivery notes"
+                    className="h-11 rounded-md border border-[var(--border)] bg-white px-3 sm:col-span-2"
+                  />
+                </div>
               ) : null}
             </div>
 
@@ -1253,10 +1365,20 @@ function PosContent() {
           items={cartItems}
           settings={settings}
           orderType={selectedOrderType}
+          tableId={selectedOrderType === "dine_in" ? selectedTableId || null : null}
+          deliveryCustomerName={deliveryCustomerName}
+          deliveryCustomerPhone={deliveryCustomerPhone}
+          deliveryAddress={deliveryAddress}
+          deliveryNotes={deliveryNotes}
           onClose={() => setShowPayment(false)}
           onPaid={(order) => {
             clearCart();
             setSelectedOrderType(null);
+            setSelectedTableId("");
+            setDeliveryCustomerName("");
+            setDeliveryCustomerPhone("");
+            setDeliveryAddress("");
+            setDeliveryNotes("");
             setShowPayment(false);
             setPaidOrder(order);
             setCartMessage(`Paid order ${order.orderNumber}. Printing receipt.`);

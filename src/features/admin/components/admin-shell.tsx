@@ -17,6 +17,7 @@ const navItems = [
   { href: "/queue", label: "Queue", opensInNewTab: true, moduleKey: "queue" },
   { href: "/dashboard/categories", label: "Categories" },
   { href: "/dashboard/products", label: "Products" },
+  { href: "/dashboard/tables", label: "Tables" },
   { href: "/dashboard/inventory", label: "Inventory", moduleKey: "inventory" },
   { href: "/dashboard/accounting", label: "Accounting", moduleKey: "accounting" },
   { href: "/dashboard/users", label: "Users" },

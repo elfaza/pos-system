@@ -84,6 +84,11 @@ export function parseCashCheckoutPayload(
 
   return {
     orderType: input.orderType,
+    tableId: input.tableId,
+    deliveryCustomerName: input.deliveryCustomerName,
+    deliveryCustomerPhone: input.deliveryCustomerPhone,
+    deliveryAddress: input.deliveryAddress,
+    deliveryNotes: input.deliveryNotes,
     items: input.items,
     cashReceivedAmount: input.cashReceivedAmount ?? 0,
     notes: input.notes,
@@ -110,10 +115,27 @@ function parsePaymentMethod(value: unknown) {
   return value as PaymentMethod;
 }
 
+function optionalString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function parseOrderContext(payload: Record<string, unknown>) {
+  return {
+    tableId: optionalString(payload.tableId),
+    deliveryCustomerName: optionalString(payload.deliveryCustomerName),
+    deliveryCustomerPhone: optionalString(payload.deliveryCustomerPhone),
+    deliveryAddress: optionalString(payload.deliveryAddress),
+    deliveryNotes: optionalString(payload.deliveryNotes),
+  };
+}
+
 export function parseCheckoutPayload(payload: Record<string, unknown>): CheckoutInput {
   const orderType = parseOrderType(payload.orderType);
   const paymentMethod = parsePaymentMethod(payload.paymentMethod);
   const items = parseCheckoutItems(payload);
+  const orderContext = parseOrderContext(payload);
   const parsedCashReceivedAmount = Number(payload.cashReceivedAmount);
   const cashReceivedAmount =
     paymentMethod === "cash" ? parsedCashReceivedAmount : null;
@@ -129,6 +151,7 @@ export function parseCheckoutPayload(payload: Record<string, unknown>): Checkout
 
   return {
     orderType,
+    ...orderContext,
     paymentMethod,
     items,
     cashReceivedAmount,
@@ -139,6 +162,7 @@ export function parseCheckoutPayload(payload: Record<string, unknown>): Checkout
 export function parseHoldOrderPayload(payload: Record<string, unknown>) {
   return {
     orderType: parseOrderType(payload.orderType),
+    ...parseOrderContext(payload),
     items: parseCheckoutItems(payload),
     notes: typeof payload.notes === "string" ? payload.notes.trim() : null,
   };
@@ -220,14 +244,22 @@ async function prepareCheckoutItems(
       });
     }
 
-    if (validateStock) {
-      const recipeRows = product.ingredients ?? [];
-      const baseRecipes = recipeRows.filter((recipe) => recipe.variantId === null);
-      const recipeByIngredientId = new Map(
-        baseRecipes.map((recipe) => [recipe.ingredientId, recipe]),
-      );
+    const selectedOptions = selectedOptionValues.map(({ group, value }) => ({
+      optionGroupId: group.id,
+      optionValueId: value.id,
+      groupNameSnapshot: group.name,
+      valueNameSnapshot: value.name,
+      priceDelta: Number(value.priceDelta),
+      recipes: value.recipes ?? [],
+      replacementRules: value.replacementRules ?? [],
+    }));
 
-      for (const recipe of recipeByIngredientId.values()) {
+    if (validateStock) {
+      for (const recipe of getEffectiveIngredientRecipes({
+        productId: item.productId,
+        product,
+        selectedOptions,
+      })) {
         if (!recipe.ingredient.isActive) {
           throw new ValidationError("Ingredient is not available for checkout.", {
             [`items.${index}.productId`]: `${recipe.ingredient.name} is inactive.`,
@@ -243,13 +275,6 @@ async function prepareCheckoutItems(
       }
     }
 
-    const selectedOptions = selectedOptionValues.map(({ group, value }) => ({
-      optionGroupId: group.id,
-      optionValueId: value.id,
-      groupNameSnapshot: group.name,
-      valueNameSnapshot: value.name,
-      priceDelta: Number(value.priceDelta),
-    }));
     const optionPriceDelta = selectedOptions.reduce(
       (total, option) => total + option.priceDelta,
       0,
@@ -301,6 +326,104 @@ async function prepareCheckoutItems(
   return { preparedItems, totals, settings };
 }
 
+function getEffectiveIngredientRecipes(item: {
+  productId: string;
+  product: {
+    ingredients?: Array<{
+      variantId: string | null;
+      ingredientId: string;
+      quantityRequired: unknown;
+      ingredient: {
+        id: string;
+        name: string;
+        unit: string;
+        currentStock: unknown;
+        isActive: boolean;
+      };
+    }>;
+  };
+  selectedOptions: Array<{
+    recipes: Array<{
+      ingredientId: string;
+      quantityRequired: unknown;
+      ingredient: {
+        id: string;
+        name: string;
+        unit: string;
+        currentStock: unknown;
+        isActive: boolean;
+      };
+    }>;
+    replacementRules: Array<{
+      replacedIngredientId: string;
+      replacementIngredientId: string;
+      quantityRequired: unknown;
+      replacementIngredient: {
+        id: string;
+        name: string;
+        unit: string;
+        currentStock: unknown;
+        isActive: boolean;
+      };
+    }>;
+  }>;
+}) {
+  const recipes = new Map<
+    string,
+    {
+      ingredientId: string;
+      quantityRequired: number;
+      ingredient: {
+        id: string;
+        name: string;
+        unit: string;
+        currentStock: unknown;
+        isActive: boolean;
+      };
+    }
+  >();
+
+  const baseRecipes = (item.product.ingredients ?? []).filter(
+    (recipe) => recipe.variantId === null,
+  );
+
+  for (const recipe of baseRecipes) {
+    recipes.set(recipe.ingredientId, {
+      ingredientId: recipe.ingredientId,
+      quantityRequired: Number(recipe.quantityRequired),
+      ingredient: recipe.ingredient,
+    });
+  }
+
+  for (const option of item.selectedOptions) {
+    for (const rule of option.replacementRules) {
+      if (!recipes.has(rule.replacedIngredientId)) continue;
+
+      const existingReplacement = recipes.get(rule.replacementIngredientId);
+      recipes.delete(rule.replacedIngredientId);
+      recipes.set(rule.replacementIngredientId, {
+        ingredientId: rule.replacementIngredientId,
+        quantityRequired:
+          (existingReplacement?.quantityRequired ?? 0) +
+          Number(rule.quantityRequired),
+        ingredient: rule.replacementIngredient,
+      });
+    }
+
+    for (const recipe of option.recipes) {
+      const existing = recipes.get(recipe.ingredientId);
+      recipes.set(recipe.ingredientId, {
+        ingredientId: recipe.ingredientId,
+        quantityRequired:
+          (existing?.quantityRequired ?? 0) + Number(recipe.quantityRequired),
+        ingredient: recipe.ingredient,
+      });
+    }
+  }
+
+  return [...recipes.values()];
+}
+
 function calculateIngredientDeductions(
   preparedItems: Awaited<ReturnType<typeof prepareCheckoutItems>>["preparedItems"],
 ) {
@@ -316,14 +439,7 @@ function calculateIngredientDeductions(
   >();
 
   for (const item of preparedItems) {
-    const baseRecipes = (item.product.ingredients ?? []).filter(
-      (recipe) => recipe.variantId === null,
-    );
-    const recipeByIngredientId = new Map(
-      baseRecipes.map((recipe) => [recipe.ingredientId, recipe]),
-    );
-
-    for (const recipe of recipeByIngredientId.values()) {
+    for (const recipe of getEffectiveIngredientRecipes(item)) {
       const existing = deductions.get(recipe.ingredientId);
       const quantityRequired = Number(recipe.quantityRequired) * item.quantity;
 
@@ -410,6 +526,7 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
         orderNumber: createOrderNumber(paidAt),
         cashierId: actor.id,
         orderType: input.orderType,
+        tableId: input.orderType === "dine_in" ? input.tableId ?? null : null,
         status: "paid",
         subtotalAmount: new Prisma.Decimal(totals.subtotalAmount),
         discountAmount: new Prisma.Decimal(totals.discountAmount),
@@ -417,6 +534,14 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
         serviceChargeAmount: new Prisma.Decimal(totals.serviceChargeAmount),
         totalAmount: new Prisma.Decimal(totals.totalAmount),
         notes: input.notes,
+        deliveryCustomerName:
+          input.orderType === "delivery" ? input.deliveryCustomerName ?? null : null,
+        deliveryCustomerPhone:
+          input.orderType === "delivery" ? input.deliveryCustomerPhone ?? null : null,
+        deliveryAddress:
+          input.orderType === "delivery" ? input.deliveryAddress ?? null : null,
+        deliveryNotes:
+          input.orderType === "delivery" ? input.deliveryNotes ?? null : null,
         queueBusinessDate,
         queueNumber,
         kitchenStatus: kitchenEnabled ? "received" : null,
@@ -606,12 +731,26 @@ export async function finalizeCashCheckout(input: CashCheckoutInput, actor: User
 }
 
 export async function holdOrder(
-  input: { orderType: OrderType; items: CheckoutLineInput[]; notes?: string | null },
+  input: {
+    orderType: OrderType;
+    tableId?: string | null;
+    deliveryCustomerName?: string | null;
+    deliveryCustomerPhone?: string | null;
+    deliveryAddress?: string | null;
+    deliveryNotes?: string | null;
+    items: CheckoutLineInput[];
+    notes?: string | null;
+  },
   actor: User,
 ) {
-  const { preparedItems, totals } = await prepareCheckoutItems(input.items, {
+  const { preparedItems, totals, settings } = await prepareCheckoutItems(input.items, {
     validateStock: false,
   });
+  if (input.orderType === "dine_in" && settings.dineInPayLaterEnabled === false) {
+    throw new ValidationError("Dine-in pay later is disabled.", {
+      orderType: "Dine-in orders must be paid immediately.",
+    });
+  }
   const heldAt = new Date();
 
   const order = await prisma.$transaction(async (tx) => {
@@ -620,6 +759,7 @@ export async function holdOrder(
         orderNumber: createOrderNumber(heldAt),
         cashierId: actor.id,
         orderType: input.orderType,
+        tableId: input.orderType === "dine_in" ? input.tableId ?? null : null,
         status: "held",
         subtotalAmount: new Prisma.Decimal(totals.subtotalAmount),
         discountAmount: new Prisma.Decimal(totals.discountAmount),
@@ -627,6 +767,14 @@ export async function holdOrder(
         serviceChargeAmount: new Prisma.Decimal(totals.serviceChargeAmount),
         totalAmount: new Prisma.Decimal(totals.totalAmount),
         notes: input.notes,
+        deliveryCustomerName:
+          input.orderType === "delivery" ? input.deliveryCustomerName ?? null : null,
+        deliveryCustomerPhone:
+          input.orderType === "delivery" ? input.deliveryCustomerPhone ?? null : null,
+        deliveryAddress:
+          input.orderType === "delivery" ? input.deliveryAddress ?? null : null,
+        deliveryNotes:
+          input.orderType === "delivery" ? input.deliveryNotes ?? null : null,
         heldAt,
         items: {
           create: preparedItems.map((item) => ({

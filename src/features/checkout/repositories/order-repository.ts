@@ -2,6 +2,7 @@ import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/clien
 import { prisma } from "@/lib/prisma";
 
 export const checkoutOrderInclude = {
+  table: true,
   items: {
     orderBy: { createdAt: "asc" },
     include: {
@@ -17,6 +18,7 @@ export const checkoutOrderInclude = {
 } satisfies Prisma.OrderInclude;
 
 export const orderHistoryInclude = {
+  table: true,
   cashier: {
     select: {
       name: true,
@@ -48,7 +50,21 @@ export async function findProductsForCheckout(productIds: string[]) {
       category: true,
       optionGroups: {
         include: {
-          values: true,
+          values: {
+            include: {
+              recipes: {
+                include: {
+                  ingredient: true,
+                },
+              },
+              replacementRules: {
+                include: {
+                  replacedIngredient: true,
+                  replacementIngredient: true,
+                },
+              },
+            },
+          },
         },
       },
       ingredients: {

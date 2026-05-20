@@ -19,6 +19,7 @@ interface SettingsForm {
   serviceChargeRate: number;
   cashPaymentEnabled: boolean;
   qrisPaymentEnabled: boolean;
+  dineInPayLaterEnabled: boolean;
   kitchenEnabled: boolean;
   queueEnabled: boolean;
   inventoryEnabled: boolean;
@@ -37,6 +38,7 @@ type ConfigurableSettingsRecord = SettingsRecord & {
   businessDayStartTime?: string;
   cashPaymentEnabled?: boolean;
   qrisPaymentEnabled?: boolean;
+  dineInPayLaterEnabled?: boolean;
   kitchenEnabled?: boolean;
   queueEnabled?: boolean;
   inventoryEnabled?: boolean;
@@ -60,6 +62,7 @@ const emptyForm: SettingsForm = {
   serviceChargeRate: 0,
   cashPaymentEnabled: true,
   qrisPaymentEnabled: true,
+  dineInPayLaterEnabled: false,
   kitchenEnabled: true,
   queueEnabled: true,
   inventoryEnabled: true,
@@ -91,6 +94,8 @@ function toForm(settings: ConfigurableSettingsRecord): SettingsForm {
     serviceChargeRate: settings.serviceChargeRate,
     cashPaymentEnabled: settings.cashPaymentEnabled ?? emptyForm.cashPaymentEnabled,
     qrisPaymentEnabled: settings.qrisPaymentEnabled ?? emptyForm.qrisPaymentEnabled,
+    dineInPayLaterEnabled:
+      settings.dineInPayLaterEnabled ?? emptyForm.dineInPayLaterEnabled,
     kitchenEnabled: settings.kitchenEnabled ?? emptyForm.kitchenEnabled,
     queueEnabled: settings.queueEnabled ?? emptyForm.queueEnabled,
     inventoryEnabled: settings.inventoryEnabled ?? emptyForm.inventoryEnabled,
@@ -413,6 +418,18 @@ export default function SettingsPage() {
                   label="QRIS payment"
                   onChange={(qrisPaymentEnabled) =>
                     setForm((current) => ({ ...current, qrisPaymentEnabled }))
+                  }
+                />
+              </div>
+            </Section>
+
+            <Section title="Order workflow">
+              <div className="grid gap-4 md:grid-cols-2">
+                <ToggleField
+                  checked={form.dineInPayLaterEnabled}
+                  label="Dine-in pay later"
+                  onChange={(dineInPayLaterEnabled) =>
+                    setForm((current) => ({ ...current, dineInPayLaterEnabled }))
                   }
                 />
               </div>
