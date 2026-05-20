@@ -37,7 +37,7 @@ The system centralizes cafe operations into one Next.js application:
 | User | Responsibilities |
 | --- | --- |
 | Admin | Manage catalog, settings, users, inventory, dashboard, reports, kitchen, queue, and operational controls |
-| Cashier | Operate POS, create and hold orders, complete cash checkout, print receipts, view operational order history, and update kitchen/queue status |
+| Cashier | Operate POS, create and hold orders, complete cash/manual QRIS checkout, print receipts, view operational order history, and update kitchen/queue status |
 | Kitchen staff, through cashier/admin access | Prepare paid orders, update kitchen status, and complete pickup workflow |
 | Store operator | Deploy, configure, migrate, seed, and validate the app in local or production-like environments |
 
@@ -46,9 +46,10 @@ The system centralizes cafe operations into one Next.js application:
 - Single-store cafe operation.
 - Online-only checkout and mutations.
 - Roles limited to `admin` and `cashier`.
-- Product categories, products, variants, and store settings.
-- Cash checkout with one payment per order.
+- Product categories, products, configurable options, and store settings.
+- Cash and manual QRIS checkout with one payment per order.
 - Held orders.
+- Dine-in table context and delivery metadata.
 - Receipt preview and reprint.
 - Ingredient inventory, recipes, stock adjustment, waste, and stock movement history.
 - Daily queue numbers and kitchen statuses.
@@ -63,18 +64,17 @@ The system centralizes cafe operations into one Next.js application:
 - No split payments.
 - No active refund processing workflow in the current MVP implementation; refund schema/settings/reporting fields are reserved for future refund operations.
 - No partial refunds.
-- QRIS and Midtrans fields may exist, but active integration is deferred.
-- No table management.
+- QRIS gateway/Midtrans integration is deferred; QRIS is manual cashier confirmation only.
 - No customer accounts or loyalty.
 - No hardware integrations for cash drawers, barcode scanners, or physical receipt printers.
 - No tax filing, payroll, bank reconciliation, or audited accounting-grade financial statements.
 
 ## High-Level Workflow
 
-1. Admin configures store settings, users, categories, products, variants, ingredients, and recipes.
+1. Admin configures store settings, users, categories, products, option groups, tables, ingredients, and recipes.
 2. Cashier logs in and opens the POS.
-3. Cashier selects products, variants, item notes, quantities, and discounts.
-4. Cashier holds the order or proceeds to cash checkout.
+3. Cashier selects order type, products, option values, item notes, quantities, and discounts.
+4. Cashier holds/opens the order or proceeds to cash/manual QRIS checkout.
 5. Server recalculates totals, validates stock, creates the paid order, records payment, deducts stock, and assigns a queue number.
 6. Cashier prints the receipt and gives the queue number to the customer.
 7. Kitchen screen receives the paid order as `received`.

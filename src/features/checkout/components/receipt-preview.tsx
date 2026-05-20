@@ -125,6 +125,10 @@ export default function ReceiptPreview({
         <div className="text-center text-[12px] leading-tight">
           <p>BILL:{order.orderNumber}</p>
           <p>TYPE: {formatReceiptOrderType(order.orderType)}</p>
+          {order.tableName ? <p>TABLE: {order.tableName.toUpperCase()}</p> : null}
+          {order.deliveryCustomerName ? (
+            <p>CUSTOMER: {order.deliveryCustomerName.toUpperCase()}</p>
+          ) : null}
           <p>POS:1|CSH:{(order.cashierName ?? "-").toUpperCase()}</p>
           <p>PAID: {paidAt ? formatReceiptDate(paidAt) : "-"}</p>
           <p>PRINT TIME: {formatReceiptDate(printTime)}</p>

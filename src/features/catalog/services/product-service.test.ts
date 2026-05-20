@@ -61,7 +61,11 @@ describe("product service", () => {
     mocks.createProduct.mockResolvedValue(productRecord);
     mocks.updateProduct.mockResolvedValue(productRecord);
     mocks.activityLogCreate.mockResolvedValue({});
-    mocks.ingredientFindMany.mockResolvedValue([]);
+    mocks.ingredientFindMany.mockImplementation(({ where }) =>
+      Promise.resolve(
+        (where.id.in as string[]).map((id) => ({ id, isActive: true })),
+      ),
+    );
   });
 
   it("creates products with normalized payload values", async () => {
@@ -121,7 +125,22 @@ describe("product service", () => {
           {
             name: " Extra topping ",
             selectionType: "multiple",
-            values: [{ name: " Oat milk ", priceDelta: "5000" }],
+            values: [
+              {
+                name: " Oat milk ",
+                priceDelta: "5000",
+                replacementRules: [
+                  {
+                    replacedIngredientId: "ingredient-milk",
+                    replacementIngredientId: "ingredient-oat",
+                    quantityRequired: "180",
+                  },
+                ],
+                recipes: [
+                  { ingredientId: "ingredient-oat", quantityRequired: "150" },
+                ],
+              },
+            ],
           },
         ],
       },
@@ -145,6 +164,8 @@ describe("product service", () => {
                 priceDelta: "0",
                 sortOrder: 0,
                 isActive: true,
+                recipes: [],
+                replacementRules: [],
               },
               {
                 id: undefined,
@@ -152,6 +173,8 @@ describe("product service", () => {
                 priceDelta: "3000",
                 sortOrder: 1,
                 isActive: false,
+                recipes: [],
+                replacementRules: [],
               },
             ],
           },
@@ -169,12 +192,100 @@ describe("product service", () => {
                 priceDelta: "5000",
                 sortOrder: 0,
                 isActive: true,
+                replacementRules: [
+                  {
+                    replacedIngredientId: "ingredient-milk",
+                    replacementIngredientId: "ingredient-oat",
+                    quantityRequired: "180",
+                  },
+                ],
+                recipes: [
+                  {
+                    ingredientId: "ingredient-oat",
+                    quantityRequired: "150",
+                  },
+                ],
               },
             ],
           },
         ],
       }),
     );
+  });
+
+  it("rejects inactive ingredients in option value recipes", async () => {
+    mocks.ingredientFindMany.mockResolvedValue([
+      { id: "ingredient-oat", isActive: false },
+    ]);
+
+    await expect(
+      createProductFromPayload(
+        {
+          categoryId: "category-1",
+          name: "Coffee",
+          price: "20000",
+          optionGroups: [
+            {
+              name: "Milk",
+              values: [
+                {
+                  name: "Oat milk",
+                  recipes: [
+                    { ingredientId: "ingredient-oat", quantityRequired: "150" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        recipes: "Recipes can only use active ingredients.",
+      },
+    });
+    expect(mocks.createProduct).not.toHaveBeenCalled();
+  });
+
+  it("rejects inactive ingredients in option value replacement rules", async () => {
+    mocks.ingredientFindMany.mockResolvedValue([
+      { id: "ingredient-milk", isActive: true },
+      { id: "ingredient-oat", isActive: false },
+    ]);
+
+    await expect(
+      createProductFromPayload(
+        {
+          categoryId: "category-1",
+          name: "Coffee",
+          price: "20000",
+          optionGroups: [
+            {
+              name: "Milk",
+              values: [
+                {
+                  name: "Oat milk",
+                  replacementRules: [
+                    {
+                      replacedIngredientId: "ingredient-milk",
+                      replacementIngredientId: "ingredient-oat",
+                      quantityRequired: "180",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        recipes: "Recipes can only use active ingredients.",
+      },
+    });
+    expect(mocks.createProduct).not.toHaveBeenCalled();
   });
 
   it("rejects option groups without active values", async () => {

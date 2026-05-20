@@ -91,7 +91,7 @@ Database (PostgreSQL)
 
 #### Admin
 - Access all modules
-- Manage products, categories, variants, pricing, and images
+- Manage products, categories, configurable options, pricing, and images
 - Manage inventory, stock adjustments, waste tracking, and low stock settings
 - View dashboard and reports
 - Manage tax, service charge, printer, payment, and store settings
@@ -115,7 +115,8 @@ Database (PostgreSQL)
 ## 📦 Product Management
 - Add / Edit / Delete product
 - Categories
-- Product variants
+- Product option groups and values
+- Option extra ingredient and replacement inventory rules
 - Price & cost
 - Product image
 - Search product

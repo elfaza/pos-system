@@ -162,12 +162,12 @@ These tests cover configurable modules and settings. They should be implemented 
 | CAT-007 | `getProductList` | Available/unavailable products | List for cashier | Returns only visible products according to include flag. | Integration |
 | CAT-008 | `getProductList` | Search/category filters | List products | Returns filtered products within limit. | Integration |
 | CAT-009 | `getProductListLimit` | No context | Call function | Returns configured/static list limit. | Unit |
-| CAT-010 | `getVariantLimit` | Many variants in payload | Parse limit | Enforces variant limit. | Unit |
-| CAT-011 | `createProductFromPayload` | Valid product with variants/recipes | Create product | Product, variants, and recipe rows are created. | Integration |
+| CAT-010 | `createProductFromPayload` | Valid product with option groups | Create product | Product and option values are created with normalized sort/order flags. | Unit/Integration |
+| CAT-011 | `createProductFromPayload` | Valid product with recipes and option inventory rules | Create product | Product recipe, option extra ingredient rows, and replacement rules are created. | Integration |
 | CAT-012 | `createProductFromPayload` | Missing category | Create product | Validation error. | Integration |
 | CAT-013 | `createProductFromPayload` | Negative price | Create product | Validation error. | Unit/Integration |
 | CAT-014 | `createProductFromPayload` | Invalid recipe quantity | Create product | Validation error. | Unit/Integration |
-| CAT-015 | `updateProductFromPayload` | Existing product | Update product | Product, variants, and recipes update transactionally. | Integration |
+| CAT-015 | `updateProductFromPayload` | Existing product | Update product | Product, option groups, recipes, and option inventory rules update transactionally. | Integration |
 | CAT-016 | `updateProductFromPayload` | Nonexistent product | Update product | Not found error. | Integration |
 | CAT-017 | `getAppSettings` | Settings row exists | Load settings | Returns mapped settings record. | Integration |
 | CAT-018 | `updateSettingsFromPayload` | Valid store/tax/service payload | Save settings | Settings update and activity log is written. | Integration |

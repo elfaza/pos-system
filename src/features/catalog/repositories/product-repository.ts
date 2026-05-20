@@ -10,6 +10,21 @@ const productInclude = {
     include: {
       values: {
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        include: {
+          recipes: {
+            include: {
+              ingredient: true,
+            },
+            orderBy: { createdAt: "asc" },
+          },
+          replacementRules: {
+            include: {
+              replacedIngredient: true,
+              replacementIngredient: true,
+            },
+            orderBy: { createdAt: "asc" },
+          },
+        },
       },
     },
   },
@@ -75,6 +90,15 @@ export async function createProduct(data: {
       priceDelta: string;
       sortOrder: number;
       isActive: boolean;
+      recipes: Array<{
+        ingredientId: string;
+        quantityRequired: string;
+      }>;
+      replacementRules: Array<{
+        replacedIngredientId: string;
+        replacementIngredientId: string;
+        quantityRequired: string;
+      }>;
     }>;
   }>;
   recipes: Array<{
@@ -104,7 +128,18 @@ export async function createProduct(data: {
           sortOrder: group.sortOrder,
           isActive: group.isActive,
           values: {
-            create: group.values,
+            create: group.values.map((value) => ({
+              name: value.name,
+              priceDelta: value.priceDelta,
+              sortOrder: value.sortOrder,
+              isActive: value.isActive,
+              recipes: {
+                create: value.recipes,
+              },
+              replacementRules: {
+                create: value.replacementRules,
+              },
+            })),
           },
         })),
       },
@@ -143,6 +178,15 @@ export async function updateProduct(
         priceDelta: string;
         sortOrder: number;
         isActive: boolean;
+        recipes: Array<{
+          ingredientId: string;
+          quantityRequired: string;
+        }>;
+        replacementRules: Array<{
+          replacedIngredientId: string;
+          replacementIngredientId: string;
+          quantityRequired: string;
+        }>;
       }>;
     }>;
     recipes: Array<{
@@ -218,7 +262,18 @@ export async function updateProduct(
             sortOrder: group.sortOrder,
             isActive: group.isActive,
             values: {
-              create: group.values,
+              create: group.values.map((value) => ({
+                name: value.name,
+                priceDelta: value.priceDelta,
+                sortOrder: value.sortOrder,
+                isActive: value.isActive,
+                recipes: {
+                  create: value.recipes,
+                },
+                replacementRules: {
+                  create: value.replacementRules,
+                },
+              })),
             },
           },
         });
@@ -244,8 +299,9 @@ export async function updateProduct(
 
       for (const value of group.values) {
         if (value.id) {
+          const optionValueId = value.id;
           await tx.productOptionValue.update({
-            where: { id: value.id },
+            where: { id: optionValueId },
             data: {
               name: value.name,
               priceDelta: value.priceDelta,
@@ -253,6 +309,31 @@ export async function updateProduct(
               isActive: value.isActive,
             },
           });
+          await tx.productOptionValueIngredient.deleteMany({
+            where: { optionValueId },
+          });
+          await tx.productOptionValueIngredientReplacement.deleteMany({
+            where: { optionValueId },
+          });
+          if (value.recipes.length > 0) {
+            await tx.productOptionValueIngredient.createMany({
+              data: value.recipes.map((recipe) => ({
+                optionValueId,
+                ingredientId: recipe.ingredientId,
+                quantityRequired: recipe.quantityRequired,
+              })),
+            });
+          }
+          if (value.replacementRules.length > 0) {
+            await tx.productOptionValueIngredientReplacement.createMany({
+              data: value.replacementRules.map((rule) => ({
+                optionValueId,
+                replacedIngredientId: rule.replacedIngredientId,
+                replacementIngredientId: rule.replacementIngredientId,
+                quantityRequired: rule.quantityRequired,
+              })),
+            });
+          }
         } else {
           await tx.productOptionValue.create({
             data: {
@@ -261,6 +342,12 @@ export async function updateProduct(
               priceDelta: value.priceDelta,
               sortOrder: value.sortOrder,
               isActive: value.isActive,
+              recipes: {
+                create: value.recipes,
+              },
+              replacementRules: {
+                create: value.replacementRules,
+              },
             },
           });
         }

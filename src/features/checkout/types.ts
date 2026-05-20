@@ -55,6 +55,11 @@ export type CheckoutPaymentMethod = "cash" | "qris";
 
 export interface CheckoutInput {
   orderType: OrderType;
+  tableId?: string | null;
+  deliveryCustomerName?: string | null;
+  deliveryCustomerPhone?: string | null;
+  deliveryAddress?: string | null;
+  deliveryNotes?: string | null;
   paymentMethod: CheckoutPaymentMethod;
   items: CheckoutLineInput[];
   cashReceivedAmount: number | null;
@@ -63,6 +68,11 @@ export interface CheckoutInput {
 
 export interface CashCheckoutInput {
   orderType?: OrderType;
+  tableId?: string | null;
+  deliveryCustomerName?: string | null;
+  deliveryCustomerPhone?: string | null;
+  deliveryAddress?: string | null;
+  deliveryNotes?: string | null;
   items: CheckoutLineInput[];
   cashReceivedAmount: number;
   notes?: string | null;
@@ -105,6 +115,12 @@ export interface CheckoutOrderRecord {
   id: string;
   orderNumber: string;
   orderType: OrderType;
+  tableId: string | null;
+  tableName: string | null;
+  deliveryCustomerName: string | null;
+  deliveryCustomerPhone: string | null;
+  deliveryAddress: string | null;
+  deliveryNotes: string | null;
   cashierName: string | null;
   cashierEmail: string | null;
   status: "draft" | "held" | "pending_payment" | "paid" | "cancelled" | "refunded";
@@ -130,3 +146,10 @@ export type CheckoutSettings = Pick<
   SettingsRecord,
   "taxEnabled" | "taxRate" | "serviceChargeEnabled" | "serviceChargeRate"
 >;
+
+export interface DiningTableRecord {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}

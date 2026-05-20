@@ -16,6 +16,32 @@ export interface ProductOptionValueRecord {
   priceDelta: number;
   sortOrder: number;
   isActive: boolean;
+  recipes: ProductOptionValueIngredientRecipeRecord[];
+  replacementRules: ProductOptionValueIngredientReplacementRecord[];
+}
+
+export interface ProductOptionValueIngredientRecipeRecord {
+  id: string;
+  optionValueId: string;
+  ingredientId: string;
+  ingredientName: string;
+  ingredientSku: string | null;
+  unit: string;
+  quantityRequired: number;
+}
+
+export interface ProductOptionValueIngredientReplacementRecord {
+  id: string;
+  optionValueId: string;
+  replacedIngredientId: string;
+  replacedIngredientName: string;
+  replacedIngredientSku: string | null;
+  replacedUnit: string;
+  replacementIngredientId: string;
+  replacementIngredientName: string;
+  replacementIngredientSku: string | null;
+  replacementUnit: string;
+  quantityRequired: number;
 }
 
 export interface ProductOptionGroupRecord {
@@ -79,6 +105,7 @@ export interface SettingsRecord {
   businessDayStartTime: string;
   cashPaymentEnabled: boolean;
   qrisPaymentEnabled: boolean;
+  dineInPayLaterEnabled: boolean;
   kitchenEnabled: boolean;
   queueEnabled: boolean;
   inventoryEnabled: boolean;

@@ -36,6 +36,15 @@ interface ProductForm {
       name: string;
       priceDelta: number;
       isActive: boolean;
+      recipes: Array<{
+        ingredientId: string;
+        quantityRequired: string;
+      }>;
+      replacementRules: Array<{
+        replacedIngredientId: string;
+        replacementIngredientId: string;
+        quantityRequired: string;
+      }>;
     }>;
   }>;
   recipes: Array<{
@@ -120,6 +129,15 @@ function toOptionGroupForm(
       name: value.name,
       priceDelta: value.priceDelta,
       isActive: value.isActive,
+      recipes: value.recipes.map((recipe) => ({
+        ingredientId: recipe.ingredientId,
+        quantityRequired: recipe.quantityRequired.toString(),
+      })),
+      replacementRules: value.replacementRules.map((rule) => ({
+        replacedIngredientId: rule.replacedIngredientId,
+        replacementIngredientId: rule.replacementIngredientId,
+        quantityRequired: rule.quantityRequired.toString(),
+      })),
     })),
   };
 }
@@ -249,6 +267,15 @@ export default function ProductsPage() {
             values: group.values.map((value) => ({
               ...value,
               priceDelta: value.priceDelta,
+              recipes: value.recipes.map((recipe) => ({
+                ingredientId: recipe.ingredientId,
+                quantityRequired: recipe.quantityRequired,
+              })),
+              replacementRules: value.replacementRules.map((rule) => ({
+                replacedIngredientId: rule.replacedIngredientId,
+                replacementIngredientId: rule.replacementIngredientId,
+                quantityRequired: rule.quantityRequired,
+              })),
             })),
           })),
           recipes: form.recipes.map((recipe) => ({
@@ -282,7 +309,15 @@ export default function ProductsPage() {
           selectionType: "single",
           isRequired: false,
           isActive: true,
-          values: [{ name: "", priceDelta: 0, isActive: true }],
+          values: [
+            {
+              name: "",
+              priceDelta: 0,
+              isActive: true,
+              recipes: [],
+              replacementRules: [],
+            },
+          ],
         },
       ],
     }));
@@ -316,7 +351,13 @@ export default function ProductsPage() {
               ...group,
               values: [
                 ...group.values,
-                { name: "", priceDelta: 0, isActive: true },
+                {
+                  name: "",
+                  priceDelta: 0,
+                  isActive: true,
+                  recipes: [],
+                  replacementRules: [],
+                },
               ],
             }
           : group,
@@ -352,6 +393,175 @@ export default function ProductsPage() {
           ? {
               ...group,
               values: group.values.filter((_, currentValueIndex) => currentValueIndex !== valueIndex),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function addOptionValueRecipe(groupIndex: number, valueIndex: number) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.map((value, currentValueIndex) =>
+                currentValueIndex === valueIndex
+                  ? {
+                      ...value,
+                      recipes: [
+                        ...value.recipes,
+                        {
+                          ingredientId: ingredients[0]?.id ?? "",
+                          quantityRequired: "1",
+                        },
+                      ],
+                    }
+                  : value,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function updateOptionValueRecipe(
+    groupIndex: number,
+    valueIndex: number,
+    recipeIndex: number,
+    patch: Partial<ProductForm["optionGroups"][number]["values"][number]["recipes"][number]>,
+  ) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.map((value, currentValueIndex) =>
+                currentValueIndex === valueIndex
+                  ? {
+                      ...value,
+                      recipes: value.recipes.map((recipe, currentRecipeIndex) =>
+                        currentRecipeIndex === recipeIndex
+                          ? { ...recipe, ...patch }
+                          : recipe,
+                      ),
+                    }
+                  : value,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function removeOptionValueRecipe(
+    groupIndex: number,
+    valueIndex: number,
+    recipeIndex: number,
+  ) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.map((value, currentValueIndex) =>
+                currentValueIndex === valueIndex
+                  ? {
+                      ...value,
+                      recipes: value.recipes.filter(
+                        (_, currentRecipeIndex) => currentRecipeIndex !== recipeIndex,
+                      ),
+                    }
+                  : value,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function addOptionValueReplacementRule(groupIndex: number, valueIndex: number) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.map((value, currentValueIndex) =>
+                currentValueIndex === valueIndex
+                  ? {
+                      ...value,
+                      replacementRules: [
+                        ...value.replacementRules,
+                        {
+                          replacedIngredientId: ingredients[0]?.id ?? "",
+                          replacementIngredientId: ingredients[1]?.id ?? ingredients[0]?.id ?? "",
+                          quantityRequired: "1",
+                        },
+                      ],
+                    }
+                  : value,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function updateOptionValueReplacementRule(
+    groupIndex: number,
+    valueIndex: number,
+    ruleIndex: number,
+    patch: Partial<
+      ProductForm["optionGroups"][number]["values"][number]["replacementRules"][number]
+    >,
+  ) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.map((value, currentValueIndex) =>
+                currentValueIndex === valueIndex
+                  ? {
+                      ...value,
+                      replacementRules: value.replacementRules.map((rule, currentRuleIndex) =>
+                        currentRuleIndex === ruleIndex ? { ...rule, ...patch } : rule,
+                      ),
+                    }
+                  : value,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function removeOptionValueReplacementRule(
+    groupIndex: number,
+    valueIndex: number,
+    ruleIndex: number,
+  ) {
+    setForm((current) => ({
+      ...current,
+      optionGroups: current.optionGroups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              values: group.values.map((value, currentValueIndex) =>
+                currentValueIndex === valueIndex
+                  ? {
+                      ...value,
+                      replacementRules: value.replacementRules.filter(
+                        (_, currentRuleIndex) => currentRuleIndex !== ruleIndex,
+                      ),
+                    }
+                  : value,
+              ),
             }
           : group,
       ),
@@ -810,6 +1020,210 @@ export default function ProductsPage() {
                                 Remove
                               </button>
                             </div>
+                            {inventoryEnabled ? (
+                              <div className="grid gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] p-2">
+                                {ingredients.length === 0 ? (
+                                  <p className="text-xs text-[var(--muted-foreground)]">
+                                    Add active ingredients before configuring option recipes.
+                                  </p>
+                                ) : (
+                                  <>
+                                    <div className="grid gap-2">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                          <p className="text-xs font-semibold">Extra ingredients</p>
+                                          <p className="text-xs text-[var(--muted-foreground)]">
+                                            Adds stock deduction on top of the product recipe.
+                                          </p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            addOptionValueRecipe(groupIndex, valueIndex)
+                                          }
+                                          className="h-9 rounded-md border border-[var(--border)] bg-white px-3 text-xs font-medium hover:bg-[var(--muted)]"
+                                        >
+                                          Add ingredient
+                                        </button>
+                                      </div>
+                                      {value.recipes.length === 0 ? (
+                                        <p className="text-xs text-[var(--muted-foreground)]">
+                                          No extra inventory deduction for this option value.
+                                        </p>
+                                      ) : (
+                                        value.recipes.map((recipe, recipeIndex) => (
+                                          <div
+                                            key={recipeIndex}
+                                            className="grid gap-2 sm:grid-cols-[1fr_120px_auto]"
+                                          >
+                                            <select
+                                              value={recipe.ingredientId}
+                                              onChange={(event) =>
+                                                updateOptionValueRecipe(
+                                                  groupIndex,
+                                                  valueIndex,
+                                                  recipeIndex,
+                                                  { ingredientId: event.target.value },
+                                                )
+                                              }
+                                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                                              required
+                                            >
+                                              {ingredients.map((ingredient) => (
+                                                <option key={ingredient.id} value={ingredient.id}>
+                                                  {ingredient.name} ({ingredient.unit})
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <input
+                                              inputMode="decimal"
+                                              value={recipe.quantityRequired}
+                                              onChange={(event) =>
+                                                updateOptionValueRecipe(
+                                                  groupIndex,
+                                                  valueIndex,
+                                                  recipeIndex,
+                                                  {
+                                                    quantityRequired: sanitizeDecimalInput(
+                                                      event.target.value,
+                                                    ),
+                                                  },
+                                                )
+                                              }
+                                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                                              required
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removeOptionValueRecipe(
+                                                  groupIndex,
+                                                  valueIndex,
+                                                  recipeIndex,
+                                                )
+                                              }
+                                              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium hover:bg-[var(--muted)]"
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                    <div className="grid gap-2 border-t border-[var(--border)] pt-3">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                          <p className="text-xs font-semibold">Replacement rules</p>
+                                          <p className="text-xs text-[var(--muted-foreground)]">
+                                            Replaces one product recipe ingredient for this option.
+                                          </p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            addOptionValueReplacementRule(
+                                              groupIndex,
+                                              valueIndex,
+                                            )
+                                          }
+                                          className="h-9 rounded-md border border-[var(--border)] bg-white px-3 text-xs font-medium hover:bg-[var(--muted)]"
+                                        >
+                                          Add replacement
+                                        </button>
+                                      </div>
+                                      {value.replacementRules.length === 0 ? (
+                                        <p className="text-xs text-[var(--muted-foreground)]">
+                                          No recipe ingredient is replaced by this option value.
+                                        </p>
+                                      ) : (
+                                        value.replacementRules.map((rule, ruleIndex) => (
+                                          <div
+                                            key={ruleIndex}
+                                            className="grid gap-2 lg:grid-cols-[1fr_1fr_120px_auto]"
+                                          >
+                                            <select
+                                              value={rule.replacedIngredientId}
+                                              onChange={(event) =>
+                                                updateOptionValueReplacementRule(
+                                                  groupIndex,
+                                                  valueIndex,
+                                                  ruleIndex,
+                                                  {
+                                                    replacedIngredientId:
+                                                      event.target.value,
+                                                  },
+                                                )
+                                              }
+                                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                                              required
+                                            >
+                                              {ingredients.map((ingredient) => (
+                                                <option key={ingredient.id} value={ingredient.id}>
+                                                  Replace {ingredient.name} ({ingredient.unit})
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <select
+                                              value={rule.replacementIngredientId}
+                                              onChange={(event) =>
+                                                updateOptionValueReplacementRule(
+                                                  groupIndex,
+                                                  valueIndex,
+                                                  ruleIndex,
+                                                  {
+                                                    replacementIngredientId:
+                                                      event.target.value,
+                                                  },
+                                                )
+                                              }
+                                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                                              required
+                                            >
+                                              {ingredients.map((ingredient) => (
+                                                <option key={ingredient.id} value={ingredient.id}>
+                                                  With {ingredient.name} ({ingredient.unit})
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <input
+                                              inputMode="decimal"
+                                              value={rule.quantityRequired}
+                                              onChange={(event) =>
+                                                updateOptionValueReplacementRule(
+                                                  groupIndex,
+                                                  valueIndex,
+                                                  ruleIndex,
+                                                  {
+                                                    quantityRequired: sanitizeDecimalInput(
+                                                      event.target.value,
+                                                    ),
+                                                  },
+                                                )
+                                              }
+                                              className="h-10 rounded-md border border-[var(--border)] px-3 text-sm"
+                                              required
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removeOptionValueReplacementRule(
+                                                  groupIndex,
+                                                  valueIndex,
+                                                  ruleIndex,
+                                                )
+                                              }
+                                              className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium hover:bg-[var(--muted)]"
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         ))}
                       </div>

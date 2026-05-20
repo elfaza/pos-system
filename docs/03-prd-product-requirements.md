@@ -52,14 +52,19 @@ Requirements:
 
 - Admin can manage categories.
 - Admin can manage products with category, SKU, image URL, description, price, cost price, availability, stock tracking, and threshold data.
-- Admin can manage product variants with price delta and active state.
+- Admin can manage configurable product option groups and values, such as temperature, size, sugar level, and add-ons.
+- Option values can affect price through a price delta.
+- Option values can define extra ingredient deductions for add-ons that are added on top of the base product recipe.
+- Option values can define replacement rules for substitutions that replace one base recipe ingredient with another ingredient.
 - Cashier sees active categories and available products.
 
 Acceptance criteria:
 
 - Product grid updates after catalog changes.
-- Variant price equals product price plus variant price delta.
-- Historical orders retain product and variant snapshots.
+- Required option groups block checkout until a value is selected.
+- Product option price equals product base price plus selected option value deltas.
+- Historical orders retain product and selected option snapshots.
+- Product catalog changes do not mutate historical receipts.
 
 ### 4. Store Settings
 
@@ -79,15 +84,23 @@ Requirements:
 
 - Cashier must choose order type (`dine_in`, `takeaway`, or `delivery`) before adding products.
 - Cashier can search and filter products.
-- Cashier can add product/variant items to cart.
+- Cashier can add products with selected option values to cart.
 - Cashier can update quantity, item notes, and item discounts.
 - Cashier can hold and resume orders.
+- Dine-in orders can include a table reference.
+- Dine-in pay-later/open-order behavior is controlled by store setting.
+- Delivery orders can include customer name, customer phone, address, and delivery notes.
 - Cashier can cancel eligible unpaid or held orders.
+- Cashier can complete checkout with cash or manual QRIS.
+- Manual QRIS is cashier-confirmed and immediately paid; there is no provider callback or settlement workflow.
 - Offline state blocks checkout mutations.
 
 Acceptance criteria:
 
 - Empty carts cannot be checked out.
+- Dine-in pay-later disabled means dine-in carts must be paid immediately.
+- Held/open orders preserve order type, table, delivery metadata, items, and selected options when resumed.
+- QRIS orders have payment method `qris` and no cash received/change amounts.
 - Held orders do not deduct stock.
 - Server recalculates totals before payment.
 
@@ -131,16 +144,27 @@ Acceptance criteria:
 Requirements:
 
 - Admin can manage ingredients.
-- Admin can define product and variant recipes.
+- Admin can define base product recipes.
+- Admin can define option value extra ingredient recipes.
+- Admin can define option value replacement rules.
 - Admin can adjust stock and record waste with reason.
 - Checkout validates recipe stock before paid finalization.
 - Stock movement history is available.
+
+Behavior:
+
+- Base product recipe is the default stock deduction for one product unit.
+- Extra ingredient recipes add more stock deduction on top of the base product recipe.
+- Replacement rules remove one base recipe ingredient from deduction and deduct a replacement ingredient instead.
+- Example: if `Cafe Latte` uses `Fresh Milk 180 ml`, selecting `Oat Milk` should replace `Fresh Milk 180 ml` with `Oat Milk 180 ml`.
+- Example: selecting `Extra Shot` should add more `Espresso Beans` on top of the base recipe.
 
 Acceptance criteria:
 
 - Insufficient stock blocks paid checkout.
 - Sale deduction creates stock movements.
 - Adjustment and waste update stock in the same transaction as their movement records.
+- Option extra ingredients and replacement ingredients are included in checkout stock validation and sale deduction.
 
 ### 9. Queue And Kitchen
 

@@ -6,6 +6,8 @@ import type {
   ProductIngredient,
   ProductOptionGroup,
   ProductOptionValue,
+  ProductOptionValueIngredient,
+  ProductOptionValueIngredientReplacement,
 } from "@prisma/client";
 import type {
   CategoryRecord,
@@ -29,7 +31,23 @@ export function mapCategory(
 }
 
 export function mapOptionGroup(
-  group: ProductOptionGroup & { values: ProductOptionValue[] },
+  group: ProductOptionGroup & {
+    values: Array<
+      ProductOptionValue & {
+        recipes?: Array<
+          ProductOptionValueIngredient & {
+            ingredient: Pick<Ingredient, "name" | "sku" | "unit">;
+          }
+        >;
+        replacementRules?: Array<
+          ProductOptionValueIngredientReplacement & {
+            replacedIngredient: Pick<Ingredient, "name" | "sku" | "unit">;
+            replacementIngredient: Pick<Ingredient, "name" | "sku" | "unit">;
+          }
+        >;
+      }
+    >;
+  },
 ): ProductOptionGroupRecord {
   return {
     id: group.id,
@@ -45,6 +63,28 @@ export function mapOptionGroup(
       priceDelta: Number(value.priceDelta),
       sortOrder: value.sortOrder,
       isActive: value.isActive,
+      recipes: (value.recipes ?? []).map((recipe) => ({
+        id: recipe.id,
+        optionValueId: recipe.optionValueId,
+        ingredientId: recipe.ingredientId,
+        ingredientName: recipe.ingredient.name,
+        ingredientSku: recipe.ingredient.sku,
+        unit: recipe.ingredient.unit,
+        quantityRequired: Number(recipe.quantityRequired),
+      })),
+      replacementRules: (value.replacementRules ?? []).map((rule) => ({
+        id: rule.id,
+        optionValueId: rule.optionValueId,
+        replacedIngredientId: rule.replacedIngredientId,
+        replacedIngredientName: rule.replacedIngredient.name,
+        replacedIngredientSku: rule.replacedIngredient.sku,
+        replacedUnit: rule.replacedIngredient.unit,
+        replacementIngredientId: rule.replacementIngredientId,
+        replacementIngredientName: rule.replacementIngredient.name,
+        replacementIngredientSku: rule.replacementIngredient.sku,
+        replacementUnit: rule.replacementIngredient.unit,
+        quantityRequired: Number(rule.quantityRequired),
+      })),
     })),
   };
 }
@@ -107,7 +147,25 @@ function getCanSellOne(product: Product & {
 export function mapProduct(
   product: Product & {
     category: { name: string };
-    optionGroups?: Array<ProductOptionGroup & { values: ProductOptionValue[] }>;
+    optionGroups?: Array<
+      ProductOptionGroup & {
+        values: Array<
+          ProductOptionValue & {
+            recipes?: Array<
+              ProductOptionValueIngredient & {
+                ingredient: Pick<Ingredient, "name" | "sku" | "unit">;
+              }
+            >;
+            replacementRules?: Array<
+              ProductOptionValueIngredientReplacement & {
+                replacedIngredient: Pick<Ingredient, "name" | "sku" | "unit">;
+                replacementIngredient: Pick<Ingredient, "name" | "sku" | "unit">;
+              }
+            >;
+          }
+        >;
+      }
+    >;
     ingredients?: Array<
       ProductIngredient & {
         ingredient: Pick<Ingredient, "name" | "sku" | "unit" | "currentStock" | "isActive">;
@@ -160,6 +218,7 @@ export function mapSettings(settings: AppSetting): SettingsRecord {
     businessDayStartTime: settings.businessDayStartTime,
     cashPaymentEnabled: settings.cashPaymentEnabled,
     qrisPaymentEnabled: settings.qrisPaymentEnabled,
+    dineInPayLaterEnabled: settings.dineInPayLaterEnabled,
     kitchenEnabled: settings.kitchenEnabled,
     queueEnabled: settings.queueEnabled,
     inventoryEnabled: settings.inventoryEnabled,

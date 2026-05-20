@@ -2,15 +2,15 @@
 
 ## MVP Definition
 
-The MVP is a production-ready single-store, online-only cafe POS with admin management, cashier checkout, cash payment, inventory, kitchen queue, owner dashboard, operational accounting, deployment documentation, and QA coverage.
+The MVP is a production-ready single-store, online-only cafe POS with admin management, cashier checkout, cash/manual QRIS payment, configurable menu options, inventory, kitchen queue, owner dashboard, operational accounting, deployment documentation, and QA coverage.
 
 ## In Scope
 
 - Admin and cashier authentication.
 - Role-based access control.
 - User management.
-- Product categories, products, variants, and settings.
-- Cashier POS with order type selection, cart, search/filter, notes, discounts, held orders, cash checkout, and default-enabled manual QRIS checkout.
+- Product categories, products, configurable option groups, dining tables, and settings.
+- Cashier POS with order type selection, cart, search/filter, notes, discounts, held/open orders, cash checkout, and default-enabled manual QRIS checkout.
 - Receipt preview and reprint.
 - Ingredient inventory, recipes, adjustments, waste, and stock movement history.
 - Queue number assignment after payment.
@@ -29,7 +29,7 @@ The MVP is a production-ready single-store, online-only cafe POS with admin mana
 - Split payment.
 - Active refund processing workflow.
 - Partial refund.
-- Table management.
+- Full table service workflow with moving/merging tables.
 - Customer accounts and loyalty.
 - Native mobile apps.
 - Hardware integrations.
@@ -51,7 +51,7 @@ Backlog:
 - Feature module structure.
 - Authentication and session management.
 - Admin and cashier role boundaries.
-- Categories, products, variants, and settings.
+- Categories, products, option groups, dining tables, and settings.
 - Cashier POS cart.
 - Held orders.
 - Order and payment schema foundation.
@@ -71,7 +71,7 @@ Goal: add real ingredient inventory and stock auditability.
 Backlog:
 
 - Ingredient master data.
-- Product and variant recipes.
+- Product recipes and option-level inventory rules.
 - Admin inventory screen.
 - Stock validation during checkout.
 - Sale deduction after payment.

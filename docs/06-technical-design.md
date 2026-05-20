@@ -32,9 +32,9 @@ Next.js UI
 | Module | Responsibility |
 | --- | --- |
 | `auth` | Login, sessions, password hashing, role checks, users |
-| `catalog` | Categories, products, variants, settings |
-| `checkout` | Cart state, calculations, orders, manual cash/QRIS payments, receipts |
-| `inventory` | Ingredients, recipes, stock adjustments, stock movements |
+| `catalog` | Categories, products, option groups, settings |
+| `checkout` | Cart state, calculations, orders, manual cash/QRIS payments, dining tables, receipts |
+| `inventory` | Ingredients, base recipes, option inventory rules, stock adjustments, stock movements |
 | `kitchen` | Queue number assignment, kitchen order listing, status transitions |
 | `reporting` | Dashboard aggregation and report data |
 | `accounting` | Accounts, journals, expenses, cash movements, daily close, accounting reports |
@@ -67,7 +67,7 @@ Next.js UI
 1. Cashier builds cart in Zustand state.
 2. Cashier chooses an order type, then submits checkout request with item IDs, quantities, discounts, notes, payment method, and cash received when paying by cash.
 3. API route authenticates user.
-4. Checkout service loads authoritative products, variants, recipes, and settings.
+4. Checkout service loads authoritative products, selected option values, recipes, and settings.
 5. Service recalculates subtotal, discount, tax, service charge, and total.
 6. Service validates product availability, payment method settings, cash received for cash payments, and stock sufficiency.
 7. Database transaction creates paid order, order items, payment, stock movements, queue number, and kitchen status.

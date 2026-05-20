@@ -81,14 +81,15 @@ Rules:
 
 | Method | Route | Role | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/products` | Admin, Cashier | List products and variants |
+| `GET` | `/api/products` | Admin, Cashier | List products and configurable option groups |
 | `POST` | `/api/products` | Admin | Create product |
 | `PATCH` | `/api/products/[id]` | Admin | Update product and related editable data |
 
 Rules:
 
 - Product price must be non-negative.
-- Variant price delta participates in checkout calculation.
+- Product option value price deltas participate in checkout calculation.
+- Product option extra ingredient and replacement rules participate in stock validation and deduction.
 - Cashier sees only sellable catalog data.
 
 ### Settings
@@ -101,7 +102,23 @@ Rules:
 Rules:
 
 - Tax and service rates must be non-negative.
+- At least one payment method must be enabled.
+- `dineInPayLaterEnabled` controls whether dine-in carts can be held/opened unpaid.
 - Settings mutations are admin-only.
+
+### Dining Tables
+
+| Method | Route | Role | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/tables` | Admin, Cashier | List active dining tables |
+| `GET` | `/api/tables?includeInactive=true` | Admin, Cashier | List dining tables including inactive rows |
+| `POST` | `/api/tables` | Admin | Create dining table |
+| `PATCH` | `/api/tables/[id]` | Admin | Update dining table |
+
+Rules:
+
+- Table name must be unique.
+- Inactive tables are hidden from default POS table selection.
 
 ### Orders And Checkout
 
@@ -120,11 +137,17 @@ Checkout request shape should include order type, payment method, cart items, op
 ```json
 {
   "orderType": "takeaway",
+  "tableId": null,
+  "deliveryCustomerName": null,
+  "deliveryCustomerPhone": null,
+  "deliveryAddress": null,
+  "deliveryNotes": null,
   "paymentMethod": "cash",
   "items": [
     {
       "productId": "product_id",
-      "variantId": "variant_id_or_null",
+      "variantId": null,
+      "selectedOptionValueIds": ["option_value_id"],
       "quantity": 2,
       "discountAmount": 0,
       "notes": "Less sugar"
@@ -138,10 +161,13 @@ Checkout request shape should include order type, payment method, cart items, op
 Rules:
 
 - `orderType` must be `dine_in`, `takeaway`, or `delivery`.
+- `tableId` is used only for dine-in order context.
+- Delivery customer/address fields are used only for delivery order context.
 - `paymentMethod` must be `cash` or `qris`.
 - Cash checkout requires `cashReceivedAmount` to cover the recalculated total.
 - Manual QRIS checkout is cashier-confirmed and creates a paid QRIS payment immediately without provider integration when QRIS is enabled.
 - Server recalculates totals from database products and settings.
+- Server validates selected option values and required option groups.
 - Empty carts are rejected.
 - Unavailable products are rejected.
 - Insufficient stock is rejected before payment is marked paid.

@@ -103,6 +103,21 @@ const checkoutProduct = {
           priceDelta: "5000",
           sortOrder: 0,
           isActive: true,
+          recipes: [
+            {
+              id: "option-recipe-oat",
+              optionValueId: "value-oat",
+              ingredientId: "ingredient-oat",
+              quantityRequired: "150",
+              ingredient: {
+                id: "ingredient-oat",
+                name: "Oat milk",
+                unit: "ml",
+                currentStock: "500",
+                isActive: true,
+              },
+            },
+          ],
         },
       ],
     },
@@ -129,7 +144,19 @@ describe("checkout service", () => {
       businessDayStartTime: "00:00",
     });
     mocks.transaction.mockImplementation((callback) => callback(mocks.tx));
-    mocks.tx.ingredient.findUnique.mockResolvedValue(null);
+    mocks.tx.ingredient.findUnique.mockImplementation(({ where }) => {
+      if (where.id === "ingredient-oat") {
+        return Promise.resolve({
+          id: "ingredient-oat",
+          name: "Oat milk",
+          unit: "ml",
+          currentStock: "500",
+          isActive: true,
+        });
+      }
+
+      return Promise.resolve(null);
+    });
     mocks.tx.ingredient.update.mockResolvedValue({});
     mocks.tx.product.update.mockResolvedValue({});
     mocks.tx.stockMovement.create.mockResolvedValue({});
@@ -205,6 +232,11 @@ describe("checkout service", () => {
       }),
     ).toEqual({
       orderType: "takeaway",
+      tableId: null,
+      deliveryCustomerName: null,
+      deliveryCustomerPhone: null,
+      deliveryAddress: null,
+      deliveryNotes: null,
       items: [
         {
           productId: "product-1",
@@ -238,6 +270,11 @@ describe("checkout service", () => {
       }),
     ).toEqual({
       orderType: "dine_in",
+      tableId: null,
+      deliveryCustomerName: null,
+      deliveryCustomerPhone: null,
+      deliveryAddress: null,
+      deliveryNotes: null,
       paymentMethod: "qris",
       cashReceivedAmount: null,
       items: [
@@ -464,6 +501,366 @@ describe("checkout service", () => {
     );
   });
 
+  it("validates stock for selected option value ingredients", async () => {
+    mocks.findProductsForCheckout.mockResolvedValueOnce([
+      {
+        ...checkoutProduct,
+        trackStock: false,
+        stockQuantity: null,
+        optionGroups: [
+          checkoutProduct.optionGroups[0],
+          {
+            ...checkoutProduct.optionGroups[1],
+            values: [
+              {
+                ...checkoutProduct.optionGroups[1].values[0],
+                recipes: [
+                  {
+                    id: "option-recipe-oat",
+                    optionValueId: "value-oat",
+                    ingredientId: "ingredient-oat",
+                    quantityRequired: "600",
+                    ingredient: {
+                      id: "ingredient-oat",
+                      name: "Oat milk",
+                      unit: "ml",
+                      currentStock: "500",
+                      isActive: true,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    await expect(
+      finalizeCheckout(
+        {
+          orderType: "takeaway",
+          paymentMethod: "qris",
+          cashReceivedAmount: null,
+          items: [
+            {
+              productId: "product-1",
+              variantId: null,
+              selectedOptionValueIds: ["value-oat"],
+              quantity: 1,
+              discountAmount: 0,
+              notes: "",
+            },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        "items.0.productId":
+          "Coffee requires Oat milk, but only 500 ml is available.",
+      },
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("deducts selected option value ingredients on paid checkout", async () => {
+    mocks.getSettings.mockResolvedValueOnce({
+      taxEnabled: false,
+      taxRate: "0",
+      serviceChargeEnabled: false,
+      serviceChargeRate: "0",
+      cashPaymentEnabled: true,
+      qrisPaymentEnabled: true,
+      inventoryEnabled: true,
+      kitchenEnabled: true,
+      queueEnabled: true,
+      accountingEnabled: false,
+      timeZone: "Asia/Jakarta",
+      businessDayStartTime: "00:00",
+    });
+    mocks.tx.ingredient.findUnique.mockImplementation(({ where }) => {
+      if (where.id === "ingredient-oat") {
+        return Promise.resolve({
+          id: "ingredient-oat",
+          name: "Oat milk",
+          unit: "ml",
+          currentStock: "500",
+          isActive: true,
+        });
+      }
+
+      return Promise.resolve(null);
+    });
+    mocks.tx.order.create.mockResolvedValueOnce({
+      id: "order-option-stock",
+      orderNumber: "ORD-STOCK",
+      orderType: "takeaway",
+      status: "paid",
+      queueBusinessDate: "2026-04-29",
+      queueNumber: 8,
+      kitchenStatus: "received",
+      kitchenPreparingAt: null,
+      kitchenReadyAt: null,
+      kitchenCompletedAt: null,
+      subtotalAmount: "25000",
+      discountAmount: "0",
+      taxAmount: "0",
+      serviceChargeAmount: "0",
+      totalAmount: "25000",
+      heldAt: null,
+      paidAt: new Date("2026-04-29T09:00:00.000Z"),
+      createdAt: new Date("2026-04-29T09:00:00.000Z"),
+      cashier: { name: actor.name, email: actor.email },
+      items: [
+        {
+          id: "item-option-stock",
+          productId: "product-1",
+          variantId: null,
+          productNameSnapshot: "Coffee",
+          variantNameSnapshot: null,
+          quantity: "1",
+          unitPrice: "25000",
+          discountAmount: "0",
+          lineTotal: "25000",
+          notes: null,
+          createdAt: new Date("2026-04-29T09:00:00.000Z"),
+          optionSelections: [],
+        },
+      ],
+      payments: [
+        {
+          id: "payment-option-stock",
+          method: "qris",
+          status: "paid",
+          amount: "25000",
+          cashReceivedAmount: null,
+          changeAmount: null,
+          paidAt: new Date("2026-04-29T09:00:00.000Z"),
+        },
+      ],
+    });
+
+    await finalizeCheckout(
+      {
+        orderType: "takeaway",
+        paymentMethod: "qris",
+        cashReceivedAmount: null,
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            selectedOptionValueIds: ["value-oat"],
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+      },
+      actor,
+    );
+
+    expect(mocks.tx.ingredient.update).toHaveBeenCalledWith({
+      where: { id: "ingredient-oat" },
+      data: {
+        currentStock: {
+          decrement: expect.any(Object),
+        },
+      },
+    });
+    expect(mocks.tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        ingredientId: "ingredient-oat",
+        productId: "product-1",
+        orderId: "order-option-stock",
+        type: "sale_deduction",
+        quantityChange: expect.any(Object),
+        reason: "QRIS order payment confirmed",
+        createdByUserId: actor.id,
+      }),
+    });
+  });
+
+  it("replaces base ingredient stock requirements with selected option rules", async () => {
+    mocks.findProductsForCheckout.mockResolvedValueOnce([
+      {
+        ...checkoutProduct,
+        trackStock: false,
+        stockQuantity: null,
+        ingredients: [
+          {
+            id: "recipe-milk",
+            productId: "product-1",
+            variantId: null,
+            ingredientId: "ingredient-milk",
+            quantityRequired: "180",
+            ingredient: {
+              id: "ingredient-milk",
+              name: "Fresh milk",
+              unit: "ml",
+              currentStock: "100",
+              isActive: true,
+            },
+          },
+        ],
+        optionGroups: [
+          checkoutProduct.optionGroups[0],
+          {
+            ...checkoutProduct.optionGroups[1],
+            values: [
+              {
+                ...checkoutProduct.optionGroups[1].values[0],
+                recipes: [],
+                replacementRules: [
+                  {
+                    id: "replacement-oat",
+                    optionValueId: "value-oat",
+                    replacedIngredientId: "ingredient-milk",
+                    replacementIngredientId: "ingredient-oat",
+                    quantityRequired: "180",
+                    replacedIngredient: {
+                      id: "ingredient-milk",
+                      name: "Fresh milk",
+                      unit: "ml",
+                      currentStock: "100",
+                      isActive: true,
+                    },
+                    replacementIngredient: {
+                      id: "ingredient-oat",
+                      name: "Oat milk",
+                      unit: "ml",
+                      currentStock: "500",
+                      isActive: true,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    await finalizeCheckout(
+      {
+        orderType: "takeaway",
+        paymentMethod: "qris",
+        cashReceivedAmount: null,
+        items: [
+          {
+            productId: "product-1",
+            variantId: null,
+            selectedOptionValueIds: ["value-oat"],
+            quantity: 1,
+            discountAmount: 0,
+            notes: "",
+          },
+        ],
+      },
+      actor,
+    );
+
+    expect(mocks.tx.ingredient.update).toHaveBeenCalledWith({
+      where: { id: "ingredient-oat" },
+      data: {
+        currentStock: {
+          decrement: expect.any(Object),
+        },
+      },
+    });
+    expect(mocks.tx.ingredient.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ingredient-milk" } }),
+    );
+  });
+
+  it("rejects checkout when replacement option ingredient is out of stock", async () => {
+    mocks.findProductsForCheckout.mockResolvedValueOnce([
+      {
+        ...checkoutProduct,
+        trackStock: false,
+        stockQuantity: null,
+        ingredients: [
+          {
+            id: "recipe-milk",
+            productId: "product-1",
+            variantId: null,
+            ingredientId: "ingredient-milk",
+            quantityRequired: "180",
+            ingredient: {
+              id: "ingredient-milk",
+              name: "Fresh milk",
+              unit: "ml",
+              currentStock: "500",
+              isActive: true,
+            },
+          },
+        ],
+        optionGroups: [
+          checkoutProduct.optionGroups[0],
+          {
+            ...checkoutProduct.optionGroups[1],
+            values: [
+              {
+                ...checkoutProduct.optionGroups[1].values[0],
+                recipes: [],
+                replacementRules: [
+                  {
+                    id: "replacement-oat",
+                    optionValueId: "value-oat",
+                    replacedIngredientId: "ingredient-milk",
+                    replacementIngredientId: "ingredient-oat",
+                    quantityRequired: "180",
+                    replacedIngredient: {
+                      id: "ingredient-milk",
+                      name: "Fresh milk",
+                      unit: "ml",
+                      currentStock: "500",
+                      isActive: true,
+                    },
+                    replacementIngredient: {
+                      id: "ingredient-oat",
+                      name: "Oat milk",
+                      unit: "ml",
+                      currentStock: "100",
+                      isActive: true,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    await expect(
+      finalizeCheckout(
+        {
+          orderType: "takeaway",
+          paymentMethod: "qris",
+          cashReceivedAmount: null,
+          items: [
+            {
+              productId: "product-1",
+              variantId: null,
+              selectedOptionValueIds: ["value-oat"],
+              quantity: 1,
+              discountAmount: 0,
+              notes: "",
+            },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        "items.0.productId":
+          "Coffee requires Oat milk, but only 100 ml is available.",
+      },
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects checkout when order type is missing", () => {
     expect(() =>
       parseCheckoutPayload({
@@ -472,6 +869,41 @@ describe("checkout service", () => {
         items: [{ productId: "product-1", quantity: 1 }],
       }),
     ).toThrow(ValidationError);
+  });
+
+  it("parses table and delivery metadata for checkout and held orders", () => {
+    expect(
+      parseCheckoutPayload({
+        orderType: "delivery",
+        paymentMethod: "qris",
+        tableId: " table-1 ",
+        deliveryCustomerName: " Budi ",
+        deliveryCustomerPhone: " 0812 ",
+        deliveryAddress: " Jl. Kopi 1 ",
+        deliveryNotes: " Gate A ",
+        items: [{ productId: "product-1", quantity: 1 }],
+      }),
+    ).toMatchObject({
+      tableId: "table-1",
+      deliveryCustomerName: "Budi",
+      deliveryCustomerPhone: "0812",
+      deliveryAddress: "Jl. Kopi 1",
+      deliveryNotes: "Gate A",
+    });
+
+    expect(
+      parseHoldOrderPayload({
+        orderType: "dine_in",
+        tableId: "table-2",
+        items: [{ productId: "product-1", quantity: 1 }],
+      }),
+    ).toMatchObject({
+      tableId: "table-2",
+      deliveryCustomerName: null,
+      deliveryCustomerPhone: null,
+      deliveryAddress: null,
+      deliveryNotes: null,
+    });
   });
 
   it("rejects checkout with no cart items", () => {

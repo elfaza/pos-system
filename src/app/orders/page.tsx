@@ -444,7 +444,14 @@ function OrderHistoryContent() {
                   visibleOrders.map((order) => (
                     <tr key={order.id} className="border-b border-[var(--border)]">
                       <td className="px-3 py-3 font-medium">{order.orderNumber}</td>
-                      <td className="px-3 py-3">{formatOrderTypeLabel(order.orderType)}</td>
+                      <td className="px-3 py-3">
+                        <div>{formatOrderTypeLabel(order.orderType)}</div>
+                        {order.tableName || order.deliveryCustomerName ? (
+                          <div className="text-xs text-[var(--muted-foreground)]">
+                            {order.tableName ?? order.deliveryCustomerName}
+                          </div>
+                        ) : null}
+                      </td>
                       <td className="px-3 py-3 font-semibold">
                         {order.queueNumber ? `#${order.queueNumber}` : "-"}
                       </td>

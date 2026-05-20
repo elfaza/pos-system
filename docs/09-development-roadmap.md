@@ -38,6 +38,8 @@ Focus:
 - Admin/cashier roles.
 - Catalog and settings.
 - POS cart and held orders.
+- Required order type before product selection.
+- Dine-in table context and delivery metadata.
 - Order persistence.
 
 Done when:
@@ -53,6 +55,9 @@ Focus:
 
 - Ingredient inventory.
 - Product recipes.
+- Product option groups and option values.
+- Option value extra ingredient recipes.
+- Option value ingredient replacement rules.
 - Stock deduction.
 - Low-stock alerts.
 - Adjustments and waste.
@@ -62,22 +67,43 @@ Done when:
 
 - Paid sales deduct stock.
 - Insufficient stock blocks checkout.
+- Option add-ons and substitutions affect stock validation and deductions.
 - Admin can inspect and adjust inventory.
 
 ## Payment And Receipt
 
 Focus:
 
-- Cash payment modal.
+- Cash and manual QRIS payment modal.
 - Payment finalization.
 - Payment records.
 - Receipt content and print flow.
 
 Done when:
 
-- Cashier can complete cash payment.
+- Cashier can complete cash or manual QRIS payment.
 - Receipt data remains reliable.
 - Payment records reconcile with paid orders.
+
+## Phase 3 Current Feature Slice
+
+Implemented behavior:
+
+- Admin can configure dining tables in `Dashboard > Tables`.
+- POS supports dine-in table selection.
+- POS supports delivery customer name, phone, address, and notes.
+- Settings include `Dine-in pay later`.
+- When dine-in pay later is disabled, dine-in orders must be paid immediately.
+- When dine-in pay later is enabled, the existing hold/resume flow acts as the unpaid open-order workflow.
+- Product options replace legacy variant checkout behavior.
+- Option values can add ingredients on top of the base recipe.
+- Option values can replace base recipe ingredients with another ingredient.
+
+Examples:
+
+- `Extra Shot` should use extra ingredient recipe, because it adds more espresso beans.
+- `Oat Milk` should use replacement rule, because it replaces fresh milk with oat milk.
+- `Large` can use extra ingredient recipes if it consumes more raw ingredients.
 
 ## Queue And Kitchen
 
@@ -172,10 +198,10 @@ npm run build
 - Single-store only.
 - Online-only operation.
 - Admin/cashier roles only.
-- Cash payment only as active payment workflow.
-- QRIS reserved for future work.
+- Cash and manual QRIS are active payment workflows.
+- QRIS is manual cashier confirmation only; no gateway, callback, settlement status, or bank reconciliation workflow.
 - No split payments.
 - No active refund processing workflow.
 - No native mobile app.
-- No hardware integration.
+- No hardware printer integration.
 - No tax filing, payroll, or bank reconciliation.

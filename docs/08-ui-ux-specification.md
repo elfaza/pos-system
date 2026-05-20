@@ -35,7 +35,7 @@ The interface must feel like an operational cafe tool: fast, clear, touch-friend
 | Accounting Daily Close | Admin | Count cash and close the business date |
 | Users | Admin | Manage user accounts and active state |
 | Categories | Admin | Manage catalog grouping |
-| Products | Admin | Manage sellable products and variants |
+| Products | Admin | Manage sellable products and configurable options |
 | Inventory | Admin | Manage ingredients, stock, recipes, movements |
 | Settings | Admin | Manage store, tax, service, reserved refund policy, and receipt settings |
 
