@@ -6,7 +6,12 @@ import AdminShell from "@/features/admin/components/admin-shell";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
-import type { KitchenBoardRecord, KitchenQueueRecord, KitchenStatus } from "@/features/kitchen/types";
+import type {
+  KitchenBoardRecord,
+  KitchenQueueRecord,
+  KitchenStatus,
+  KitchenTicketRecord,
+} from "@/features/kitchen/types";
 
 function formatOrderTypeLabel(orderType: KitchenQueueRecord["orderType"]) {
   if (orderType === "dine_in") return "Dine-in";
@@ -52,18 +57,83 @@ function formatOrderContext(order: KitchenQueueRecord) {
   return null;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderKitchenTicketHtml(ticket: KitchenTicketRecord) {
+  const context = ticket.tableName
+    ? `Table ${ticket.tableName}`
+    : ticket.deliveryCustomerName || ticket.deliveryAddress
+      ? [ticket.deliveryCustomerName, ticket.deliveryAddress].filter(Boolean).join(" - ")
+      : "";
+
+  const items = ticket.items
+    .map((item) => {
+      const options = item.options
+        .map((option) => `<li>${escapeHtml(option.groupName)}: ${escapeHtml(option.valueName)}</li>`)
+        .join("");
+      return `
+        <section class="item">
+          <strong>${item.quantity} x ${escapeHtml(item.name)}</strong>
+          ${options ? `<ul>${options}</ul>` : ""}
+          ${item.notes ? `<p>Note: ${escapeHtml(item.notes)}</p>` : ""}
+        </section>
+      `;
+    })
+    .join("");
+
+  return `<!doctype html>
+    <html>
+      <head>
+        <title>${escapeHtml(ticket.orderNumber)} kitchen ticket</title>
+        <style>
+          @page { margin: 4mm; size: 58mm auto; }
+          body { color: #000; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; margin: 0; text-transform: uppercase; }
+          h1, h2, p { margin: 0; }
+          h1 { font-size: 24px; }
+          h2 { font-size: 14px; margin-top: 2px; }
+          .meta { border-bottom: 1px dashed #000; margin-bottom: 8px; padding-bottom: 8px; }
+          .item { border-bottom: 1px dashed #000; padding: 8px 0; }
+          ul { margin: 4px 0 0 14px; padding: 0; }
+          li, p { line-height: 1.35; }
+        </style>
+      </head>
+      <body>
+        <div class="meta">
+          <h1>#${ticket.queueNumber}</h1>
+          <h2>${escapeHtml(ticket.orderNumber)}</h2>
+          <p>${escapeHtml(formatOrderTypeLabel(ticket.orderType))}</p>
+          ${context ? `<p>${escapeHtml(context)}</p>` : ""}
+          <p>${new Date().toLocaleString()}</p>
+        </div>
+        ${items}
+      </body>
+    </html>`;
+}
+
 function KitchenOrderCard({
   order,
   disabled,
   updatingStatus,
+  printingTicketId,
   onStatusChange,
+  onPrintTicket,
 }: {
   order: KitchenQueueRecord;
   disabled: boolean;
   updatingStatus: string | null;
+  printingTicketId: string | null;
   onStatusChange: (order: KitchenQueueRecord, status: KitchenStatus) => void;
+  onPrintTicket: (order: KitchenQueueRecord) => void;
 }) {
   const isUpdating = updatingStatus === order.id;
+  const isPrinting = printingTicketId === order.id;
 
   return (
     <article className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.08)]">
@@ -124,6 +194,13 @@ function KitchenOrderCard({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => onPrintTicket(order)}
+          disabled={disabled || isPrinting}
+          className="h-11 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isPrinting ? "Printing..." : "Print"}
+        </button>
         {nextActions(order.kitchenStatus).map((action) => (
           <button
             key={action.status}
@@ -148,6 +225,7 @@ function KitchenContent() {
   });
   const [loadingBoard, setLoadingBoard] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [printingTicketId, setPrintingTicketId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const totalOrders = useMemo(
@@ -230,6 +308,36 @@ function KitchenContent() {
       void loadBoard({ silent: true });
     } finally {
       setUpdatingOrderId(null);
+    }
+  }
+
+  async function printKitchenTicket(order: KitchenQueueRecord) {
+    if (!isOnline) return;
+    const printWindow = window.open("", "_blank", "width=360,height=640");
+    if (!printWindow) {
+      setError("Allow pop-ups to print kitchen tickets.");
+      return;
+    }
+
+    setPrintingTicketId(order.id);
+    setError(null);
+    printWindow.document.write("<p>Loading kitchen ticket...</p>");
+
+    try {
+      const response = await fetch(`/api/kitchen/orders/${order.id}/ticket`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to load kitchen ticket.");
+
+      printWindow.document.open();
+      printWindow.document.write(renderKitchenTicketHtml(data.ticket));
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    } catch (printError) {
+      printWindow.close();
+      setError(printError instanceof Error ? printError.message : "Unable to print kitchen ticket.");
+    } finally {
+      setPrintingTicketId(null);
     }
   }
 
@@ -332,7 +440,9 @@ function KitchenContent() {
                         order={order}
                         disabled={!isOnline}
                         updatingStatus={updatingOrderId}
+                        printingTicketId={printingTicketId}
                         onStatusChange={updateStatus}
+                        onPrintTicket={printKitchenTicket}
                       />
                     ))
                   )}
