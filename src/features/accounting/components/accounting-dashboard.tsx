@@ -109,7 +109,7 @@ export default function AccountingDashboard({ initialView }: { initialView: Acco
     description: "",
   });
   const [cashForm, setCashForm] = useState({
-    type: "cash_in",
+    type: "opening_cash",
     amount: "",
     businessDate: initialDate,
     reason: "",
@@ -225,10 +225,30 @@ export default function AccountingDashboard({ initialView }: { initialView: Acco
   async function submitCashMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isOnline) return;
-    const saved = await postJson("/api/accounting/cash-movements", cashForm);
+    const endpoint =
+      cashForm.type === "opening_cash"
+        ? "/api/accounting/opening-cash"
+        : cashForm.type === "cash_drop"
+          ? "/api/accounting/cash-drops"
+          : "/api/accounting/cash-movements";
+    const payload =
+      cashForm.type === "cash_in" || cashForm.type === "cash_out"
+        ? cashForm
+        : {
+            amount: cashForm.amount,
+            businessDate: cashForm.businessDate,
+            reason: cashForm.reason,
+          };
+    const saved = await postJson(endpoint, payload);
     if (saved) {
       setCashForm((current) => ({ ...current, amount: "", reason: "" }));
-      setMessage("Cash movement recorded.");
+      setMessage(
+        cashForm.type === "opening_cash"
+          ? "Opening cash recorded."
+          : cashForm.type === "cash_drop"
+            ? "Cash drop recorded."
+            : "Cash movement recorded.",
+      );
     }
   }
 
@@ -417,14 +437,14 @@ export default function AccountingDashboard({ initialView }: { initialView: Acco
             {(view === "overview" || view === "cash") && (
               <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
                 <form onSubmit={submitCashMovement} className="grid gap-3 rounded-md border border-[var(--border)] bg-white p-4">
-                  <h2 className="font-semibold">Record Cash In/Out</h2>
+                  <h2 className="font-semibold">Cash workflows</h2>
                   <input className="h-11 rounded-md border border-[var(--border)] px-3" type="date" value={cashForm.businessDate} onChange={(event) => setCashForm({ ...cashForm, businessDate: event.target.value })} />
                   <select className="h-11 rounded-md border border-[var(--border)] px-3" value={cashForm.type} onChange={(event) => setCashForm({ ...cashForm, type: event.target.value })}>
-                    <option value="cash_in">Cash in</option><option value="cash_out">Cash out</option>
+                    <option value="opening_cash">Opening cash</option><option value="cash_drop">Cash drop</option><option value="cash_in">Other cash in</option><option value="cash_out">Other cash out</option>
                   </select>
                   <input className="h-11 rounded-md border border-[var(--border)] px-3" inputMode="numeric" placeholder="Rp 0" value={formatCurrencyInput(cashForm.amount)} onChange={(event) => setCashForm({ ...cashForm, amount: parseCurrencyInput(event.target.value) })} />
                   <textarea className="min-h-24 rounded-md border border-[var(--border)] p-3" placeholder="Reason" value={cashForm.reason} onChange={(event) => setCashForm({ ...cashForm, reason: event.target.value })} />
-                  <button disabled={!isOnline || saving} className="h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-white disabled:opacity-60">Record movement</button>
+                  <button disabled={!isOnline || saving} className="h-11 rounded-md bg-[var(--primary)] px-4 font-medium text-white disabled:opacity-60">Record cash workflow</button>
                 </form>
                 <TablePanel title="Cash Ledger" empty="No cash ledger rows for this period." itemCount={report?.cashLedger.length ?? 0}>
                   <tbody>{report?.cashLedger.map((entry) => <tr key={entry.id} className="border-t border-[var(--border)]"><td className="p-3">{entry.businessDate}</td><td className="p-3">{label(entry.direction)}</td><td className="p-3">{entry.description}</td><td className="p-3">{label(entry.sourceType)}</td><td className="p-3 text-right">{formatRupiah(entry.amount)}</td></tr>)}</tbody>

@@ -3,6 +3,8 @@ import { ValidationError } from "@/lib/api-response";
 import {
   createDailyCloseFromPayload,
   createExpenseFromPayload,
+  createOpeningCashFromPayload,
+  createCashDropFromPayload,
   createSalesAccountingForPaidOrder,
   createSalesAccountingForPaidCashOrder,
 } from "./accounting-service";
@@ -11,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   tx: {
     account: { upsert: vi.fn() },
+    cashMovement: { create: vi.fn() },
     expenseCategory: { upsert: vi.fn(), findFirst: vi.fn() },
     expense: { create: vi.fn() },
     journalEntry: { upsert: vi.fn() },
@@ -26,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: mocks.transaction,
     account: mocks.tx.account,
+    cashMovement: mocks.tx.cashMovement,
     expenseCategory: mocks.tx.expenseCategory,
     journalEntry: mocks.tx.journalEntry,
     cashLedgerEntry: mocks.tx.cashLedgerEntry,
@@ -218,6 +222,69 @@ describe("accounting service", () => {
     expect(mocks.tx.activityLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "accounting.expense.created" }),
+      }),
+    );
+  });
+
+  it("records opening cash as a named cash-in workflow", async () => {
+    const { createCashMovementFromPayload } = await import("./accounting-service");
+    const movementRecord = {
+      id: "movement-opening",
+      type: "cash_in",
+      amount: "100000",
+      businessDate: "2026-05-04",
+      reason: "Opening cash",
+      createdAt: new Date("2026-05-04T01:00:00.000Z"),
+    };
+    mocks.tx.cashMovement.create.mockResolvedValueOnce(movementRecord);
+
+    const movement = await createOpeningCashFromPayload(
+      {
+        amount: "100000",
+        businessDate: "2026-05-04",
+        reason: "Morning drawer float",
+      },
+      actor,
+    );
+
+    expect(movement.amount).toBe(100000);
+    expect(createCashMovementFromPayload).toBeDefined();
+    expect(mocks.tx.cashMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "cash_in",
+          reason: "Opening cash: Morning drawer float",
+        }),
+      }),
+    );
+  });
+
+  it("records cash drops as a named cash-out workflow", async () => {
+    mocks.tx.cashMovement.create.mockResolvedValueOnce({
+      id: "movement-drop",
+      type: "cash_out",
+      amount: "75000",
+      businessDate: "2026-05-04",
+      reason: "Cash drop: Safe deposit",
+      createdAt: new Date("2026-05-04T06:00:00.000Z"),
+    });
+
+    const movement = await createCashDropFromPayload(
+      {
+        amount: "75000",
+        businessDate: "2026-05-04",
+        reason: "Safe deposit",
+      },
+      actor,
+    );
+
+    expect(movement.type).toBe("cash_out");
+    expect(mocks.tx.cashMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "cash_out",
+          reason: "Cash drop: Safe deposit",
+        }),
       }),
     );
   });

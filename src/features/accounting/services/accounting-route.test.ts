@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   createExpenseFromPayload: vi.fn(),
   getCashMovementList: vi.fn(),
   createCashMovementFromPayload: vi.fn(),
+  createOpeningCashFromPayload: vi.fn(),
+  createCashDropFromPayload: vi.fn(),
   getDailyCloseList: vi.fn(),
   createDailyCloseFromPayload: vi.fn(),
   getAccountingReport: vi.fn(),
@@ -35,6 +37,8 @@ vi.mock("@/features/accounting/services/accounting-service", () => ({
   createExpenseFromPayload: mocks.createExpenseFromPayload,
   getCashMovementList: mocks.getCashMovementList,
   createCashMovementFromPayload: mocks.createCashMovementFromPayload,
+  createOpeningCashFromPayload: mocks.createOpeningCashFromPayload,
+  createCashDropFromPayload: mocks.createCashDropFromPayload,
   getDailyCloseList: mocks.getDailyCloseList,
   createDailyCloseFromPayload: mocks.createDailyCloseFromPayload,
   getAccountingReport: mocks.getAccountingReport,
@@ -215,6 +219,50 @@ describe("accounting API routes", () => {
       expect(await response.json()).toEqual({ cashMovement: mockMovement });
       expect(mocks.createCashMovementFromPayload).toHaveBeenCalledWith(
         { type: "cash_in", amount: "50000", reason: "drawer float" },
+        adminUser,
+      );
+    });
+  });
+
+  describe("POST /api/accounting/opening-cash", () => {
+    it("records opening cash successfully", async () => {
+      mocks.requireUser.mockResolvedValue(adminUser);
+      const mockMovement = { id: "cm-opening", type: "cash_in" };
+      mocks.createOpeningCashFromPayload.mockResolvedValue(mockMovement);
+      const { POST } = await import("@/app/api/accounting/opening-cash/route");
+
+      const request = new Request("http://localhost/api/accounting/opening-cash", {
+        method: "POST",
+        body: JSON.stringify({ amount: "50000", reason: "drawer float" }),
+      });
+      const response = await POST(request);
+
+      expect(response.status).toBe(201);
+      expect(await response.json()).toEqual({ cashMovement: mockMovement });
+      expect(mocks.createOpeningCashFromPayload).toHaveBeenCalledWith(
+        { amount: "50000", reason: "drawer float" },
+        adminUser,
+      );
+    });
+  });
+
+  describe("POST /api/accounting/cash-drops", () => {
+    it("records cash drop successfully", async () => {
+      mocks.requireUser.mockResolvedValue(adminUser);
+      const mockMovement = { id: "cm-drop", type: "cash_out" };
+      mocks.createCashDropFromPayload.mockResolvedValue(mockMovement);
+      const { POST } = await import("@/app/api/accounting/cash-drops/route");
+
+      const request = new Request("http://localhost/api/accounting/cash-drops", {
+        method: "POST",
+        body: JSON.stringify({ amount: "75000", reason: "safe deposit" }),
+      });
+      const response = await POST(request);
+
+      expect(response.status).toBe(201);
+      expect(await response.json()).toEqual({ cashMovement: mockMovement });
+      expect(mocks.createCashDropFromPayload).toHaveBeenCalledWith(
+        { amount: "75000", reason: "safe deposit" },
         adminUser,
       );
     });

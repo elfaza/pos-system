@@ -513,6 +513,40 @@ export async function createCashMovementFromPayload(
   });
 }
 
+function withNamedCashReason(prefix: string, payload: Record<string, unknown>) {
+  const reason = optionalString(payload.reason);
+  return {
+    ...payload,
+    reason: reason ? `${prefix}: ${reason}` : prefix,
+  };
+}
+
+export async function createOpeningCashFromPayload(
+  payload: Record<string, unknown>,
+  actor: User,
+) {
+  return createCashMovementFromPayload(
+    {
+      ...withNamedCashReason("Opening cash", payload),
+      type: "cash_in",
+    },
+    actor,
+  );
+}
+
+export async function createCashDropFromPayload(
+  payload: Record<string, unknown>,
+  actor: User,
+) {
+  return createCashMovementFromPayload(
+    {
+      ...withNamedCashReason("Cash drop", payload),
+      type: "cash_out",
+    },
+    actor,
+  );
+}
+
 async function getExpectedCashForBusinessDate(
   tx: TransactionClient,
   businessDate: string,
