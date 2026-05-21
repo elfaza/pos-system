@@ -91,6 +91,8 @@ Implemented behavior:
 
 - Admin can configure dining tables in `Dashboard > Tables`.
 - POS supports dine-in table selection.
+- Held dine-in orders can be moved to another active table.
+- Held dine-in orders can be merged into another held dine-in order.
 - POS supports delivery customer name, phone, address, and notes.
 - Settings include `Dine-in pay later`.
 - When dine-in pay later is disabled, dine-in orders must be paid immediately.
@@ -129,7 +131,8 @@ Implemented behavior:
 - KDS displays order type, table/customer context, item notes, and selected options.
 - Public queue display includes order type and table/customer context.
 - Kitchen ticket API exposes print-ready ticket data at `/api/kitchen/orders/[id]/ticket`.
-- Ticket data is prepared for future thermal label printing, but no automatic printer integration is active yet.
+- KDS can manually print kitchen tickets through the browser print dialog.
+- Automatic thermal printer integration is not active yet.
 
 ## Dashboard And Reports
 
@@ -155,6 +158,7 @@ Focus:
 - Chart of accounts.
 - Sales journal generation from paid orders.
 - Cash ledger for cash sales and manual cash movements.
+- First-class opening cash and cash drop workflows.
 - Expense recording.
 - Daily close reconciliation.
 - Accounting reports.
@@ -164,6 +168,7 @@ Done when:
 - Admin can review accounting entries tied to POS activity.
 - Cash sales create auditable accounting records without mutating paid orders.
 - Expenses and cash movements are tracked with categories, reasons, and actor metadata.
+- Opening cash, cash drops, and daily close are separate admin workflows.
 - Daily close records compare expected and counted cash.
 
 ## Release Polish

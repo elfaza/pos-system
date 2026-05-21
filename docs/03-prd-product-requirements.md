@@ -88,6 +88,8 @@ Requirements:
 - Cashier can update quantity, item notes, and item discounts.
 - Cashier can hold and resume orders.
 - Dine-in orders can include a table reference.
+- Staff can move held dine-in orders to another active table.
+- Staff can merge two held dine-in orders before payment.
 - Dine-in pay-later/open-order behavior is controlled by store setting.
 - Delivery orders can include customer name, customer phone, address, and delivery notes.
 - Cashier can cancel eligible unpaid or held orders.
@@ -100,6 +102,7 @@ Acceptance criteria:
 - Empty carts cannot be checked out.
 - Dine-in pay-later disabled means dine-in carts must be paid immediately.
 - Held/open orders preserve order type, table, delivery metadata, items, and selected options when resumed.
+- Table move and merge actions are limited to unpaid held dine-in orders.
 - QRIS orders have payment method `qris` and no cash received/change amounts.
 - Held orders do not deduct stock.
 - Server recalculates totals before payment.
@@ -176,7 +179,7 @@ Requirements:
 - Kitchen screen displays order type, table or delivery context, item notes, and selected options.
 - Staff can update kitchen status to `preparing`, `ready`, and `completed`.
 - Queue display highlights waiting, preparing, and ready orders.
-- Kitchen ticket data is available for future label printing.
+- Kitchen ticket data is available and can be printed manually from the KDS.
 
 Acceptance criteria:
 
@@ -216,6 +219,7 @@ Acceptance criteria:
 - Paid cash orders are represented in accounting without mutating order/payment records.
 - Journal entries balance.
 - Expenses and cash movements are auditable.
+- Opening cash and cash drops are named cash workflows.
 - Daily close is unique per business date.
 - Accounting reports use persisted accounting records and POS source references.
 

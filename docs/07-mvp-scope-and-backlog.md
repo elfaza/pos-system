@@ -29,7 +29,7 @@ The MVP is a production-ready single-store, online-only cafe POS with admin mana
 - Split payment.
 - Active refund processing workflow.
 - Partial refund.
-- Full table service workflow with moving/merging tables.
+- Advanced table service workflow such as split bills, seats, courses, and paid-order table transfers.
 - Customer accounts and loyalty.
 - Native mobile apps.
 - Hardware integrations.
@@ -153,7 +153,7 @@ Backlog:
 
 - Chart of accounts.
 - Sales journal entries generated from paid orders.
-- Cash ledger for cash sales, cash in, cash out, and closing balances.
+- Cash ledger for cash sales, opening cash, cash drops, other cash in/out, and closing balances.
 - Expense categories and expense recording.
 - Daily close workflow that reconciles expected cash against counted cash.
 - Accounting reports for cash ledger, income/expense summary, and journal history.

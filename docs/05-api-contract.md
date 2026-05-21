@@ -131,6 +131,8 @@ Rules:
 | `GET` | `/api/orders/held` | Admin, Cashier | List held orders |
 | `POST` | `/api/orders/held` | Admin, Cashier | Hold current cart as order |
 | `GET` | `/api/orders/held/[id]` | Admin, Cashier | Get held order detail |
+| `POST` | `/api/orders/held/[id]/table` | Admin, Cashier | Move a held dine-in order to another active table |
+| `POST` | `/api/orders/held/[id]/merge` | Admin, Cashier | Merge another held dine-in order into the target order |
 
 Checkout request shape should include order type, payment method, cart items, optional notes, discounts, and cash received data for cash payments:
 
@@ -172,6 +174,8 @@ Rules:
 - Unavailable products are rejected.
 - Insufficient stock is rejected before payment is marked paid.
 - Paid checkout creates order, order items, payment, stock movements, queue number, and initial kitchen status as one consistent workflow.
+- Table move and merge actions are limited to held dine-in orders visible to the current actor.
+- Merging moves source order items into the target order and cancels the source held order.
 
 ### Ingredients And Inventory
 
@@ -205,7 +209,7 @@ Status update request:
 }
 ```
 
-Kitchen ticket payloads include queue identity, order type, table or delivery context, paid time, item names, item notes, and selected option snapshots. The endpoint is print-ready data only; it does not trigger browser printing or hardware printing.
+Kitchen ticket payloads include queue identity, order type, table or delivery context, paid time, item names, item notes, and selected option snapshots. The endpoint is print-ready data only. The KDS uses this endpoint for manual browser printing; it does not perform automatic hardware printing.
 
 Rules:
 
@@ -260,6 +264,8 @@ Detailed accounting behavior is defined in [modules/accounting.md](modules/accou
 | `POST` | `/api/accounting/expenses` | Admin | Record expense |
 | `GET` | `/api/accounting/cash-movements` | Admin | List cash movements |
 | `POST` | `/api/accounting/cash-movements` | Admin | Record cash in/out |
+| `POST` | `/api/accounting/opening-cash` | Admin | Record opening drawer cash |
+| `POST` | `/api/accounting/cash-drops` | Admin | Record cash removed from the drawer |
 | `GET` | `/api/accounting/daily-closes` | Admin | List daily closes |
 | `POST` | `/api/accounting/daily-closes` | Admin | Close business date |
 | `GET` | `/api/accounting/reports` | Admin | Accounting report summary |
