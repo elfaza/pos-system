@@ -836,6 +836,195 @@ export async function getHeldOrder(id: string, actor: User) {
   return mapCheckoutOrder(order);
 }
 
+function requireTrimmedId(
+  payload: Record<string, unknown>,
+  field: string,
+  message: string,
+) {
+  const value = optionalString(payload[field]);
+  if (!value) {
+    throw new ValidationError("Order table workflow validation failed.", {
+      [field]: message,
+    });
+  }
+
+  return value;
+}
+
+function heldDineInOrderWhere(id: string, actor: User) {
+  return {
+    id,
+    status: "held" as const,
+    orderType: "dine_in" as const,
+    ...(actor.role === "admin" ? {} : { cashierId: actor.id }),
+  };
+}
+
+export async function moveHeldDineInOrderTable(
+  orderId: string,
+  payload: Record<string, unknown>,
+  actor: User,
+) {
+  const tableId = requireTrimmedId(payload, "tableId", "Choose an active table.");
+
+  const order = await prisma.$transaction(async (tx) => {
+    const [existingOrder, table] = await Promise.all([
+      tx.order.findFirst({
+        where: heldDineInOrderWhere(orderId, actor),
+        select: { id: true },
+      }),
+      tx.diningTable.findFirst({
+        where: { id: tableId, isActive: true },
+      }),
+    ]);
+
+    if (!existingOrder) {
+      throw new NotFoundError("Held dine-in order was not found.");
+    }
+    if (!table) {
+      throw new ValidationError("Table validation failed.", {
+        tableId: "Choose an active table.",
+      });
+    }
+
+    const updatedOrder = await tx.order.update({
+      where: { id: orderId },
+      data: { tableId },
+      include: checkoutOrderInclude,
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "order.table_moved",
+        entityType: "order",
+        entityId: orderId,
+        metadata: {
+          orderNumber: updatedOrder.orderNumber,
+          tableId,
+          tableName: table.name,
+        },
+      },
+    });
+
+    return updatedOrder;
+  });
+
+  return mapCheckoutOrder(order);
+}
+
+export async function mergeHeldDineInOrders(
+  targetOrderId: string,
+  payload: Record<string, unknown>,
+  actor: User,
+) {
+  const sourceOrderId = requireTrimmedId(
+    payload,
+    "sourceOrderId",
+    "Choose another held dine-in order.",
+  );
+  if (sourceOrderId === targetOrderId) {
+    throw new ValidationError("Order merge validation failed.", {
+      sourceOrderId: "Choose a different held order.",
+    });
+  }
+
+  const order = await prisma.$transaction(async (tx) => {
+    const [targetOrder, sourceOrder] = await Promise.all([
+      tx.order.findFirst({
+        where: heldDineInOrderWhere(targetOrderId, actor),
+        select: {
+          id: true,
+          orderNumber: true,
+          subtotalAmount: true,
+          discountAmount: true,
+          taxAmount: true,
+          serviceChargeAmount: true,
+          totalAmount: true,
+        },
+      }),
+      tx.order.findFirst({
+        where: heldDineInOrderWhere(sourceOrderId, actor),
+        select: {
+          id: true,
+          orderNumber: true,
+          subtotalAmount: true,
+          discountAmount: true,
+          taxAmount: true,
+          serviceChargeAmount: true,
+          totalAmount: true,
+        },
+      }),
+    ]);
+
+    if (!targetOrder || !sourceOrder) {
+      throw new NotFoundError("Held dine-in order was not found.");
+    }
+
+    await tx.orderItem.updateMany({
+      where: { orderId: sourceOrderId },
+      data: { orderId: targetOrderId },
+    });
+
+    await tx.order.update({
+      where: { id: targetOrderId },
+      data: {
+        subtotalAmount: new Prisma.Decimal(
+          Number(targetOrder.subtotalAmount) + Number(sourceOrder.subtotalAmount),
+        ),
+        discountAmount: new Prisma.Decimal(
+          Number(targetOrder.discountAmount) + Number(sourceOrder.discountAmount),
+        ),
+        taxAmount: new Prisma.Decimal(
+          Number(targetOrder.taxAmount) + Number(sourceOrder.taxAmount),
+        ),
+        serviceChargeAmount: new Prisma.Decimal(
+          Number(targetOrder.serviceChargeAmount) +
+            Number(sourceOrder.serviceChargeAmount),
+        ),
+        totalAmount: new Prisma.Decimal(
+          Number(targetOrder.totalAmount) + Number(sourceOrder.totalAmount),
+        ),
+      },
+    });
+
+    await tx.order.update({
+      where: { id: sourceOrderId },
+      data: {
+        status: "cancelled",
+        tableId: null,
+        cancelledAt: new Date(),
+      },
+    });
+
+    const updatedOrder = await tx.order.findUnique({
+      where: { id: targetOrderId },
+      include: checkoutOrderInclude,
+    });
+    if (!updatedOrder) {
+      throw new NotFoundError("Held dine-in order was not found.");
+    }
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "order.merged",
+        entityType: "order",
+        entityId: targetOrderId,
+        metadata: {
+          targetOrderNumber: targetOrder.orderNumber,
+          sourceOrderId,
+          sourceOrderNumber: sourceOrder.orderNumber,
+        },
+      },
+    });
+
+    return updatedOrder;
+  });
+
+  return mapCheckoutOrder(order);
+}
+
 export function parseOrderStatusFilter(status: string | null) {
   if (!status) return undefined;
 

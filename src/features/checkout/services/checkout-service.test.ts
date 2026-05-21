@@ -3,6 +3,8 @@ import { ValidationError } from "@/lib/api-response";
 import {
   finalizeCashCheckout,
   finalizeCheckout,
+  mergeHeldDineInOrders,
+  moveHeldDineInOrderTable,
   parseCheckoutPayload,
   parseCashCheckoutPayload,
   parseHoldOrderPayload,
@@ -15,13 +17,16 @@ import {
 const mocks = vi.hoisted(() => ({
   findProductsForCheckout: vi.fn(),
   getSettings: vi.fn(),
+  findHeldOrderById: vi.fn(),
   createSalesAccountingForPaidCashOrder: vi.fn(),
   createSalesAccountingForPaidOrder: vi.fn(),
   transaction: vi.fn(),
   tx: {
     activityLog: { create: vi.fn() },
+    diningTable: { findFirst: vi.fn() },
     ingredient: { findUnique: vi.fn(), update: vi.fn() },
-    order: { aggregate: vi.fn(), create: vi.fn(), update: vi.fn() },
+    order: { aggregate: vi.fn(), create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    orderItem: { updateMany: vi.fn() },
     product: { update: vi.fn() },
     stockMovement: { create: vi.fn() },
   },
@@ -35,7 +40,7 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("../repositories/order-repository", () => ({
   checkoutOrderInclude: {},
-  findHeldOrderById: vi.fn(),
+  findHeldOrderById: mocks.findHeldOrderById,
   findOrderByIdForUser: vi.fn(),
   findProductsForCheckout: mocks.findProductsForCheckout,
   listHeldOrdersForUser: vi.fn(),
@@ -161,6 +166,12 @@ describe("checkout service", () => {
     mocks.tx.product.update.mockResolvedValue({});
     mocks.tx.stockMovement.create.mockResolvedValue({});
     mocks.tx.activityLog.create.mockResolvedValue({});
+    mocks.tx.diningTable.findFirst.mockResolvedValue({
+      id: "table-2",
+      name: "Table 2",
+      sortOrder: 2,
+      isActive: true,
+    });
     mocks.createSalesAccountingForPaidCashOrder.mockResolvedValue(undefined);
     mocks.createSalesAccountingForPaidOrder.mockResolvedValue(undefined);
     mocks.tx.order.aggregate.mockResolvedValue({
@@ -213,6 +224,57 @@ describe("checkout service", () => {
         },
       ],
     });
+    mocks.tx.order.update.mockImplementation(({ data }) =>
+      Promise.resolve({
+        id: "held-1",
+        orderNumber: "HELD-001",
+        orderType: "dine_in",
+        tableId: data.tableId ?? "table-1",
+        table: { name: data.tableId === "table-2" ? "Table 2" : "Table 1" },
+        status: data.status ?? "held",
+        queueBusinessDate: null,
+        queueNumber: null,
+        kitchenStatus: null,
+        kitchenPreparingAt: null,
+        kitchenReadyAt: null,
+        kitchenCompletedAt: null,
+        subtotalAmount: "20000",
+        discountAmount: "0",
+        taxAmount: "0",
+        serviceChargeAmount: "0",
+        totalAmount: "20000",
+        heldAt: new Date("2026-05-20T09:00:00.000Z"),
+        paidAt: null,
+        createdAt: new Date("2026-05-20T09:00:00.000Z"),
+        items: [],
+        payments: [],
+      }),
+    );
+    mocks.tx.order.findUnique.mockResolvedValue({
+      id: "target-held",
+      orderNumber: "HELD-TARGET",
+      orderType: "dine_in",
+      tableId: "table-1",
+      table: { name: "Table 1" },
+      status: "held",
+      queueBusinessDate: null,
+      queueNumber: null,
+      kitchenStatus: null,
+      kitchenPreparingAt: null,
+      kitchenReadyAt: null,
+      kitchenCompletedAt: null,
+      subtotalAmount: "50000",
+      discountAmount: "5000",
+      taxAmount: "4500",
+      serviceChargeAmount: "0",
+      totalAmount: "49500",
+      heldAt: new Date("2026-05-20T09:00:00.000Z"),
+      paidAt: null,
+      createdAt: new Date("2026-05-20T09:00:00.000Z"),
+      items: [],
+      payments: [],
+    });
+    mocks.tx.orderItem.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it("parses a valid cash checkout payload", () => {
@@ -306,6 +368,107 @@ describe("checkout service", () => {
         ],
       }),
     ).toThrowError(ValidationError);
+  });
+
+  it("moves a held dine-in order to another active table", async () => {
+    mocks.tx.order.findFirst.mockResolvedValueOnce({
+      id: "held-1",
+      orderNumber: "HELD-001",
+      orderType: "dine_in",
+      tableId: "table-1",
+      status: "held",
+    });
+
+    const order = await moveHeldDineInOrderTable(
+      "held-1",
+      { tableId: " table-2 " },
+      actor,
+    );
+
+    expect(order.tableId).toBe("table-2");
+    expect(mocks.tx.diningTable.findFirst).toHaveBeenCalledWith({
+      where: { id: "table-2", isActive: true },
+    });
+    expect(mocks.tx.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "held-1" },
+        data: { tableId: "table-2" },
+      }),
+    );
+    expect(mocks.tx.activityLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "order.table_moved",
+          entityId: "held-1",
+        }),
+      }),
+    );
+  });
+
+  it("rejects table moves for paid orders", async () => {
+    mocks.tx.order.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      moveHeldDineInOrderTable("paid-1", { tableId: "table-2" }, actor),
+    ).rejects.toThrow("Held dine-in order was not found.");
+    expect(mocks.tx.order.update).not.toHaveBeenCalled();
+  });
+
+  it("merges two held dine-in orders into the target order", async () => {
+    mocks.tx.order.findFirst
+      .mockResolvedValueOnce({
+        id: "target-held",
+        orderNumber: "HELD-TARGET",
+        orderType: "dine_in",
+        tableId: "table-1",
+        status: "held",
+        subtotalAmount: "30000",
+        discountAmount: "5000",
+        taxAmount: "2500",
+        serviceChargeAmount: "0",
+        totalAmount: "27500",
+      })
+      .mockResolvedValueOnce({
+        id: "source-held",
+        orderNumber: "HELD-SOURCE",
+        orderType: "dine_in",
+        tableId: "table-2",
+        status: "held",
+        subtotalAmount: "20000",
+        discountAmount: "0",
+        taxAmount: "2000",
+        serviceChargeAmount: "0",
+        totalAmount: "22000",
+      });
+
+    const order = await mergeHeldDineInOrders(
+      "target-held",
+      { sourceOrderId: " source-held " },
+      actor,
+    );
+
+    expect(order.id).toBe("target-held");
+    expect(mocks.tx.orderItem.updateMany).toHaveBeenCalledWith({
+      where: { orderId: "source-held" },
+      data: { orderId: "target-held" },
+    });
+    expect(mocks.tx.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "target-held" },
+        data: expect.objectContaining({
+          subtotalAmount: expect.any(Object),
+          discountAmount: expect.any(Object),
+          taxAmount: expect.any(Object),
+          totalAmount: expect.any(Object),
+        }),
+      }),
+    );
+    expect(mocks.tx.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "source-held" },
+        data: expect.objectContaining({ status: "cancelled", tableId: null }),
+      }),
+    );
   });
 
   it("rejects checkout when a required option group is not selected", async () => {

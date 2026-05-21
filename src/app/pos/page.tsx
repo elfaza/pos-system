@@ -480,23 +480,36 @@ function CashPaymentModal({
 
 function HeldOrdersModal({
   orders,
+  tables,
   loading,
   error,
   cancellingOrderId,
+  movingOrderId,
+  mergingOrderId,
   onClose,
   onReload,
   onResume,
   onCancel,
+  onMoveTable,
+  onMergeOrder,
 }: {
   orders: CheckoutOrderRecord[];
+  tables: DiningTableRecord[];
   loading: boolean;
   error: string | null;
   cancellingOrderId: string | null;
+  movingOrderId: string | null;
+  mergingOrderId: string | null;
   onClose: () => void;
   onReload: () => void;
   onResume: (order: CheckoutOrderRecord) => void;
   onCancel: (order: CheckoutOrderRecord) => void;
+  onMoveTable: (order: CheckoutOrderRecord, tableId: string) => void;
+  onMergeOrder: (targetOrder: CheckoutOrderRecord, sourceOrderId: string) => void;
 }) {
+  const [moveTableByOrderId, setMoveTableByOrderId] = useState<Record<string, string>>({});
+  const [mergeSourceByTargetId, setMergeSourceByTargetId] = useState<Record<string, string>>({});
+
   return (
     <div className="fixed inset-0 z-30 grid place-items-end bg-black/20 p-0 md:place-items-center md:p-4">
       <div className="flex max-h-[90dvh] w-full flex-col rounded-t-md border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:max-w-2xl md:rounded-md">
@@ -579,6 +592,91 @@ function HeldOrdersModal({
                     <p className="mt-2 font-semibold">
                       {formatRupiah(order.totalAmount)}
                     </p>
+                    {order.orderType === "dine_in" ? (
+                      <div className="mt-3 grid gap-2 rounded-md bg-[var(--muted)] p-3 sm:grid-cols-2">
+                        <div className="grid gap-2">
+                          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                            Move table
+                          </label>
+                          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                            <select
+                              className="h-11 rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+                              value={moveTableByOrderId[order.id] ?? order.tableId ?? ""}
+                              onChange={(event) =>
+                                setMoveTableByOrderId((current) => ({
+                                  ...current,
+                                  [order.id]: event.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">No table</option>
+                              {tables.map((table) => (
+                                <option key={table.id} value={table.id}>
+                                  {table.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() =>
+                                onMoveTable(
+                                  order,
+                                  moveTableByOrderId[order.id] ?? order.tableId ?? "",
+                                )
+                              }
+                              disabled={
+                                movingOrderId === order.id ||
+                                !(moveTableByOrderId[order.id] ?? order.tableId)
+                              }
+                              className="h-11 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {movingOrderId === order.id ? "Moving..." : "Move"}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                            Merge order
+                          </label>
+                          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                            <select
+                              className="h-11 rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+                              value={mergeSourceByTargetId[order.id] ?? ""}
+                              onChange={(event) =>
+                                setMergeSourceByTargetId((current) => ({
+                                  ...current,
+                                  [order.id]: event.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">Choose order</option>
+                              {orders
+                                .filter(
+                                  (candidate) =>
+                                    candidate.id !== order.id &&
+                                    candidate.orderType === "dine_in",
+                                )
+                                .map((candidate) => (
+                                  <option key={candidate.id} value={candidate.id}>
+                                    {candidate.orderNumber}
+                                  </option>
+                                ))}
+                            </select>
+                            <button
+                              onClick={() =>
+                                onMergeOrder(order, mergeSourceByTargetId[order.id] ?? "")
+                              }
+                              disabled={
+                                mergingOrderId === order.id ||
+                                !mergeSourceByTargetId[order.id]
+                              }
+                              className="h-11 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {mergingOrderId === order.id ? "Merging..." : "Merge"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="grid gap-2 self-center sm:grid-cols-2">
                     <button
@@ -746,6 +844,8 @@ function PosContent() {
   const [heldOrdersError, setHeldOrdersError] = useState<string | null>(null);
   const [holdingOrder, setHoldingOrder] = useState(false);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [movingOrderId, setMovingOrderId] = useState<string | null>(null);
+  const [mergingOrderId, setMergingOrderId] = useState<string | null>(null);
   const [cartMessage, setCartMessage] = useState<string | null>(null);
   const clearCart = useCartStore((state) => state.clearCart);
   const replaceFromHeldOrder = useCartStore((state) => state.replaceFromHeldOrder);
@@ -914,6 +1014,75 @@ function PosContent() {
       );
     } finally {
       setCancellingOrderId(null);
+    }
+  }
+
+  async function moveHeldOrderTable(order: CheckoutOrderRecord, tableId: string) {
+    if (!isOnline || !tableId) return;
+
+    setMovingOrderId(order.id);
+    setHeldOrdersError(null);
+
+    try {
+      const response = await fetch(`/api/orders/held/${order.id}/table`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableId }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to move table.");
+      }
+
+      setHeldOrders((current) =>
+        current.map((heldOrder) => (heldOrder.id === order.id ? data.order : heldOrder)),
+      );
+      setCartMessage(`Moved order ${order.orderNumber} to ${data.order.tableName}.`);
+    } catch (moveError) {
+      setHeldOrdersError(
+        moveError instanceof Error ? moveError.message : "Unable to move table.",
+      );
+    } finally {
+      setMovingOrderId(null);
+    }
+  }
+
+  async function mergeHeldOrder(targetOrder: CheckoutOrderRecord, sourceOrderId: string) {
+    if (!isOnline || !sourceOrderId) return;
+    const sourceOrder = heldOrders.find((order) => order.id === sourceOrderId);
+    const sourceLabel = sourceOrder?.orderNumber ?? "the selected order";
+    if (!window.confirm(`Merge ${sourceLabel} into ${targetOrder.orderNumber}?`)) return;
+
+    setMergingOrderId(targetOrder.id);
+    setHeldOrdersError(null);
+
+    try {
+      const response = await fetch(`/api/orders/held/${targetOrder.id}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceOrderId }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to merge orders.");
+      }
+
+      setHeldOrders((current) =>
+        current
+          .filter((heldOrder) => heldOrder.id !== sourceOrderId)
+          .map((heldOrder) =>
+            heldOrder.id === targetOrder.id ? data.order : heldOrder,
+          ),
+      );
+      setCartMessage(`Merged ${sourceLabel} into ${targetOrder.orderNumber}.`);
+    } catch (mergeError) {
+      setHeldOrdersError(
+        mergeError instanceof Error ? mergeError.message : "Unable to merge orders.",
+      );
+    } finally {
+      setMergingOrderId(null);
     }
   }
 
@@ -1390,13 +1559,18 @@ function PosContent() {
       {showHeldOrders ? (
         <HeldOrdersModal
           orders={heldOrders}
+          tables={tables}
           loading={loadingHeldOrders}
           error={heldOrdersError}
           cancellingOrderId={cancellingOrderId}
+          movingOrderId={movingOrderId}
+          mergingOrderId={mergingOrderId}
           onClose={() => setShowHeldOrders(false)}
           onReload={loadHeldOrders}
           onResume={resumeHeldOrder}
           onCancel={cancelHeldOrder}
+          onMoveTable={moveHeldOrderTable}
+          onMergeOrder={mergeHeldOrder}
         />
       ) : null}
 
