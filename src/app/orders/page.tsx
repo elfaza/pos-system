@@ -79,6 +79,7 @@ function OrderHistoryContent() {
   const [selectedOrder, setSelectedOrder] = useState<CheckoutOrderRecord | null>(null);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const visibleOrders = useMemo(
@@ -239,6 +240,30 @@ function OrderHistoryContent() {
       );
     } finally {
       setCancellingOrderId(null);
+    }
+  }
+
+  async function printReceiptFromHistory(order: CheckoutOrderRecord) {
+    if (!isOnline || order.status !== "paid") return;
+
+    setPrintingOrderId(order.id);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/receipt/print`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to print receipt.");
+      }
+    } catch (printError) {
+      setError(
+        printError instanceof Error ? printError.message : "Unable to print receipt.",
+      );
+    } finally {
+      setPrintingOrderId(null);
     }
   }
 
@@ -538,6 +563,9 @@ function OrderHistoryContent() {
             <ReceiptPreview
               order={selectedOrder}
               settings={settings}
+              onPrint={() => {
+                if (printingOrderId === null) void printReceiptFromHistory(selectedOrder);
+              }}
               onClose={() => setSelectedOrder(null)}
             />
           </div>
