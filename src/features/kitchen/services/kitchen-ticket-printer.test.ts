@@ -65,13 +65,37 @@ describe("kitchen-ticket-printer", () => {
     const spawn = vi.fn(() => childProcess);
 
     await printKitchenTicketToSystemPrinter(ticket, {
-      env: { POS_RECEIPT_PRINTER: "_58Printer" },
+      env: {
+        POS_KITCHEN_PRINTER: "_KitchenPrinter",
+        POS_RECEIPT_PRINTER: "_58Printer",
+      },
       printedAt: new Date("2026-05-26T14:11:00.000Z"),
       spawn,
     });
 
-    expect(spawn).toHaveBeenCalledWith("lp", ["-d", "_58Printer", "-o", "raw"]);
+    expect(spawn).toHaveBeenCalledWith("lp", ["-d", "_KitchenPrinter", "-o", "raw"]);
     expect(write.mock.calls[0]?.[0].toString("latin1")).toContain("KITCHEN");
     expect(end).toHaveBeenCalled();
+  });
+
+  it("falls back to the receipt printer when no kitchen printer is configured", async () => {
+    const write = vi.fn((chunk: Buffer, callback: (error?: Error | null) => void) =>
+      callback(null),
+    );
+    const childProcess = {
+      stdin: { write, end: vi.fn() },
+      on: vi.fn((event: string, callback: (code?: number) => void) => {
+        if (event === "close") callback(0);
+        return childProcess;
+      }),
+    };
+    const spawn = vi.fn(() => childProcess);
+
+    await printKitchenTicketToSystemPrinter(ticket, {
+      env: { POS_RECEIPT_PRINTER: "_58Printer" },
+      spawn,
+    });
+
+    expect(spawn).toHaveBeenCalledWith("lp", ["-d", "_58Printer", "-o", "raw"]);
   });
 });

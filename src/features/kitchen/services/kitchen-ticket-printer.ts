@@ -10,10 +10,23 @@ const TICKET_COLUMNS = 32;
 
 export interface KitchenTicketPrinterOptions {
   env?: {
+    POS_KITCHEN_PRINTER?: string;
     POS_RECEIPT_PRINTER?: string;
   };
   printedAt?: Date;
   spawn?: Spawn;
+}
+
+function getKitchenPrinterName(env: KitchenTicketPrinterOptions["env"]): string {
+  const printerName =
+    env?.POS_KITCHEN_PRINTER?.trim() ||
+    env?.POS_RECEIPT_PRINTER?.trim() ||
+    process.env.POS_KITCHEN_PRINTER?.trim() ||
+    process.env.POS_RECEIPT_PRINTER;
+
+  return getReceiptPrinterName({
+    POS_RECEIPT_PRINTER: printerName,
+  });
 }
 
 function sanitizeTicketText(value: string): string {
@@ -118,7 +131,7 @@ export async function printKitchenTicketToSystemPrinter(
   ticket: KitchenTicketRecord,
   options: KitchenTicketPrinterOptions = {},
 ): Promise<void> {
-  const printerName = getReceiptPrinterName(options.env);
+  const printerName = getKitchenPrinterName(options.env);
   const receipt = buildKitchenTicketEscPos(ticket, options);
   const spawn = options.spawn ?? spawnChildProcess;
 
