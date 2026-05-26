@@ -40,6 +40,7 @@ export default function ReceiptPreview({
   screenHidden = false,
   onAfterPrint,
   onClose,
+  onPrint,
 }: {
   order: CheckoutOrderRecord;
   settings: SettingsRecord | null;
@@ -47,6 +48,7 @@ export default function ReceiptPreview({
   screenHidden?: boolean;
   onAfterPrint?: () => void;
   onClose?: () => void;
+  onPrint?: () => void;
 }) {
   const paidAt = order.paidAt ? new Date(order.paidAt) : null;
   const printTime = new Date();
@@ -89,7 +91,7 @@ export default function ReceiptPreview({
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => window.print()}
+            onClick={onPrint ?? (() => window.print())}
             className="h-10 rounded-md bg-[var(--primary)] px-3 font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)]"
           >
             Print

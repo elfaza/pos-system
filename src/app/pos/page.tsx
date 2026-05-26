@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import ReceiptPreview from "@/features/checkout/components/receipt-preview";
 import type {
   CategoryRecord,
   ProductOptionValueRecord,
@@ -23,7 +22,6 @@ import type {
 } from "@/features/checkout/types";
 
 const orderTypeOptions: Array<{ value: OrderType; label: string }> = [
-  { value: "dine_in", label: "Dine-in" },
   { value: "takeaway", label: "Take-away" },
   { value: "delivery", label: "Delivery" },
 ];
@@ -231,7 +229,7 @@ function PosCart({
         ) : null}
         {needsOrderType ? (
           <p className="mt-3 rounded-md bg-orange-50 p-2 text-sm text-[var(--warning)]">
-            Choose Dine-in, Take-away, or Delivery before checkout.
+            Choose Take-away or Delivery before checkout.
           </p>
         ) : null}
         {dineInPayLaterDisabled ? (
@@ -837,7 +835,6 @@ function PosContent() {
   const [pickerProduct, setPickerProduct] = useState<ProductRecord | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<CheckoutOrderRecord | null>(null);
   const [showHeldOrders, setShowHeldOrders] = useState(false);
   const [heldOrders, setHeldOrders] = useState<CheckoutOrderRecord[]>([]);
   const [loadingHeldOrders, setLoadingHeldOrders] = useState(false);
@@ -968,6 +965,27 @@ function PosContent() {
   function openHeldOrders() {
     setShowHeldOrders(true);
     void loadHeldOrders();
+  }
+
+  async function printReceipt(order: CheckoutOrderRecord) {
+    setCartMessage(null);
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/receipt/print`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to print receipt.");
+      }
+
+      setCartMessage(`Printed receipt for ${order.orderNumber}.`);
+    } catch (printError) {
+      setCartMessage(
+        printError instanceof Error ? printError.message : "Unable to print receipt.",
+      );
+    }
   }
 
   function resumeHeldOrder(order: CheckoutOrderRecord) {
@@ -1136,7 +1154,7 @@ function PosContent() {
 
   function handleProductClick(product: ProductRecord) {
     if (selectedOrderType === null) {
-      setCartMessage("Choose Dine-in, Take-away, or Delivery before selecting products.");
+      setCartMessage("Choose Take-away or Delivery before selecting products.");
       return;
     }
 
@@ -1281,7 +1299,7 @@ function PosContent() {
 
             <div className="rounded-lg border border-white/80 bg-white/85 p-4 shadow-[0_10px_30px_rgba(20,32,51,0.08)]">
               <p className="text-sm font-semibold">Order type</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {orderTypeOptions.map((option) => (
                   <button
                     key={option.value}
@@ -1549,8 +1567,8 @@ function PosContent() {
             setDeliveryAddress("");
             setDeliveryNotes("");
             setShowPayment(false);
-            setPaidOrder(order);
             setCartMessage(`Paid order ${order.orderNumber}. Printing receipt.`);
+            void printReceipt(order);
             void loadCatalog({ categoryId: activeCategoryId, search });
           }}
         />
@@ -1574,15 +1592,6 @@ function PosContent() {
         />
       ) : null}
 
-      {paidOrder ? (
-        <ReceiptPreview
-          order={paidOrder}
-          settings={settings}
-          autoPrint
-          screenHidden
-          onAfterPrint={() => setPaidOrder(null)}
-        />
-      ) : null}
     </main>
   );
 }
