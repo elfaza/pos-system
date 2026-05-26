@@ -3,6 +3,7 @@ import type { SettingsRecord } from "@/features/catalog/types";
 import type { CheckoutOrderRecord } from "@/features/checkout/types";
 import {
   buildReceiptEscPos,
+  buildReceiptThermerPayload,
   getReceiptPrinterName,
   printReceiptToSystemPrinter,
 } from "./receipt-printer";
@@ -151,5 +152,31 @@ describe("receipt-printer", () => {
     expect(spawn).toHaveBeenCalledWith("lp", ["-d", "_58Printer", "-o", "raw"]);
     expect(write.mock.calls[0]?.[0].toString("latin1")).toContain("MAZA CAFE");
     expect(end).toHaveBeenCalled();
+  });
+
+  it("builds Thermer JSON payload for Android Bluetooth printing", () => {
+    const payload = buildReceiptThermerPayload(baseOrder, baseSettings, {
+      printedAt: new Date("2026-05-26T14:02:00.000Z"),
+    });
+
+    expect(payload[0]).toMatchObject({
+      type: 0,
+      content: "MAZA CAFE",
+      bold: 1,
+      align: 1,
+      format: 3,
+    });
+    expect(payload).toContainEqual(
+      expect.objectContaining({ type: 0, content: "BILL: POS-20260526-001" }),
+    );
+    expect(payload).toContainEqual(
+      expect.objectContaining({ type: 0, content: "CAFFE LATTE MEDIUM WITH 1 43,000" }),
+    );
+    expect(payload).toContainEqual(
+      expect.objectContaining({ type: 0, content: "TOTAL 49,880", bold: 1 }),
+    );
+    expect(payload).toContainEqual(
+      expect.objectContaining({ type: 0, content: "7", bold: 1, align: 1, format: 2 }),
+    );
   });
 });

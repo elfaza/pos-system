@@ -7,8 +7,9 @@ export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   const isAuthenticated = request.cookies.has(SESSION_COOKIE);
   const isLoginPage = pathname === LOGIN_PATH;
+  const isThermerPrintApi = pathname.startsWith("/api/thermer/");
 
-  if (!isAuthenticated && !isLoginPage) {
+  if (!isAuthenticated && !isLoginPage && !isThermerPrintApi) {
     return NextResponse.redirect(new URL(LOGIN_PATH, request.url));
   }
 

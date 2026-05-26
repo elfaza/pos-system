@@ -1,5 +1,8 @@
 import { spawn as spawnChildProcess } from "node:child_process";
-import { getReceiptPrinterName } from "@/features/checkout/services/receipt-printer";
+import {
+  getReceiptPrinterName,
+  type ThermerTextEntry,
+} from "@/features/checkout/services/receipt-printer";
 import type { KitchenTicketRecord } from "@/features/kitchen/types";
 
 type Spawn = typeof spawnChildProcess;
@@ -125,6 +128,61 @@ export function buildKitchenTicketEscPos(
   lines.push("", "", "", GS + "V" + "\x00");
 
   return Buffer.from(lines.join("\n"), "latin1");
+}
+
+function thermerText(
+  content: string,
+  options: Partial<Pick<ThermerTextEntry, "bold" | "align" | "format">> = {},
+): ThermerTextEntry {
+  return {
+    type: 0,
+    content,
+    bold: options.bold ?? 0,
+    align: options.align ?? 0,
+    format: options.format ?? 0,
+  };
+}
+
+export function buildKitchenTicketThermerPayload(
+  ticket: KitchenTicketRecord,
+  options: Pick<KitchenTicketPrinterOptions, "printedAt"> = {},
+): ThermerTextEntry[] {
+  const receipt = buildKitchenTicketEscPos(ticket, options).toString("latin1");
+  const entries: ThermerTextEntry[] = [];
+  let align: 0 | 1 | 2 = 0;
+  let format: ThermerTextEntry["format"] = 0;
+  let bold: 0 | 1 = 0;
+
+  for (const rawLine of receipt.split("\n")) {
+    if (rawLine === ESC + "a" + "\x01") {
+      align = 1;
+      continue;
+    }
+    if (rawLine === ESC + "a" + "\x00") {
+      align = 0;
+      continue;
+    }
+    if (rawLine === ESC + "!" + "\x30") {
+      format = 2;
+      bold = 1;
+      continue;
+    }
+    if (rawLine === ESC + "!" + "\x00") {
+      format = 0;
+      bold = 0;
+      continue;
+    }
+    if (rawLine === ESC + "@" || rawLine === GS + "V" + "\x00") continue;
+
+    const line = sanitizeTicketText(rawLine);
+    entries.push(thermerText(line || " ", { align, bold, format }));
+  }
+
+  if (entries[0]) {
+    entries[0] = thermerText(entries[0].content, { align: 1, bold: 1, format: 3 });
+  }
+
+  return entries;
 }
 
 export async function printKitchenTicketToSystemPrinter(

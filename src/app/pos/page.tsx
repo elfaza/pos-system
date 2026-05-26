@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency";
+import { openThermerPrint } from "@/lib/thermer";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import type {
@@ -971,6 +972,11 @@ function PosContent() {
     setCartMessage(null);
 
     try {
+      if (openThermerPrint(`/api/thermer/orders/${order.id}/receipt`)) {
+        setCartMessage(`Sent receipt ${order.orderNumber} to Thermer.`);
+        return;
+      }
+
       const response = await fetch(`/api/orders/${order.id}/receipt/print`, {
         method: "POST",
       });

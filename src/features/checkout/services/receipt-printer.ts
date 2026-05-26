@@ -18,6 +18,14 @@ export interface ReceiptPrinterOptions {
   spawn?: Spawn;
 }
 
+export interface ThermerTextEntry {
+  type: 0;
+  content: string;
+  bold: 0 | 1;
+  align: 0 | 1 | 2;
+  format: 0 | 1 | 2 | 3 | 4;
+}
+
 function sanitizeReceiptText(value: string): string {
   return value
     .normalize("NFKD")
@@ -229,6 +237,71 @@ export function buildReceiptEscPos(
   lines.push("", "", "", GS + "V" + "\x00");
 
   return Buffer.from(lines.join("\n"), "latin1");
+}
+
+function thermerText(
+  content: string,
+  options: Partial<Pick<ThermerTextEntry, "bold" | "align" | "format">> = {},
+): ThermerTextEntry {
+  return {
+    type: 0,
+    content,
+    bold: options.bold ?? 0,
+    align: options.align ?? 0,
+    format: options.format ?? 0,
+  };
+}
+
+export function buildReceiptThermerPayload(
+  order: CheckoutOrderRecord,
+  settings: SettingsRecord | null,
+  options: Pick<ReceiptPrinterOptions, "printedAt"> = {},
+): ThermerTextEntry[] {
+  const receipt = buildReceiptEscPos(order, settings, options).toString("latin1");
+  const entries: ThermerTextEntry[] = [];
+  let align: 0 | 1 | 2 = 0;
+  let format: ThermerTextEntry["format"] = 0;
+  let bold: 0 | 1 = 0;
+
+  for (const rawLine of receipt.split("\n")) {
+    if (rawLine === ESC + "a" + "\x01") {
+      align = 1;
+      continue;
+    }
+    if (rawLine === ESC + "a" + "\x00") {
+      align = 0;
+      continue;
+    }
+    if (rawLine === ESC + "!" + "\x30") {
+      format = 2;
+      bold = 1;
+      continue;
+    }
+    if (rawLine === ESC + "!" + "\x00") {
+      format = 0;
+      bold = 0;
+      continue;
+    }
+    if (rawLine === ESC + "@" || rawLine === GS + "V" + "\x00") continue;
+
+    const line = sanitizeReceiptText(rawLine);
+    if (!line) {
+      entries.push(thermerText(" ", { align }));
+      continue;
+    }
+
+    const isHeader = entries.length === 0 || line === settings?.storeAddress?.toUpperCase();
+    const isTotal = line.startsWith("TOTAL ");
+    entries.push(
+      thermerText(line, {
+        align,
+        bold: bold || isHeader || isTotal ? 1 : 0,
+        format: isHeader ? 3 : format,
+      }),
+    );
+  }
+
+  return entries;
 }
 
 export async function printReceiptToSystemPrinter(

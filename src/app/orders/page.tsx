@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { openThermerPrint } from "@/lib/thermer";
 import AdminShell from "@/features/admin/components/admin-shell";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
@@ -250,6 +251,10 @@ function OrderHistoryContent() {
     setError(null);
 
     try {
+      if (openThermerPrint(`/api/thermer/orders/${order.id}/receipt`)) {
+        return;
+      }
+
       const response = await fetch(`/api/orders/${order.id}/receipt/print`, {
         method: "POST",
       });

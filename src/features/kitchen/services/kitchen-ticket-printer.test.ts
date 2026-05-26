@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { KitchenTicketRecord } from "@/features/kitchen/types";
 import {
   buildKitchenTicketEscPos,
+  buildKitchenTicketThermerPayload,
   printKitchenTicketToSystemPrinter,
 } from "./kitchen-ticket-printer";
 
@@ -97,5 +98,28 @@ describe("kitchen-ticket-printer", () => {
     });
 
     expect(spawn).toHaveBeenCalledWith("lp", ["-d", "_58Printer", "-o", "raw"]);
+  });
+
+  it("builds Thermer JSON payload for Android Bluetooth printing", () => {
+    const payload = buildKitchenTicketThermerPayload(ticket, {
+      printedAt: new Date("2026-05-26T14:11:00.000Z"),
+    });
+
+    expect(payload[0]).toMatchObject({
+      type: 0,
+      content: "KITCHEN",
+      bold: 1,
+      align: 1,
+      format: 3,
+    });
+    expect(payload).toContainEqual(
+      expect.objectContaining({ type: 0, content: "#12", bold: 1, align: 1, format: 2 }),
+    );
+    expect(payload).toContainEqual(
+      expect.objectContaining({ type: 0, content: "2X CAFFE LATTE MEDIUM WITH EXTRA" }),
+    );
+    expect(payload).toContainEqual(
+      expect.objectContaining({ type: 0, content: "* TEMPERATURE: ICED" }),
+    );
   });
 });

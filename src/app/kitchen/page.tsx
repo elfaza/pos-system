@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { openThermerPrint } from "@/lib/thermer";
 import AdminShell from "@/features/admin/components/admin-shell";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
@@ -256,6 +257,10 @@ function KitchenContent() {
     setError(null);
 
     try {
+      if (openThermerPrint(`/api/thermer/kitchen/orders/${order.id}/ticket`)) {
+        return;
+      }
+
       const response = await fetch(`/api/kitchen/orders/${order.id}/ticket/print`, {
         method: "POST",
       });
