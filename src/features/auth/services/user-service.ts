@@ -1,7 +1,7 @@
 import type { UserRole as PrismaUserRole } from "@prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
-import type { User } from "@/features/auth/types";
+import type { User, UserRole } from "@/features/auth/types";
 import { hashPassword } from "../utils/password";
 import {
   createUser,
@@ -14,7 +14,7 @@ export interface UserRecord {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "cashier";
+  role: UserRole;
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -44,12 +44,18 @@ function mapUserRecord(user: {
 }
 
 function parseUserRole(value: unknown): PrismaUserRole {
-  if (value === "admin" || value === "cashier") {
+  if (
+    value === "admin" ||
+    value === "cashier" ||
+    value === "kitchen" ||
+    value === "queue" ||
+    value === "customer_facing_display"
+  ) {
     return value;
   }
 
   throw new ValidationError("User validation failed.", {
-    role: "Role must be admin or cashier.",
+    role: "Role must be admin, cashier, kitchen, queue, or customer facing display.",
   });
 }
 

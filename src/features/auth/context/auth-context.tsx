@@ -7,6 +7,7 @@ import {
   logout as logoutAction,
 } from "../actions/auth-actions";
 import type { AuthState, LoginPayload, ModuleAvailability, User } from "../types";
+import { getDefaultRouteForRole } from "../utils/role-routes";
 
 interface AuthContextType extends AuthState {
   moduleAvailability: ModuleAvailability | null;
@@ -44,7 +45,7 @@ export function AuthProvider({
 
       const authenticatedUser = result.user;
       setCurrentUser(authenticatedUser);
-      router.push(authenticatedUser.role === "admin" ? `/dashboard` : `/pos`);
+      router.push(getDefaultRouteForRole(authenticatedUser.role));
       router.refresh();
     } finally {
       setLoading(false);

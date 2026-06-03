@@ -1,5 +1,6 @@
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
 import { requireUser } from "@/features/auth/services/session-service";
+import { KITCHEN_ACCESS_ROLES } from "@/features/auth/utils/role-routes";
 import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   changeKitchenStatus,
@@ -11,7 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const user = await requireUser([...KITCHEN_ACCESS_ROLES]);
     await requireModuleEnabled("kitchenEnabled");
     const { id } = await params;
     const payload = await readJsonObject(request);

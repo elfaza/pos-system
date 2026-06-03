@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { openThermerPrint } from "@/lib/thermer";
 import AdminShell from "@/features/admin/components/admin-shell";
 import RoleGuard from "@/features/auth/components/role-guard";
+import { getRoleLabel, isDisplayRole, KITCHEN_ACCESS_ROLES } from "@/features/auth/utils/role-routes";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import type {
@@ -277,7 +278,7 @@ function KitchenContent() {
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--card)] p-4">
       <div>
         <p className="text-sm text-[var(--muted-foreground)]">
-          {user?.role === "admin" ? "Admin" : "Cashier"}
+          {user ? getRoleLabel(user.role) : "Staff"}
         </p>
         <h1 className="text-xl font-semibold">Kitchen Display</h1>
       </div>
@@ -285,12 +286,16 @@ function KitchenContent() {
         <span className={`rounded-md border px-3 py-2 text-sm font-medium ${isOnline ? "border-[var(--success)]/30 bg-green-50 text-[var(--success)]" : "border-[var(--warning)]/30 bg-orange-50 text-[var(--warning)]"}`}>
           {isOnline ? "Online" : "Offline"}
         </span>
-        <Link href="/queue" className="grid h-11 place-items-center rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]">
-          Queue
-        </Link>
-        <Link href={user?.role === "admin" ? "/dashboard" : "/pos"} className="grid h-11 place-items-center rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]">
-          {user?.role === "admin" ? "Dashboard" : "POS"}
-        </Link>
+        {user && !isDisplayRole(user.role) ? (
+          <>
+            <Link href="/queue" className="grid h-11 place-items-center rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]">
+              Queue
+            </Link>
+            <Link href={user.role === "admin" ? "/dashboard" : "/pos"} className="grid h-11 place-items-center rounded-md border border-[var(--border)] px-4 font-medium hover:bg-[var(--muted)]">
+              {user.role === "admin" ? "Dashboard" : "POS"}
+            </Link>
+          </>
+        ) : null}
         <button
           onClick={logout}
           disabled={loading}
@@ -405,7 +410,7 @@ function KitchenContent() {
 
 export default function KitchenPage() {
   return (
-    <RoleGuard allowedRoles={["admin", "cashier"]}>
+    <RoleGuard allowedRoles={[...KITCHEN_ACCESS_ROLES]}>
       <KitchenContent />
     </RoleGuard>
   );

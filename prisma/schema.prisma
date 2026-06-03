@@ -10,6 +10,15 @@ datasource db {
 enum UserRole {
   admin
   cashier
+  kitchen
+  queue
+  customer_facing_display
+}
+
+enum CustomerDisplayStatus {
+  idle
+  active
+  paid
 }
 
 enum OrderStatus {
@@ -332,6 +341,20 @@ model AppSetting {
   updatedAt                DateTime @updatedAt @map("updated_at")
 
   @@map("app_settings")
+}
+
+model CustomerDisplayState {
+  id              String                  @id @default(cuid())
+  scopeKey        String                  @unique @default("default") @map("scope_key")
+  status          CustomerDisplayStatus   @default(idle)
+  storeName       String                  @default("") @map("store_name")
+  payload         Json                    @default("{}")
+  paidOrderNumber String?                 @map("paid_order_number")
+  paidAt          DateTime?               @map("paid_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+  createdAt       DateTime                @default(now()) @map("created_at")
+
+  @@map("customer_display_states")
 }
 
 model Order {

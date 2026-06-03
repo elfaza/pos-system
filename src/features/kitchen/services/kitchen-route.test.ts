@@ -44,7 +44,7 @@ describe("kitchen API routes", () => {
       expect(await response.json()).toEqual({
         error: "You do not have permission to perform this action.",
       });
-      expect(mocks.requireUser).toHaveBeenCalledWith(["admin", "cashier"]);
+      expect(mocks.requireUser).toHaveBeenCalledWith(["admin", "cashier", "kitchen"]);
       expect(mocks.getKitchenBoard).not.toHaveBeenCalled();
     });
 

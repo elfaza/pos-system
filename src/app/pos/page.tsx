@@ -14,6 +14,7 @@ import type {
 } from "@/features/catalog/types";
 import { calculateCartTotals, formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import { useCartStore } from "@/features/checkout/stores/cart-store";
+import { useCustomerDisplaySync } from "@/features/customer-display/hooks/use-customer-display-sync";
 import type {
   CartItem,
   CheckoutOrderRecord,
@@ -847,6 +848,12 @@ function PosContent() {
   const [cartMessage, setCartMessage] = useState<string | null>(null);
   const clearCart = useCartStore((state) => state.clearCart);
   const replaceFromHeldOrder = useCartStore((state) => state.replaceFromHeldOrder);
+  const { notifyPaid } = useCustomerDisplaySync({
+    items: cartItems,
+    settings,
+    orderType: selectedOrderType,
+    isOnline,
+  });
 
   async function loadCatalog(options?: { categoryId?: string; search?: string }) {
     setLoadingCatalog(true);
@@ -1565,6 +1572,7 @@ function PosContent() {
           deliveryNotes={deliveryNotes}
           onClose={() => setShowPayment(false)}
           onPaid={(order) => {
+            notifyPaid(order);
             clearCart();
             setSelectedOrderType(null);
             setSelectedTableId("");

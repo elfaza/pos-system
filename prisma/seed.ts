@@ -4,9 +4,12 @@ import { hashPassword } from "../src/features/auth/utils/password";
 const prisma = new PrismaClient();
 
 async function main() {
-  const [adminPasswordHash, cashierPasswordHash] = await Promise.all([
+  const [adminPasswordHash, cashierPasswordHash, kitchenPasswordHash, queuePasswordHash, cfdPasswordHash] = await Promise.all([
     hashPassword("admin12345"),
     hashPassword("cashier12345"),
+    hashPassword("kitchen12345"),
+    hashPassword("queue12345"),
+    hashPassword("cfd12345"),
   ]);
 
   await prisma.user.upsert({
@@ -22,6 +25,55 @@ async function main() {
       email: "admin@pos.local",
       passwordHash: adminPasswordHash,
       role: "admin",
+    },
+  });
+
+
+  await prisma.user.upsert({
+    where: { email: "kitchen@pos.local" },
+    update: {
+      name: "Kitchen Display",
+      passwordHash: kitchenPasswordHash,
+      role: "kitchen",
+      isActive: true,
+    },
+    create: {
+      name: "Kitchen Display",
+      email: "kitchen@pos.local",
+      passwordHash: kitchenPasswordHash,
+      role: "kitchen",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: "queue@pos.local" },
+    update: {
+      name: "Queue Display",
+      passwordHash: queuePasswordHash,
+      role: "queue",
+      isActive: true,
+    },
+    create: {
+      name: "Queue Display",
+      email: "queue@pos.local",
+      passwordHash: queuePasswordHash,
+      role: "queue",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: "cfd@pos.local" },
+    update: {
+      name: "Customer Facing Display",
+      passwordHash: cfdPasswordHash,
+      role: "customer_facing_display",
+      isActive: true,
+    },
+    create: {
+      name: "Customer Facing Display",
+      email: "cfd@pos.local",
+      passwordHash: cfdPasswordHash,
+      role: "customer_facing_display",
     },
   });
 

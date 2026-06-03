@@ -3,12 +3,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/features/admin/components/admin-shell";
 import type { UserRecord } from "@/features/auth/services/user-service";
+import type { UserRole } from "@/features/auth/types";
 
 const emptyForm = {
   id: "",
   name: "",
   email: "",
-  role: "cashier" as "admin" | "cashier",
+  role: "cashier" as UserRole,
   isActive: true,
   password: "",
 };
@@ -243,13 +244,16 @@ export default function UsersPage() {
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    role: event.target.value as "admin" | "cashier",
+                    role: event.target.value as UserRole,
                   }))
                 }
                 className="h-11 rounded-md border border-[var(--border)] px-3 focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
                 <option value="cashier">Cashier</option>
                 <option value="admin">Admin</option>
+                <option value="kitchen">Kitchen display</option>
+                <option value="queue">Queue display</option>
+                <option value="customer_facing_display">Customer facing display</option>
               </select>
             </label>
             <label className="grid gap-1 text-sm font-medium">

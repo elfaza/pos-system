@@ -15,6 +15,7 @@ const navItems = [
   { href: "/orders", label: "Orders" },
   { href: "/kitchen", label: "Kitchen", moduleKey: "kitchen" },
   { href: "/queue", label: "Queue", opensInNewTab: true, moduleKey: "queue" },
+  { href: "/customer-display", label: "Customer display", opensInNewTab: true },
   { href: "/dashboard/categories", label: "Categories" },
   { href: "/dashboard/products", label: "Products" },
   { href: "/dashboard/tables", label: "Tables" },

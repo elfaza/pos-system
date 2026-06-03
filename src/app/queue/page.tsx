@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
+import { QUEUE_ACCESS_ROLES } from "@/features/auth/utils/role-routes";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import type { KitchenQueueRecord, QueueDisplayRecord } from "@/features/kitchen/types";
 
@@ -157,18 +158,34 @@ function QueueContent() {
   return (
     <main className="h-screen flex flex-col bg-[#F3F6FB] overflow-hidden select-none relative font-sans text-slate-800">
       {/* Sleek Top Time Header */}
-      <header className="bg-slate-900 text-white flex items-center justify-between px-6 py-4 shadow-md z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-extrabold tracking-wider text-sm text-slate-300">TV MONITOR DISPLAY</span>
+      <header className="bg-slate-900 text-white flex items-center justify-between gap-4 px-6 py-4 shadow-md z-10 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <span className="font-extrabold tracking-wider text-sm text-slate-300 truncate">TV MONITOR DISPLAY</span>
         </div>
-        <div className="text-lg md:text-xl font-bold tracking-widest text-slate-100 tabular-nums">
+        <div className="text-lg md:text-xl font-bold tracking-widest text-slate-100 tabular-nums text-center">
           {formattedDateTime}
         </div>
-        <div>
+        <div className="flex items-center gap-2 shrink-0">
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${isOnline ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400 animate-pulse"}`}>
             {isOnline ? "CONNECTED" : "OFFLINE"}
           </span>
+          <button
+            onClick={() => loadQueue()}
+            disabled={loadingQueue || !isOnline}
+            className="h-10 rounded-lg border border-slate-600 bg-slate-800 px-4 text-xs font-bold uppercase tracking-wide text-slate-200 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            title="Refresh Queue"
+          >
+            Refresh
+          </button>
+          <button
+            onClick={logout}
+            disabled={loading}
+            className="h-10 rounded-lg border border-slate-600 bg-slate-800 px-4 text-xs font-bold uppercase tracking-wide text-slate-200 hover:bg-rose-950 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+            title="Sign Out"
+          >
+            {loading ? "Signing out..." : "Sign out"}
+          </button>
         </div>
       </header>
 
@@ -312,32 +329,13 @@ function QueueContent() {
         </div>
       )}
 
-      {/* Subtle Floating Control Panel (Hover-revealed overlay in bottom right corner) */}
-      <div className="absolute bottom-4 right-4 flex gap-2 opacity-5 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 z-50">
-        <button
-          onClick={() => loadQueue()}
-          disabled={loadingQueue || !isOnline}
-          className="bg-white/95 backdrop-blur-md border border-slate-200 text-slate-700 h-10 px-4 rounded-lg text-xs font-bold tracking-wide uppercase hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed"
-          title="Refresh Queue"
-        >
-          Refresh
-        </button>
-        <button
-          onClick={logout}
-          disabled={loading}
-          className="bg-white/95 backdrop-blur-md border border-slate-200 text-slate-700 h-10 px-4 rounded-lg text-xs font-bold tracking-wide uppercase hover:bg-rose-50 hover:text-rose-600 active:scale-95 transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed"
-          title="Sign Out"
-        >
-          {loading ? "Signing out..." : "Sign out"}
-        </button>
-      </div>
     </main>
   );
 }
 
 export default function QueuePage() {
   return (
-    <RoleGuard allowedRoles={["admin", "cashier"]}>
+    <RoleGuard allowedRoles={[...QUEUE_ACCESS_ROLES]}>
       <QueueContent />
     </RoleGuard>
   );

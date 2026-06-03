@@ -3,6 +3,7 @@
 import { useEffect, useState, SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../hooks/use-auth";
+import { getDefaultRouteForRole } from "../utils/role-routes";
 
 type LoginFormProps = {
   appVersion: string;
@@ -19,7 +20,7 @@ export default function LoginForm({ appVersion }: LoginFormProps) {
   useEffect(() => {
     if (!user || loggingOut) return;
 
-    router.replace(user.role === "admin" ? "/dashboard" : "/pos");
+    router.replace(getDefaultRouteForRole(user.role));
   }, [loggingOut, router, user]);
 
   const handleSubmit = async (
@@ -46,7 +47,7 @@ export default function LoginForm({ appVersion }: LoginFormProps) {
       <div>
         <h1 className="text-xl font-semibold">Sign in</h1>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Use an active admin or cashier account.
+          Use an active staff account.
         </p>
       </div>
 

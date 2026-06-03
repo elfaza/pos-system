@@ -1,6 +1,9 @@
 export type UserRole =
   | "admin"
-  | "cashier";
+  | "cashier"
+  | "kitchen"
+  | "queue"
+  | "customer_facing_display";
 
 export interface User {
   id: string;
