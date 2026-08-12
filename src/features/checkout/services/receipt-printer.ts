@@ -34,6 +34,16 @@ function sanitizeReceiptText(value: string): string {
     .trim();
 }
 
+/**
+ * Thermer entries are rebuilt from lines that were already sanitized while
+ * composing the ESC/POS receipt, so they only need control characters removed.
+ * Re-running sanitizeReceiptText here would collapse the space padding that
+ * right-aligns amounts against the 32-column edge.
+ */
+function stripControlCharacters(value: string): string {
+  return value.replace(/[^\x20-\x7E]/g, "").trimEnd();
+}
+
 function formatReceiptAmount(value: number): string {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
@@ -284,7 +294,7 @@ export function buildReceiptThermerPayload(
     }
     if (rawLine === ESC + "@" || rawLine === GS + "V" + "\x00") continue;
 
-    const line = sanitizeReceiptText(rawLine);
+    const line = stripControlCharacters(rawLine);
     if (!line) {
       entries.push(thermerText(" ", { align }));
       continue;

@@ -173,10 +173,25 @@ describe("receipt-printer", () => {
       expect.objectContaining({ type: 0, content: "CAFFE LATTE MEDIUM WITH 1 43,000" }),
     );
     expect(payload).toContainEqual(
-      expect.objectContaining({ type: 0, content: "TOTAL 49,880", bold: 1 }),
+      expect.objectContaining({ type: 0, content: `TOTAL${" ".repeat(21)}49,880`, bold: 1 }),
     );
     expect(payload).toContainEqual(
       expect.objectContaining({ type: 0, content: "7", bold: 1, align: 1, format: 2 }),
     );
+  });
+
+  it("keeps Thermer amount columns padded to the right paper edge", () => {
+    const payload = buildReceiptThermerPayload(baseOrder, baseSettings, {
+      printedAt: new Date("2026-05-26T14:02:00.000Z"),
+    });
+
+    const amountLines = payload
+      .map((entry) => entry.content)
+      .filter((content) => /^(SUB TOTAL|SERVICE|TOTAL|PB1|- QRIS)/.test(content));
+
+    expect(amountLines).toHaveLength(5);
+    for (const content of amountLines) {
+      expect(content).toHaveLength(32);
+    }
   });
 });
