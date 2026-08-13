@@ -63,18 +63,23 @@ function KitchenOrderCard({
   disabled,
   updatingStatus,
   printingTicketId,
+  printingLabelsId,
   onStatusChange,
   onPrintTicket,
+  onPrintLabels,
 }: {
   order: KitchenQueueRecord;
   disabled: boolean;
   updatingStatus: string | null;
   printingTicketId: string | null;
+  printingLabelsId: string | null;
   onStatusChange: (order: KitchenQueueRecord, status: KitchenStatus) => void;
   onPrintTicket: (order: KitchenQueueRecord) => void;
+  onPrintLabels: (order: KitchenQueueRecord) => void;
 }) {
   const isUpdating = updatingStatus === order.id;
   const isPrinting = printingTicketId === order.id;
+  const isPrintingLabels = printingLabelsId === order.id;
 
   return (
     <article className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.08)]">
@@ -142,6 +147,16 @@ function KitchenOrderCard({
         >
           {isPrinting ? "Printing..." : "Print"}
         </button>
+        <button
+          onClick={() => onPrintLabels(order)}
+          disabled={disabled || isPrintingLabels}
+          className="h-11 rounded-md border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isPrintingLabels ? "Printing..." : "Print Label"}
+        </button>
+      </div>
+
+      <div className="mt-2 grid gap-2">
         {nextActions(order.kitchenStatus).map((action) => (
           <button
             key={action.status}
@@ -167,6 +182,7 @@ function KitchenContent() {
   const [loadingBoard, setLoadingBoard] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [printingTicketId, setPrintingTicketId] = useState<string | null>(null);
+  const [printingLabelsId, setPrintingLabelsId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const totalOrders = useMemo(
@@ -274,6 +290,28 @@ function KitchenContent() {
     }
   }
 
+  async function printOrderLabels(order: KitchenQueueRecord) {
+    if (!isOnline) return;
+    setPrintingLabelsId(order.id);
+    setError(null);
+
+    try {
+      if (openThermerPrint(`/api/thermer/kitchen/orders/${order.id}/labels`)) {
+        return;
+      }
+
+      const response = await fetch(`/api/kitchen/orders/${order.id}/labels/print`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to print order labels.");
+    } catch (printError) {
+      setError(printError instanceof Error ? printError.message : "Unable to print order labels.");
+    } finally {
+      setPrintingLabelsId(null);
+    }
+  }
+
   const header = (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--card)] p-4">
       <div>
@@ -378,8 +416,10 @@ function KitchenContent() {
                         disabled={!isOnline}
                         updatingStatus={updatingOrderId}
                         printingTicketId={printingTicketId}
+                        printingLabelsId={printingLabelsId}
                         onStatusChange={updateStatus}
                         onPrintTicket={printKitchenTicket}
+                        onPrintLabels={printOrderLabels}
                       />
                     ))
                   )}
