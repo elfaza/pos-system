@@ -38,11 +38,11 @@ vi.mock("@/features/catalog/services/module-config", () => ({
   requireModuleEnabled: mocks.requireModuleEnabled,
 }));
 
-const actor = {
-  id: "admin-1",
-  name: "Admin",
-  email: "admin@pos.local",
-  role: "admin" as const,
+const tenant = {
+  userId: "admin-1",
+  organizationId: "org-1",
+  outletId: "outlet-1",
+  role: "owner" as const,
 };
 
 const ingredientRecord = {
@@ -80,10 +80,10 @@ describe("inventory service", () => {
         currentStock: "1000.5",
         lowStockThreshold: "100",
       },
-      actor,
+      tenant,
     );
 
-    expect(mocks.createIngredient).toHaveBeenCalledWith({
+    expect(mocks.createIngredient).toHaveBeenCalledWith(tenant, {
       name: "Milk",
       sku: "MILK",
       unit: "ml",
@@ -102,7 +102,7 @@ describe("inventory service", () => {
           currentStock: "-1",
           lowStockThreshold: "-2",
         },
-        actor,
+        tenant,
       ),
     ).rejects.toMatchObject({
       fieldErrors: {
@@ -123,10 +123,10 @@ describe("inventory service", () => {
         lowStockThreshold: "50",
         isActive: false,
       },
-      actor,
+      tenant,
     );
 
-    expect(mocks.updateIngredient).toHaveBeenCalledWith("ingredient-1", {
+    expect(mocks.updateIngredient).toHaveBeenCalledWith(tenant, "ingredient-1", {
       name: "Milk",
       sku: null,
       unit: "ml",
@@ -140,7 +140,7 @@ describe("inventory service", () => {
       adjustIngredientFromPayload(
         "ingredient-1",
         { quantity: "0", direction: "decrease", reason: "" },
-        actor,
+        tenant,
       ),
     ).rejects.toBeInstanceOf(ValidationError);
     expect(mocks.adjustIngredientStock).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe("inventory service", () => {
       adjustIngredientFromPayload(
         "ingredient-1",
         { quantity: "2000", type: "waste", reason: "Spoiled" },
-        actor,
+        tenant,
       ),
     ).rejects.toBeInstanceOf(ValidationError);
   });
@@ -168,7 +168,7 @@ describe("inventory service", () => {
       adjustIngredientFromPayload(
         "missing",
         { quantity: "1", reason: "Count correction" },
-        actor,
+        tenant,
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
@@ -180,7 +180,7 @@ describe("inventory service", () => {
     );
 
     await expect(
-      createIngredientFromPayload({ name: "Milk", unit: "ml" }, actor),
+      createIngredientFromPayload({ name: "Milk", unit: "ml" }, tenant),
     ).rejects.toBeInstanceOf(ForbiddenError);
     expect(mocks.createIngredient).not.toHaveBeenCalled();
   });

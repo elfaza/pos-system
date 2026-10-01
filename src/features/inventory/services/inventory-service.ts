@@ -1,11 +1,10 @@
 import { NotFoundError, ValidationError } from "@/lib/api-response";
-import { prisma } from "@/lib/prisma";
 import {
   toBoolean,
   toDecimalString,
   toOptionalDecimalString,
 } from "@/lib/number";
-import type { User } from "@/features/auth/types";
+import type { TenantContext } from "@/features/auth/types";
 import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   adjustIngredientStock,
@@ -84,10 +83,10 @@ function parseAdjustmentPayload(payload: Record<string, unknown>): {
   return { quantity, direction, reason, type };
 }
 
-export async function getIngredientList(url: URL) {
+export async function getIngredientList(context: TenantContext, url: URL) {
   await requireModuleEnabled("inventoryEnabled");
   const activeParam = url.searchParams.get("active");
-  const ingredients = await listIngredients({
+  const ingredients = await listIngredients(context, {
     search: url.searchParams.get("search") ?? undefined,
     active:
       activeParam === "true" ? true : activeParam === "false" ? false : undefined,
@@ -97,27 +96,18 @@ export async function getIngredientList(url: URL) {
   return ingredients.map(mapIngredient);
 }
 
-export async function getLowStockIngredientCount() {
+export async function getLowStockIngredientCount(context: TenantContext) {
   await requireModuleEnabled("inventoryEnabled");
-  return countLowStockIngredients();
+  return countLowStockIngredients(context);
 }
 
 export async function createIngredientFromPayload(
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
   await requireModuleEnabled("inventoryEnabled");
   const data = parseIngredientPayload(payload);
-  const ingredient = await createIngredient(data);
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "ingredient.created",
-      entityType: "ingredient",
-      entityId: ingredient.id,
-    },
-  });
+  const ingredient = await createIngredient(context, data);
 
   return mapIngredient(ingredient);
 }
@@ -125,10 +115,10 @@ export async function createIngredientFromPayload(
 export async function updateIngredientFromPayload(
   id: string,
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
   await requireModuleEnabled("inventoryEnabled");
-  const existing = await findIngredientById(id);
+  const existing = await findIngredientById(context, id);
   if (!existing) {
     throw new NotFoundError("Ingredient was not found.");
   }
@@ -137,7 +127,7 @@ export async function updateIngredientFromPayload(
     ...payload,
     currentStock: existing.currentStock.toString(),
   });
-  const ingredient = await updateIngredient(id, {
+  const ingredient = await updateIngredient(context, id, {
     name: data.name,
     sku: data.sku,
     unit: data.unit,
@@ -145,14 +135,7 @@ export async function updateIngredientFromPayload(
     isActive: data.isActive,
   });
 
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "ingredient.updated",
-      entityType: "ingredient",
-      entityId: ingredient.id,
-    },
-  });
+  if (!ingredient) throw new NotFoundError("Ingredient was not found.");
 
   return mapIngredient(ingredient);
 }
@@ -160,17 +143,16 @@ export async function updateIngredientFromPayload(
 export async function adjustIngredientFromPayload(
   id: string,
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
   await requireModuleEnabled("inventoryEnabled");
   const data = parseAdjustmentPayload(payload);
-  const result = await adjustIngredientStock({
+  const result = await adjustIngredientStock(context, {
     ingredientId: id,
     quantity: data.quantity,
     direction: data.type === "waste" ? "decrease" : data.direction,
     type: data.type,
     reason: data.reason,
-    actorId: actor.id,
   });
 
   if (!result) {
@@ -185,7 +167,7 @@ export async function adjustIngredientFromPayload(
   return mapIngredient(result.ingredient);
 }
 
-export async function getStockMovementList(url: URL) {
+export async function getStockMovementList(context: TenantContext, url: URL) {
   await requireModuleEnabled("inventoryEnabled");
   const type = url.searchParams.get("type");
   const allowedTypes = [
@@ -201,7 +183,7 @@ export async function getStockMovementList(url: URL) {
     });
   }
 
-  const movements = await listStockMovements({
+  const movements = await listStockMovements(context, {
     ingredientId: url.searchParams.get("ingredientId") ?? undefined,
     type: type as (typeof allowedTypes)[number] | undefined,
     dateFrom: url.searchParams.get("dateFrom")

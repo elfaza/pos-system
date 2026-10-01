@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
-import { requireUser } from "@/features/auth/services/session-service";
+import { requireTenantContext } from "@/features/auth/services/session-service";
 import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   createIngredientFromPayload,
@@ -9,11 +9,11 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(["admin"]);
+    const context = await requireTenantContext(["owner", "admin"]);
     await requireModuleEnabled("inventoryEnabled");
 
     return jsonOk({
-      ingredients: await getIngredientList(request.nextUrl),
+      ingredients: await getIngredientList(context, request.nextUrl),
     });
   } catch (error) {
     return jsonError(error);
@@ -22,12 +22,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const context = await requireTenantContext(["owner", "admin"]);
     await requireModuleEnabled("inventoryEnabled");
     const payload = await readJsonObject(request);
 
     return jsonOk(
-      { ingredient: await createIngredientFromPayload(payload, user) },
+      { ingredient: await createIngredientFromPayload(payload, context) },
       { status: 201 },
     );
   } catch (error) {
