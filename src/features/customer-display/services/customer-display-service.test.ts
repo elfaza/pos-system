@@ -13,6 +13,13 @@ const mocks = vi.hoisted(() => ({
   upsertCustomerDisplayState: vi.fn(),
 }));
 
+const tenant = {
+  userId: "user-1",
+  organizationId: "org-1",
+  outletId: "outlet-1",
+  role: "owner" as const,
+};
+
 vi.mock("../repositories/customer-display-repository", () => ({
   findCustomerDisplayState: mocks.findCustomerDisplayState,
   upsertCustomerDisplayState: mocks.upsertCustomerDisplayState,
@@ -39,7 +46,7 @@ describe("customer display service", () => {
   it("returns idle display when no state exists", async () => {
     mocks.findCustomerDisplayState.mockResolvedValue(null);
 
-    await expect(getCustomerDisplay()).resolves.toEqual({
+    await expect(getCustomerDisplay(tenant)).resolves.toEqual({
       status: "idle",
       storeName: "Maza Cafe",
       orderType: null,
@@ -108,7 +115,7 @@ describe("customer display service", () => {
         taxAmount: 0,
         totalAmount: 25000,
       },
-    });
+    }, tenant);
 
     expect(display.status).toBe("active");
     expect(display.items[0]?.productName).toBe("Latte");
@@ -153,7 +160,7 @@ describe("customer display service", () => {
       },
     ]);
 
-    await expect(getCustomerDisplayMenu()).resolves.toEqual({
+    await expect(getCustomerDisplayMenu(tenant)).resolves.toEqual({
       categories: [
         {
           id: "cat-drinks",

@@ -1,9 +1,7 @@
-import type { Prisma } from "@prisma/client";
 import { ForbiddenError } from "@/lib/api-response";
-import { prisma } from "@/lib/prisma";
+import { requireTenantContext } from "@/features/auth/services/session-service";
+import type { Prisma } from "@prisma/client";
 import { getSettings } from "../repositories/settings-repository";
-
-type SettingsClient = typeof prisma | Prisma.TransactionClient;
 
 type ModuleFlag =
   | "accountingEnabled"
@@ -20,13 +18,14 @@ const moduleLabels: Record<ModuleFlag, string> = {
   reportingEnabled: "Reporting",
 };
 
-export async function getAppConfiguration(client?: SettingsClient) {
-  return getSettings(client);
+export async function getAppConfiguration(client?: Prisma.TransactionClient) {
+  const context = await requireTenantContext();
+  return getSettings(context, client);
 }
 
 export async function requireModuleEnabled(
   flag: ModuleFlag,
-  client?: SettingsClient,
+  client?: Prisma.TransactionClient,
 ) {
   const settings = await getAppConfiguration(client);
   if (!settings[flag]) {
@@ -35,7 +34,7 @@ export async function requireModuleEnabled(
   return settings;
 }
 
-export async function requireCashPaymentEnabled(client?: SettingsClient) {
+export async function requireCashPaymentEnabled(client?: Prisma.TransactionClient) {
   const settings = await getAppConfiguration(client);
   if (!settings.cashPaymentEnabled) {
     throw new ForbiddenError("Cash payment is disabled.");

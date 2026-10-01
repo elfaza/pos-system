@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
-import { requireUser } from "@/features/auth/services/session-service";
+import { requireTenantContext } from "@/features/auth/services/session-service";
 import {
   createProductFromPayload,
   getProductListLimit,
@@ -9,13 +9,13 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const context = await requireTenantContext(["owner", "admin", "cashier"]);
     const includeUnavailable =
-      user.role === "admin" &&
+      (context.role === "owner" || context.role === "admin") &&
       request.nextUrl.searchParams.get("includeUnavailable") === "true";
 
     return jsonOk({
-      products: await getProductList(request.nextUrl, includeUnavailable),
+      products: await getProductList(context, request.nextUrl, includeUnavailable),
       limit: getProductListLimit(),
     });
   } catch (error) {
@@ -25,11 +25,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const context = await requireTenantContext(["owner", "admin"]);
     const payload = await readJsonObject(request);
 
     return jsonOk(
-      { product: await createProductFromPayload(payload, user) },
+      { product: await createProductFromPayload(payload, context) },
       { status: 201 },
     );
   } catch (error) {

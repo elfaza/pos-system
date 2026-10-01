@@ -1,5 +1,5 @@
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
-import { requireUser } from "@/features/auth/services/session-service";
+import { requireTenantContext } from "@/features/auth/services/session-service";
 import { updateCategoryFromPayload } from "@/features/catalog/services/category-service";
 
 export async function PATCH(
@@ -7,11 +7,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(["admin"]);
+    const context = await requireTenantContext(["owner", "admin"]);
     const { id } = await params;
     const payload = await readJsonObject(request);
 
-    return jsonOk({ category: await updateCategoryFromPayload(id, payload, user) });
+    return jsonOk({ category: await updateCategoryFromPayload(id, payload, context) });
   } catch (error) {
     return jsonError(error);
   }

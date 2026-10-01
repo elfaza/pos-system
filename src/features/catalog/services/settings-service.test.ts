@@ -13,16 +13,21 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/tenant-prisma", () => ({
+  withTenantTransaction: (_context: unknown, callback: (tx: unknown) => unknown) =>
+    callback({ activityLog: { create: mocks.activityLogCreate } }),
+}));
+
 vi.mock("../repositories/settings-repository", () => ({
   getSettings: vi.fn(),
   updateSettings: mocks.updateSettings,
 }));
 
-const actor = {
-  id: "admin-1",
-  name: "Admin",
-  email: "admin@pos.local",
-  role: "admin" as const,
+const tenant = {
+  userId: "admin-1",
+  organizationId: "org-1",
+  outletId: "outlet-1",
+  role: "owner" as const,
 };
 
 const validPayload = {
@@ -54,7 +59,7 @@ const validPayload = {
 describe("settings service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.updateSettings.mockImplementation((data: Record<string, unknown>) =>
+    mocks.updateSettings.mockImplementation((_context: unknown, data: Record<string, unknown>) =>
       Promise.resolve({
         id: "settings-1",
         createdAt: new Date("2026-05-05T00:00:00.000Z"),
@@ -66,7 +71,7 @@ describe("settings service", () => {
   });
 
   it("saves expanded typed store and module settings", async () => {
-    const settings = await updateSettingsFromPayload(validPayload, actor);
+    const settings = await updateSettingsFromPayload(validPayload, tenant);
 
     expect(settings).toMatchObject({
       storeName: "Maza Cafe",
@@ -84,6 +89,7 @@ describe("settings service", () => {
       receiptPrintingEnabled: true,
     });
     expect(mocks.updateSettings).toHaveBeenCalledWith(
+      tenant,
       expect.objectContaining({
         locale: "id-ID",
         currencyCode: "IDR",
@@ -92,11 +98,14 @@ describe("settings service", () => {
         cashPaymentEnabled: true,
         qrisPaymentEnabled: true,
       }),
+      expect.anything(),
     );
     expect(mocks.activityLogCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: "settings.updated",
         entityType: "app_settings",
+        organizationId: "org-1",
+        outletId: "outlet-1",
       }),
     });
   });
@@ -117,7 +126,7 @@ describe("settings service", () => {
           cashPaymentEnabled: false,
           qrisPaymentEnabled: false,
         },
-        actor,
+        tenant,
       ),
     ).rejects.toMatchObject({
       fieldErrors: expect.objectContaining({
@@ -142,14 +151,16 @@ describe("settings service", () => {
         ...validPayload,
         qrisPaymentEnabled: false,
       },
-      actor,
+      tenant,
     );
 
     expect(settings.qrisPaymentEnabled).toBe(false);
     expect(mocks.updateSettings).toHaveBeenCalledWith(
+      tenant,
       expect.objectContaining({
         qrisPaymentEnabled: false,
       }),
+      expect.anything(),
     );
   });
 
@@ -162,7 +173,7 @@ describe("settings service", () => {
           serviceChargeRate: "0",
           cashPaymentEnabled: true,
         },
-        actor,
+        tenant,
       ),
     ).rejects.toBeInstanceOf(ValidationError);
     expect(mocks.updateSettings).not.toHaveBeenCalled();

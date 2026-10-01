@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
-import { requireUser } from "@/features/auth/services/session-service";
+import { requireTenantContext } from "@/features/auth/services/session-service";
 import {
   createCategoryFromPayload,
   getCategoryList,
@@ -8,11 +8,12 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const context = await requireTenantContext(["owner", "admin", "cashier"]);
     const includeInactive =
-      user.role === "admin" && request.nextUrl.searchParams.get("includeInactive") === "true";
+      (context.role === "owner" || context.role === "admin") &&
+      request.nextUrl.searchParams.get("includeInactive") === "true";
 
-    return jsonOk({ categories: await getCategoryList(includeInactive) });
+    return jsonOk({ categories: await getCategoryList(context, includeInactive) });
   } catch (error) {
     return jsonError(error);
   }
@@ -20,11 +21,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const context = await requireTenantContext(["owner", "admin"]);
     const payload = await readJsonObject(request);
 
     return jsonOk(
-      { category: await createCategoryFromPayload(payload, user) },
+      { category: await createCategoryFromPayload(payload, context) },
       { status: 201 },
     );
   } catch (error) {

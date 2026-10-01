@@ -1,13 +1,20 @@
-import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export const categoryListLimit = 200;
 
-export function listCategories(includeInactive: boolean) {
-  return prisma.category.findMany({
-    where: includeInactive ? undefined : { isActive: true },
+export function listCategories(
+  client: Prisma.TransactionClient,
+  organizationId: string,
+  includeInactive: boolean,
+) {
+  return client.category.findMany({
+    where: {
+      organizationId,
+      ...(includeInactive ? {} : { isActive: true }),
+    },
     include: {
       _count: {
-        select: { products: true },
+        select: { products: { where: { organizationId } } },
       },
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -15,20 +22,30 @@ export function listCategories(includeInactive: boolean) {
   });
 }
 
-export function findCategoryById(id: string) {
-  return prisma.category.findUnique({ where: { id } });
+export function findCategoryById(
+  client: Prisma.TransactionClient,
+  organizationId: string,
+  id: string,
+) {
+  return client.category.findFirst({ where: { id, organizationId } });
 }
 
-export function createCategory(data: {
-  name: string;
-  slug: string;
-  sortOrder: number;
-  isActive: boolean;
-}) {
-  return prisma.category.create({ data });
+export function createCategory(
+  client: Prisma.TransactionClient,
+  organizationId: string,
+  data: {
+    name: string;
+    slug: string;
+    sortOrder: number;
+    isActive: boolean;
+  },
+) {
+  return client.category.create({ data: { ...data, organizationId } });
 }
 
-export function updateCategory(
+export async function updateCategory(
+  client: Prisma.TransactionClient,
+  organizationId: string,
   id: string,
   data: {
     name: string;
@@ -37,5 +54,10 @@ export function updateCategory(
     isActive: boolean;
   },
 ) {
-  return prisma.category.update({ where: { id }, data });
+  const result = await client.category.updateMany({
+    where: { id, organizationId },
+    data,
+  });
+  if (result.count === 0) return null;
+  return client.category.findFirst({ where: { id, organizationId } });
 }

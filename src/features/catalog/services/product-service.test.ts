@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   createProduct: vi.fn(),
   findProductById: vi.fn(),
   ingredientFindMany: vi.fn(),
+  categoryFindFirst: vi.fn(),
   listProducts: vi.fn(),
+  productVariantFindMany: vi.fn(),
   updateProduct: vi.fn(),
 }));
 
@@ -22,6 +24,16 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/tenant-prisma", () => ({
+  withTenantTransaction: (_context: unknown, callback: (tx: unknown) => unknown) =>
+    callback({
+      activityLog: { create: mocks.activityLogCreate },
+      category: { findFirst: mocks.categoryFindFirst },
+      ingredient: { findMany: mocks.ingredientFindMany },
+      productVariant: { findMany: mocks.productVariantFindMany },
+    }),
+}));
+
 vi.mock("../repositories/product-repository", () => ({
   createProduct: mocks.createProduct,
   findProductById: mocks.findProductById,
@@ -30,11 +42,11 @@ vi.mock("../repositories/product-repository", () => ({
   updateProduct: mocks.updateProduct,
 }));
 
-const actor = {
-  id: "admin-1",
-  name: "Admin",
-  email: "admin@pos.local",
-  role: "admin" as const,
+const tenant = {
+  userId: "admin-1",
+  organizationId: "org-1",
+  outletId: "outlet-1",
+  role: "owner" as const,
 };
 
 const productRecord = {
@@ -61,6 +73,8 @@ describe("product service", () => {
     mocks.createProduct.mockResolvedValue(productRecord);
     mocks.updateProduct.mockResolvedValue(productRecord);
     mocks.activityLogCreate.mockResolvedValue({});
+    mocks.categoryFindFirst.mockResolvedValue({ id: "category-1" });
+    mocks.productVariantFindMany.mockResolvedValue([]);
     mocks.ingredientFindMany.mockImplementation(({ where }) =>
       Promise.resolve(
         (where.id.in as string[]).map((id) => ({ id, isActive: true })),
@@ -78,10 +92,10 @@ describe("product service", () => {
         trackStock: false,
         stockQuantity: "99",
       },
-      actor,
+      tenant,
     );
 
-    expect(mocks.createProduct).toHaveBeenCalledWith({
+    expect(mocks.createProduct).toHaveBeenCalledWith(expect.anything(), "org-1", "outlet-1", {
       categoryId: "category-1",
       name: "Coffee",
       sku: "COF",
@@ -99,6 +113,8 @@ describe("product service", () => {
     expect(mocks.activityLogCreate).toHaveBeenCalledWith({
       data: {
         userId: "admin-1",
+        organizationId: "org-1",
+        outletId: "outlet-1",
         action: "product.created",
         entityType: "product",
         entityId: "product-1",
@@ -144,10 +160,13 @@ describe("product service", () => {
           },
         ],
       },
-      actor,
+      tenant,
     );
 
     expect(mocks.createProduct).toHaveBeenCalledWith(
+      expect.anything(),
+      "org-1",
+      "outlet-1",
       expect.objectContaining({
         optionGroups: [
           {
@@ -238,7 +257,7 @@ describe("product service", () => {
             },
           ],
         },
-        actor,
+        tenant,
       ),
     ).rejects.toMatchObject({
       fieldErrors: {
@@ -278,7 +297,7 @@ describe("product service", () => {
             },
           ],
         },
-        actor,
+        tenant,
       ),
     ).rejects.toMatchObject({
       fieldErrors: {
@@ -297,7 +316,7 @@ describe("product service", () => {
           price: "20000",
           optionGroups: [{ name: "Temperature", values: [] }],
         },
-        actor,
+        tenant,
       ),
     ).rejects.toMatchObject({
       fieldErrors: {
@@ -309,7 +328,7 @@ describe("product service", () => {
 
   it("rejects missing required product fields and negative prices", async () => {
     await expect(
-      createProductFromPayload({ categoryId: "", name: "", price: "-1" }, actor),
+      createProductFromPayload({ categoryId: "", name: "", price: "-1" }, tenant),
     ).rejects.toMatchObject({
       fieldErrors: {
         categoryId: "Category is required.",
@@ -328,10 +347,13 @@ describe("product service", () => {
         price: "20000",
         variants: [{ name: "Large", priceDelta: "5000" }],
       },
-      actor,
+      tenant,
     );
 
     expect(mocks.createProduct).toHaveBeenCalledWith(
+      expect.anything(),
+      "org-1",
+      "outlet-1",
       expect.not.objectContaining({ variants: expect.anything() }),
     );
   });
@@ -348,7 +370,7 @@ describe("product service", () => {
             { ingredientId: "ingredient-1", quantityRequired: "12" },
           ],
         },
-        actor,
+        tenant,
       ),
     ).rejects.toMatchObject({
       fieldErrors: {
@@ -371,7 +393,7 @@ describe("product service", () => {
           price: "20000",
           recipes: [{ ingredientId: "ingredient-1", quantityRequired: "10" }],
         },
-        actor,
+        tenant,
       ),
     ).rejects.toMatchObject({
       fieldErrors: {
@@ -388,7 +410,7 @@ describe("product service", () => {
       updateProductFromPayload(
         "missing-product",
         { categoryId: "category-1", name: "Coffee", price: "20000" },
-        actor,
+        tenant,
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
     expect(mocks.updateProduct).not.toHaveBeenCalled();
@@ -399,11 +421,12 @@ describe("product service", () => {
 
     await expect(
       getProductList(
+        tenant,
         new URL("https://pos.local/api/products?search=coffee&categoryId=category-1"),
         false,
       ),
     ).resolves.toEqual([]);
-    expect(mocks.listProducts).toHaveBeenCalledWith({
+    expect(mocks.listProducts).toHaveBeenCalledWith(expect.anything(), "org-1", "outlet-1", {
       search: "coffee",
       categoryId: "category-1",
       includeUnavailable: false,

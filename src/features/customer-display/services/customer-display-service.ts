@@ -3,6 +3,7 @@ import { ValidationError } from "@/lib/api-response";
 import { getSettings } from "@/features/catalog/repositories/settings-repository";
 import { getCategoryList } from "@/features/catalog/services/category-service";
 import { getAvailableProductList } from "@/features/catalog/services/product-service";
+import type { TenantContext } from "@/features/auth/types";
 import type {
   CustomerDisplayMenuRecord,
   CustomerDisplayRecord,
@@ -134,8 +135,8 @@ function mapRecord(state: {
   };
 }
 
-export async function getCustomerDisplay(): Promise<CustomerDisplayRecord> {
-  const settings = await getSettings();
+export async function getCustomerDisplay(context: TenantContext): Promise<CustomerDisplayRecord> {
+  const settings = await getSettings(context);
   const state = await findCustomerDisplayState();
 
   if (!state) {
@@ -150,10 +151,10 @@ export async function getCustomerDisplay(): Promise<CustomerDisplayRecord> {
   return record;
 }
 
-export async function getCustomerDisplayMenu(): Promise<CustomerDisplayMenuRecord> {
+export async function getCustomerDisplayMenu(context: TenantContext): Promise<CustomerDisplayMenuRecord> {
   const [categories, products] = await Promise.all([
-    getCategoryList(false),
-    getAvailableProductList(),
+    getCategoryList(context, false),
+    getAvailableProductList(context),
   ]);
 
   return {
@@ -213,7 +214,9 @@ function validateUpdateInput(payload: Record<string, unknown>): CustomerDisplayU
 
 export async function updateCustomerDisplayFromPayload(
   payload: Record<string, unknown>,
+  _context: TenantContext,
 ): Promise<CustomerDisplayRecord> {
+  void _context; // Display-state persistence becomes outlet-scoped in Phase 4.
   const input = validateUpdateInput(payload);
   const paidAt = input.status === "paid" ? new Date() : null;
 

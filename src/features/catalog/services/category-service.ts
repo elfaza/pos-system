@@ -1,7 +1,7 @@
-import { prisma } from "@/lib/prisma";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { toBoolean, toInteger } from "@/lib/number";
-import type { User } from "@/features/auth/types";
+import type { TenantContext } from "@/features/auth/types";
 import {
   createCategory,
   findCategoryById,
@@ -36,25 +36,31 @@ function parseCategoryPayload(payload: Record<string, unknown>) {
   return { name, slug, sortOrder, isActive };
 }
 
-export async function getCategoryList(includeInactive: boolean) {
-  const categories = await listCategories(includeInactive);
+export async function getCategoryList(context: TenantContext, includeInactive: boolean) {
+  const categories = await withTenantTransaction(context, (tx) =>
+    listCategories(tx, context.organizationId, includeInactive),
+  );
   return categories.map(mapCategory);
 }
 
 export async function createCategoryFromPayload(
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
   const data = parseCategoryPayload(payload);
-  const category = await createCategory(data);
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "category.created",
-      entityType: "category",
-      entityId: category.id,
-    },
+  const category = await withTenantTransaction(context, async (tx) => {
+    const created = await createCategory(tx, context.organizationId, data);
+    await tx.activityLog.create({
+      data: {
+        userId: context.userId,
+        organizationId: context.organizationId,
+        outletId: context.outletId,
+        action: "category.created",
+        entityType: "category",
+        entityId: created.id,
+      },
+    });
+    return created;
   });
 
   return mapCategory({ ...category, _count: { products: 0 } });
@@ -63,23 +69,25 @@ export async function createCategoryFromPayload(
 export async function updateCategoryFromPayload(
   id: string,
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
-  const existing = await findCategoryById(id);
-  if (!existing) {
-    throw new NotFoundError("Category was not found.");
-  }
-
   const data = parseCategoryPayload(payload);
-  const category = await updateCategory(id, data);
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "category.updated",
-      entityType: "category",
-      entityId: category.id,
-    },
+  const category = await withTenantTransaction(context, async (tx) => {
+    const existing = await findCategoryById(tx, context.organizationId, id);
+    if (!existing) throw new NotFoundError("Category was not found.");
+    const updated = await updateCategory(tx, context.organizationId, id, data);
+    if (!updated) throw new NotFoundError("Category was not found.");
+    await tx.activityLog.create({
+      data: {
+        userId: context.userId,
+        organizationId: context.organizationId,
+        outletId: context.outletId,
+        action: "category.updated",
+        entityType: "category",
+        entityId: updated.id,
+      },
+    });
+    return updated;
   });
 
   return mapCategory({ ...category, _count: { products: 0 } });

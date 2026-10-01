@@ -5,6 +5,7 @@ import { AuthProvider } from "@/features/auth/context/auth-context";
 import { getUser } from "@/features/auth/actions/auth-actions";
 import type { ModuleAvailability } from "@/features/auth/types";
 import { getAppSettings } from "@/features/catalog/services/settings-service";
+import { getCurrentTenantContext } from "@/features/auth/services/session-service";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -29,13 +30,16 @@ export default async function RootLayout({
   let moduleAvailability: ModuleAvailability | null = null;
 
   if (user) {
-    const settings = await getAppSettings();
-    moduleAvailability = {
-      kitchenEnabled: settings.kitchenEnabled,
-      queueEnabled: settings.queueEnabled,
-      inventoryEnabled: settings.inventoryEnabled,
-      accountingEnabled: settings.accountingEnabled,
-    };
+    const context = await getCurrentTenantContext();
+    if (context) {
+      const settings = await getAppSettings(context);
+      moduleAvailability = {
+        kitchenEnabled: settings.kitchenEnabled,
+        queueEnabled: settings.queueEnabled,
+        inventoryEnabled: settings.inventoryEnabled,
+        accountingEnabled: settings.accountingEnabled,
+      };
+    }
   }
 
   return (

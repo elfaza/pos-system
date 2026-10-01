@@ -1,11 +1,12 @@
-import { prisma } from "@/lib/prisma";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
+import { requireTenantContext } from "@/features/auth/services/session-service";
 import { ValidationError } from "@/lib/api-response";
 import {
   toBoolean,
   toDecimalString,
   toInteger,
 } from "@/lib/number";
-import type { User } from "@/features/auth/types";
+import type { TenantContext } from "@/features/auth/types";
 import { getSettings, updateSettings } from "../repositories/settings-repository";
 import { mapSettings } from "./catalog-mappers";
 
@@ -143,23 +144,28 @@ function parseSettingsPayload(payload: Record<string, unknown>) {
   };
 }
 
-export async function getAppSettings() {
-  return mapSettings(await getSettings());
+export async function getAppSettings(context?: TenantContext) {
+  const tenant = context ?? await requireTenantContext();
+  return mapSettings(await getSettings(tenant));
 }
 
 export async function updateSettingsFromPayload(
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
-  const settings = await updateSettings(parseSettingsPayload(payload));
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "settings.updated",
-      entityType: "app_settings",
-      entityId: settings.id,
-    },
+  const settings = await withTenantTransaction(context, async (tx) => {
+    const updated = await updateSettings(context, parseSettingsPayload(payload), tx);
+    await tx.activityLog.create({
+      data: {
+        userId: context.userId,
+        organizationId: context.organizationId,
+        outletId: context.outletId,
+        action: "settings.updated",
+        entityType: "app_settings",
+        entityId: updated.id,
+      },
+    });
+    return updated;
   });
 
   return mapSettings(settings);

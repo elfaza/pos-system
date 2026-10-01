@@ -32,10 +32,18 @@ const mocks = vi.hoisted(() => ({
   orderFindMany: vi.fn(),
   productFindMany: vi.fn(),
   userFindMany: vi.fn(),
+  queryRaw: vi.fn(),
+  transaction: vi.fn(),
+}));
+
+mocks.transaction.mockImplementation(async (callback) => callback({
+  $queryRaw: mocks.queryRaw,
+  ingredient: { findMany: mocks.ingredientFindMany },
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     category: { findMany: mocks.categoryFindMany },
     ingredient: {
       fields: { lowStockThreshold: "lowStockThreshold" },
@@ -58,7 +66,12 @@ describe("repository list limits", () => {
   });
 
   it("caps product lists used by POS and catalog management", async () => {
-    await listProducts({ includeUnavailable: false });
+    await listProducts(
+      { product: { findMany: mocks.productFindMany } } as never,
+      "org-1",
+      "outlet-1",
+      { includeUnavailable: false },
+    );
 
     expect(mocks.productFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ take: productListLimit }),
@@ -94,14 +107,28 @@ describe("repository list limits", () => {
   });
 
   it("caps ingredient, category, user, and order history lists", async () => {
-    await listIngredients({});
-    await listCategories(false);
+    mocks.ingredientFindMany.mockResolvedValue(Array.from({ length: ingredientListLimit + 1 }, (_, index) => ({
+      id: `ingredient-${index}`,
+      organizationId: "org-1",
+      name: `Ingredient ${index}`,
+      sku: null,
+      unit: "each",
+      currentStock: 0,
+      lowStockThreshold: null,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      outletStocks: [],
+    })));
+    const ingredients = await listIngredients({ organizationId: "org-1", outletId: "outlet-1", userId: "user-1", role: "admin" }, {});
+    await listCategories({ category: { findMany: mocks.categoryFindMany } } as never, "org-1", false);
     await listUsers();
     await listOrdersForUser({ id: "admin-1", role: "admin" });
 
-    expect(mocks.ingredientFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: ingredientListLimit }),
-    );
+    expect(mocks.ingredientFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ organizationId: "org-1" }),
+    }));
+    expect(ingredients).toHaveLength(ingredientListLimit);
     expect(mocks.categoryFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ take: categoryListLimit }),
     );

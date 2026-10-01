@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
 import {
   toBoolean,
@@ -6,7 +7,7 @@ import {
   toInteger,
   toOptionalDecimalString,
 } from "@/lib/number";
-import type { User } from "@/features/auth/types";
+import type { TenantContext } from "@/features/auth/types";
 import {
   createProduct,
   findProductById,
@@ -15,6 +16,23 @@ import {
   updateProduct,
 } from "../repositories/product-repository";
 import { mapProduct } from "./catalog-mappers";
+
+function mapOutletProduct(product: NonNullable<Awaited<ReturnType<typeof findProductById>>>) {
+  const outletProduct = product.outletProducts?.[0];
+  return mapProduct({
+    ...product,
+    isAvailable: outletProduct?.isAvailable ?? false,
+    stockQuantity: outletProduct?.stockQuantity ?? null,
+    lowStockThreshold: outletProduct?.lowStockThreshold ?? null,
+    ingredients: product.ingredients.map((recipe) => ({
+      ...recipe,
+      ingredient: {
+        ...recipe.ingredient,
+        currentStock: recipe.ingredient.outletStocks[0]?.currentStock ?? 0,
+      },
+    })),
+  });
+}
 
 function optionalString(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -262,13 +280,15 @@ function parseProductPayload(payload: Record<string, unknown>) {
 }
 
 async function assertRecipesUseActiveIngredients(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
   recipes: Array<{ ingredientId: string }>,
 ) {
   if (recipes.length === 0) return;
 
   const ingredientIds = [...new Set(recipes.map((recipe) => recipe.ingredientId))];
-  const ingredients = await prisma.ingredient.findMany({
-    where: { id: { in: ingredientIds } },
+  const ingredients = await tx.ingredient.findMany({
+    where: { id: { in: ingredientIds }, organizationId },
     select: { id: true, isActive: true },
   });
   const activeIngredientIds = new Set(
@@ -281,6 +301,50 @@ async function assertRecipesUseActiveIngredients(
   if (missingIngredient) {
     throw new ValidationError("Product recipe validation failed.", {
       recipes: "Recipes can only use active ingredients.",
+    });
+  }
+}
+
+async function assertCategoryBelongsToOrganization(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  categoryId: string,
+) {
+  const category = await tx.category.findFirst({
+    where: { id: categoryId, organizationId },
+    select: { id: true },
+  });
+  if (!category) {
+    throw new ValidationError("Product validation failed.", {
+      categoryId: "Choose a category in this organization.",
+    });
+  }
+}
+
+async function assertVariantsBelongToProduct(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string | null,
+  recipes: Array<{ variantId: string | null }>,
+) {
+  const variantIds = [...new Set(recipes.flatMap((recipe) => recipe.variantId ? [recipe.variantId] : []))];
+  if (variantIds.length === 0) return;
+  if (!productId) {
+    throw new ValidationError("Product recipe validation failed.", {
+      recipes: "Variants must belong to the product being updated.",
+    });
+  }
+  const variants = await tx.productVariant.findMany({
+    where: {
+      id: { in: variantIds },
+      ...(productId ? { productId } : {}),
+      product: { organizationId },
+    },
+    select: { id: true },
+  });
+  if (variants.length !== variantIds.length) {
+    throw new ValidationError("Product recipe validation failed.", {
+      recipes: "Recipes can only use variants from this product and organization.",
     });
   }
 }
@@ -300,18 +364,20 @@ function getAllRecipeRows(data: ReturnType<typeof parseProductPayload>) {
   ];
 }
 
-export async function getProductList(url: URL, includeUnavailable: boolean) {
-  const products = await listProducts({
+export async function getProductList(context: TenantContext, url: URL, includeUnavailable: boolean) {
+  const products = await withTenantTransaction(context, (tx) => listProducts(tx, context.organizationId, context.outletId, {
     search: url.searchParams.get("search") ?? undefined,
     categoryId: url.searchParams.get("categoryId") ?? undefined,
     includeUnavailable,
-  });
-  return products.map(mapProduct);
+  }));
+  return products.map(mapOutletProduct);
 }
 
-export async function getAvailableProductList() {
-  const products = await listProducts({ includeUnavailable: false });
-  return products.map(mapProduct);
+export async function getAvailableProductList(context: TenantContext) {
+  const products = await withTenantTransaction(context, (tx) =>
+    listProducts(tx, context.organizationId, context.outletId, { includeUnavailable: false }),
+  );
+  return products.map(mapOutletProduct);
 }
 
 export function getProductListLimit(): number {
@@ -320,48 +386,58 @@ export function getProductListLimit(): number {
 
 export async function createProductFromPayload(
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
   const data = parseProductPayload(payload);
-  await assertRecipesUseActiveIngredients(getAllRecipeRows(data));
-  const product = await createProduct(data);
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "product.created",
-      entityType: "product",
-      entityId: product.id,
-    },
+  const product = await withTenantTransaction(context, async (tx) => {
+    await assertCategoryBelongsToOrganization(tx, context.organizationId, data.categoryId);
+    await assertRecipesUseActiveIngredients(tx, context.organizationId, getAllRecipeRows(data));
+    await assertVariantsBelongToProduct(tx, context.organizationId, null, data.recipes);
+    const created = await createProduct(tx, context.organizationId, context.outletId, data);
+    await tx.activityLog.create({
+      data: {
+        userId: context.userId,
+        organizationId: context.organizationId,
+        outletId: context.outletId,
+        action: "product.created",
+        entityType: "product",
+        entityId: created.id,
+      },
+    });
+    return created;
   });
 
-  return mapProduct(product);
+  return mapOutletProduct(product);
 }
 
 export async function updateProductFromPayload(
   id: string,
   payload: Record<string, unknown>,
-  actor: User,
+  context: TenantContext,
 ) {
-  const existing = await findProductById(id);
-  if (!existing) {
-    throw new NotFoundError("Product was not found.");
-  }
-
   const data = parseProductPayload(payload);
-  await assertRecipesUseActiveIngredients(getAllRecipeRows(data));
-  const product = await updateProduct(id, data);
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "product.updated",
-      entityType: "product",
-      entityId: product.id,
-    },
+  const product = await withTenantTransaction(context, async (tx) => {
+    const existing = await findProductById(tx, context.organizationId, context.outletId, id);
+    if (!existing) throw new NotFoundError("Product was not found.");
+    await assertCategoryBelongsToOrganization(tx, context.organizationId, data.categoryId);
+    await assertRecipesUseActiveIngredients(tx, context.organizationId, getAllRecipeRows(data));
+    await assertVariantsBelongToProduct(tx, context.organizationId, id, data.recipes);
+    const updated = await updateProduct(tx, context.organizationId, context.outletId, id, data);
+    if (!updated) throw new NotFoundError("Product was not found.");
+    await tx.activityLog.create({
+      data: {
+        userId: context.userId,
+        organizationId: context.organizationId,
+        outletId: context.outletId,
+        action: "product.updated",
+        entityType: "product",
+        entityId: updated.id,
+      },
+    });
+    return updated;
   });
 
-  return mapProduct(product);
+  return mapOutletProduct(product);
 }
 
 export function getVariantLimit(value: unknown): number {

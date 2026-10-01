@@ -1,9 +1,8 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 
 export const productListLimit = 200;
 
-const productInclude = {
+const productInclude = (outletId: string) => ({
   category: true,
   optionGroups: {
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -30,22 +29,27 @@ const productInclude = {
   },
   ingredients: {
     include: {
-      ingredient: true,
+      ingredient: { include: { outletStocks: { where: { outletId }, take: 1 } } },
     },
     orderBy: [{ variantId: "asc" }, { createdAt: "asc" }],
   },
-} satisfies Prisma.ProductInclude;
+  outletProducts: { where: { outletId }, take: 1 },
+}) satisfies Prisma.ProductInclude;
 
-export function listProducts(filters: {
+export function listProducts(client: Prisma.TransactionClient, organizationId: string, outletId: string, filters: {
   search?: string;
   categoryId?: string;
   includeUnavailable: boolean;
 }) {
   const search = filters.search?.trim();
 
-  return prisma.product.findMany({
+  return client.product.findMany({
     where: {
-      ...(filters.includeUnavailable ? {} : { isAvailable: true, category: { isActive: true } }),
+      organizationId,
+      ...(filters.includeUnavailable ? {} : {
+        outletProducts: { some: { outletId, isAvailable: true } },
+      }),
+      ...(filters.includeUnavailable ? {} : { category: { isActive: true } }),
       ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
       ...(search
         ? {
@@ -57,17 +61,20 @@ export function listProducts(filters: {
           }
         : {}),
     },
-    include: productInclude,
+    include: productInclude(outletId),
     orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
     take: productListLimit,
   });
 }
 
-export function findProductById(id: string) {
-  return prisma.product.findUnique({ where: { id }, include: productInclude });
+export function findProductById(client: Prisma.TransactionClient, organizationId: string, outletId: string, id: string) {
+  return client.product.findFirst({
+    where: { id, organizationId },
+    include: productInclude(outletId),
+  });
 }
 
-export async function createProduct(data: {
+export async function createProduct(client: Prisma.TransactionClient, organizationId: string, outletId: string, data: {
   categoryId: string;
   name: string;
   sku: string | null;
@@ -107,8 +114,9 @@ export async function createProduct(data: {
     quantityRequired: string;
   }>;
 }) {
-  return prisma.product.create({
+  return client.product.create({
     data: {
+      organizationId,
       categoryId: data.categoryId,
       name: data.name,
       sku: data.sku,
@@ -117,9 +125,17 @@ export async function createProduct(data: {
       price: data.price,
       costPrice: data.costPrice,
       trackStock: data.trackStock,
-      stockQuantity: data.stockQuantity,
-      lowStockThreshold: data.lowStockThreshold,
-      isAvailable: data.isAvailable,
+      stockQuantity: null,
+      lowStockThreshold: null,
+      isAvailable: true,
+      outletProducts: {
+        create: {
+          outletId,
+          isAvailable: data.isAvailable,
+          stockQuantity: data.stockQuantity,
+          lowStockThreshold: data.lowStockThreshold,
+        },
+      },
       optionGroups: {
         create: data.optionGroups.map((group) => ({
           name: group.name,
@@ -147,11 +163,14 @@ export async function createProduct(data: {
         create: data.recipes,
       },
     },
-    include: productInclude,
+    include: productInclude(outletId),
   });
 }
 
 export async function updateProduct(
+  client: Prisma.TransactionClient,
+  organizationId: string,
+  outletId: string,
   id: string,
   data: {
     categoryId: string;
@@ -196,7 +215,14 @@ export async function updateProduct(
     }>;
   },
 ) {
-  const existingOptionGroups = await prisma.productOptionGroup.findMany({
+  const tx = client;
+  const existingProduct = await tx.product.findFirst({
+    where: { id, organizationId },
+    select: { id: true },
+  });
+  if (!existingProduct) return null;
+
+  const existingOptionGroups = await client.productOptionGroup.findMany({
     where: { productId: id },
     include: { values: true },
   });
@@ -207,7 +233,16 @@ export async function updateProduct(
     .map((group) => group.id)
     .filter((groupId) => !incomingOptionGroupIds.has(groupId));
 
-  return prisma.$transaction(async (tx) => {
+  const groupIds = new Set(existingOptionGroups.map((group) => group.id));
+  if ([...incomingOptionGroupIds].some((groupId) => !groupIds.has(groupId))) return null;
+  for (const group of data.optionGroups) {
+    if (!group.id) continue;
+    const existingGroup = existingOptionGroups.find((candidate) => candidate.id === group.id);
+    const valueIds = new Set(existingGroup?.values.map((value) => value.id) ?? []);
+    if (group.values.some((value) => value.id && !valueIds.has(value.id))) return null;
+  }
+
+  {
     if (deletedOptionGroupIds.length > 0) {
       await tx.productOptionGroup.updateMany({
         where: { id: { in: deletedOptionGroupIds }, productId: id },
@@ -219,8 +254,8 @@ export async function updateProduct(
       });
     }
 
-    await tx.product.update({
-      where: { id },
+    const updated = await tx.product.updateMany({
+      where: { id, organizationId },
       data: {
         categoryId: data.categoryId,
         name: data.name,
@@ -230,9 +265,23 @@ export async function updateProduct(
         price: data.price,
         costPrice: data.costPrice,
         trackStock: data.trackStock,
+      },
+    });
+    if (updated.count === 0) return null;
+
+    await tx.outletProduct.upsert({
+      where: { outletId_productId: { outletId, productId: id } },
+      update: {
+        isAvailable: data.isAvailable,
         stockQuantity: data.stockQuantity,
         lowStockThreshold: data.lowStockThreshold,
+      },
+      create: {
+        outletId,
+        productId: id,
         isAvailable: data.isAvailable,
+        stockQuantity: data.stockQuantity,
+        lowStockThreshold: data.lowStockThreshold,
       },
     });
 
@@ -242,8 +291,8 @@ export async function updateProduct(
 
     for (const group of data.optionGroups) {
       if (group.id) {
-        await tx.productOptionGroup.update({
-          where: { id: group.id },
+        await tx.productOptionGroup.updateMany({
+          where: { id: group.id, productId: id },
           data: {
             name: group.name,
             selectionType: group.selectionType,
@@ -300,8 +349,8 @@ export async function updateProduct(
       for (const value of group.values) {
         if (value.id) {
           const optionValueId = value.id;
-          await tx.productOptionValue.update({
-            where: { id: optionValueId },
+          await tx.productOptionValue.updateMany({
+            where: { id: optionValueId, groupId: group.id },
             data: {
               name: value.name,
               priceDelta: value.priceDelta,
@@ -365,6 +414,9 @@ export async function updateProduct(
       });
     }
 
-    return tx.product.findUniqueOrThrow({ where: { id }, include: productInclude });
-  });
+    return tx.product.findFirst({
+      where: { id, organizationId },
+      include: productInclude(outletId),
+    });
+  }
 }
