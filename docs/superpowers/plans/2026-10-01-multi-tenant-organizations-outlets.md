@@ -21,6 +21,8 @@
 
 ## Phase 0: Capture the Legacy Baseline
 
+**Review checkpoint:** Implemented on `feature/multi-tenant-organizations-outlets`. Awaiting user review before Phase 1. Verification evidence and limitations are recorded in `docs/runbooks/phase-0-review.md`.
+
 ### Task 1: Add tenant migration fixtures and invariant tooling
 
 **Files:**
@@ -31,12 +33,12 @@
 - Test: `src/lib/tenant-migration-invariants.test.ts`
 - Modify: `package.json`
 
-- [ ] Write failing tests for count comparisons, decimal financial sums, null tenant detection, outlet/organization consistency, membership coverage, and stock-row coverage.
-- [ ] Implement invariant calculation with Prisma `Decimal` values; do not compare financial values through JavaScript floating point.
-- [ ] Add `tenant:invariants:capture` and `tenant:invariants:verify` scripts.
-- [ ] Build a deterministic legacy fixture containing all roles, all order types/statuses, payment/refund data, recipes, direct stock, ingredient stock, activity logs, and accounting entries.
-- [ ] Run `npm test -- src/lib/tenant-migration-invariants.test.ts`.
-- [ ] Commit: `test: add tenancy migration invariants`
+- [x] Write failing tests for count comparisons, decimal financial sums, null tenant detection, outlet/organization consistency, membership coverage, and stock-row coverage.
+- [x] Implement invariant calculation with Prisma `Decimal` values; do not compare financial values through JavaScript floating point.
+- [x] Add `tenant:invariants:capture` and `tenant:invariants:verify` scripts.
+- [x] Build a deterministic legacy fixture containing all roles, all order types/statuses, payment/refund data, recipes, direct stock, ingredient stock, activity logs, and accounting entries.
+- [x] Run `npm test -- src/lib/tenant-migration-invariants.test.ts`.
+- [x] Commit: `test: add tenancy migration invariants`
 
 ### Task 2: Document the production migration runbook
 
@@ -44,10 +46,10 @@
 - Create: `docs/runbooks/multi-tenant-migration.md`
 - Create: `docs/runbooks/database-restore-rehearsal.md`
 
-- [ ] Specify backup ownership, Neon branch or restored-database rehearsal, expected commands, stop conditions, maintenance communication, session revocation, smoke tests, and rollback decision points.
-- [ ] Require saved pre/post invariant reports with the deployment record.
-- [ ] Confirm the runbook does not contain production credentials or literal connection strings.
-- [ ] Commit: `docs: add multi-tenant migration runbook`
+- [x] Specify backup ownership, Neon branch or restored-database rehearsal, expected commands, stop conditions, maintenance communication, session revocation, smoke tests, and rollback decision points.
+- [x] Require saved pre/post invariant reports with the deployment record.
+- [x] Confirm the runbook does not contain production credentials or literal connection strings.
+- [x] Commit: `docs: add multi-tenant migration runbook`
 
 ## Phase 1: Expand the Schema Without Changing Behavior
 
