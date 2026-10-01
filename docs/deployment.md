@@ -26,7 +26,9 @@ npm run build
 npm run start
 ```
 
-For Vercel-style builds, `npm run vercel-build` runs Prisma generation, migration deploy, and the Next.js build in one command.
+For Vercel builds, `npm run vercel-build` runs Prisma generation and the Next.js build. It runs migration deploy only when `VERCEL_ENV=production` and `VERCEL_GIT_COMMIT_REF=master`. Production builds from another or an unspecified branch stop before running any commands. Preview and local builds skip migrations.
+
+Give preview deployments a separate Neon database branch using Vercel's Preview environment variables. Prepare that isolated database explicitly with the feature branch's migrations before testing it. Do not assign the production database URL to Preview or Development environments. Merge this build guard into existing feature branches before their next deployment; they otherwise retain their previous build command.
 
 ## Database Notes
 

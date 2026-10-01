@@ -80,7 +80,7 @@ The seed script creates:
 | `npm run prisma:deploy` | Apply committed Prisma migrations in production/staging |
 | `npm run prisma:migrate` | Run Prisma migrations in development |
 | `npm run prisma:seed` | Seed demo users, catalog data, and app settings |
-| `npm run vercel-build` | Generate Prisma Client, deploy migrations, and build for Vercel |
+| `npm run vercel-build` | Generate Prisma Client and build; deploy migrations only for Vercel production builds from `master` |
 
 ## Production Deployment
 
