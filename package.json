@@ -12,6 +12,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "organization:provision": "tsx scripts/provision-organization.ts",
     "tenant:invariants:capture": "tsx scripts/capture-tenant-invariants.ts",
     "tenant:invariants:verify": "tsx scripts/verify-tenant-invariants.ts",
     "vercel-build": "prisma generate && prisma migrate deploy && next build"

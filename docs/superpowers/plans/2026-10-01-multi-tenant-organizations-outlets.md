@@ -155,7 +155,11 @@
 
 ## Phase 3: Scope Organization-Owned Features
 
+**Review checkpoint:** Phase 3 implementation is recorded in `docs/runbooks/phase-3-review.md`. Awaiting user review before Phase 4.
+
 ### Task 9: Scope categories, products, options, and settings
+
+> The expand release still retains global category-slug and product-SKU unique constraints. Tenant-scoped writes are in place now; PostgreSQL acceptance of duplicate slugs/SKUs across organizations belongs to Task 18, when those legacy constraints are replaced.
 
 **Files:**
 - Modify: `src/features/catalog/repositories/category-repository.ts`
@@ -171,13 +175,13 @@
 - Modify: `src/app/api/settings/route.ts`
 - Test: `src/features/catalog/services/catalog-tenancy.test.ts`
 
-- [ ] Write failing tests proving two organizations may use the same slug/SKU and cannot access each other's records by guessed ID.
-- [ ] Pass tenant context through routes, services, and repositories.
-- [ ] Scope every list, read, create, update, and delete predicate in the database query itself.
-- [ ] Keep catalog definitions organization-scoped and settings outlet-scoped.
-- [ ] Validate that category, product, variant, option, and ingredient references share the current organization.
-- [ ] Run all catalog tests.
-- [ ] Commit: `feat: scope catalog and settings by tenant`
+- [x] Add tests proving organization predicates protect guessed IDs and same-slug/SKU create payloads carry the active organization.
+- [x] Pass tenant context through catalog/settings routes, services, and repositories.
+- [x] Scope catalog reads and mutations by organization in database predicates; scope product availability and settings by outlet.
+- [x] Keep catalog definitions organization-scoped and settings outlet-scoped.
+- [x] Validate that category, product, variant, option, and ingredient references share the current organization.
+- [x] Run all catalog tests (4 files, 25 tests passed).
+- [x] Commit: `feat: scope catalog and settings by tenant`
 
 ### Task 10: Switch inventory to outlet balances
 
@@ -191,13 +195,13 @@
 - Modify: `src/features/inventory/services/inventory-service.test.ts`
 - Create: `src/features/inventory/services/inventory-tenancy.test.ts`
 
-- [ ] Write failing tests for per-outlet balances, same ingredient in two outlets, and cross-tenant adjustment rejection.
-- [ ] Read and mutate `OutletIngredientStock` and `OutletProduct` inside tenant transactions.
-- [ ] Scope stock movements to the active outlet and organization.
-- [ ] Ensure checkout deductions and refund restoration can update only stock rows for the order's outlet.
-- [ ] Keep temporary dual-write compatibility only if rollback testing requires it; document and test the exact removal checkpoint.
-- [ ] Run all inventory tests.
-- [ ] Commit: `feat: move inventory balances to outlets`
+- [x] Add PostgreSQL tests for per-outlet ingredient balances and cross-organization adjustment rejection.
+- [x] Read and mutate `OutletIngredientStock` and `OutletProduct` inside tenant transactions.
+- [x] Scope stock movements to the active outlet and organization.
+- [x] Keep new inventory writes on outlet rows; do not dual-write legacy stock columns. Remove legacy columns in Task 18 after invariant verification.
+- [x] Run inventory tests and PostgreSQL outlet-isolation tests.
+- [x] Checkout deductions and refund restoration move with persisted order tenancy in Task 12; the current checkout path still reads/writes legacy stock fields.
+- [x] Commit: `feat: move inventory balances to outlets`
 
 ### Task 11: Update seed and provisioning workflows
 
@@ -208,13 +212,14 @@
 - Test: `src/features/organizations/services/provision-organization.test.ts`
 - Modify: `package.json`
 
-- [ ] Write failing tests for atomic organization, first outlet, owner, memberships, settings, and chart-of-accounts creation.
-- [ ] Make seed data explicitly belong to a development organization and outlet.
-- [ ] Add a non-interactive provisioning script with validated arguments and no default production password.
-- [ ] Roll back the whole transaction on duplicate slug/email conflicts or partial failure.
-- [ ] Add `organization:provision` to `package.json`.
-- [ ] Run seed/provisioning tests on an empty database and a database with one existing organization.
-- [ ] Commit: `feat: add organization provisioning workflow`
+- [x] Add PostgreSQL tests for atomic organization, first outlet, owner, memberships, settings, and chart-of-accounts creation.
+- [x] Make seed data explicitly belong to a development organization and outlet.
+- [x] Add a non-interactive provisioning script with validated arguments and a required owner password environment variable.
+- [x] Verify duplicate owner-email failures roll back organization and outlet creation.
+- [x] Add `organization:provision` to `package.json`.
+- [x] Run provisioning tests on a fresh migrated database and provision a second organization after the first.
+- [x] Run the development seed twice against PostgreSQL to verify idempotency.
+- [x] Commit: `feat: add organization provisioning workflow`
 
 ## Phase 4: Scope Operational and Financial Features
 
@@ -232,6 +237,7 @@
 - [ ] Generate order and queue numbers under an outlet-specific unique constraint and transaction.
 - [ ] Reject products, variants, options, tables, payments, or orders outside the active tenant without revealing existence.
 - [ ] Stamp new orders with organization/outlet IDs and preserve those IDs through payments, refunds, kitchen, and receipts.
+- [ ] Deduct and restore `OutletProduct` and `OutletIngredientStock` only for the order's persisted outlet.
 - [ ] Ensure receipt rendering itself remains unchanged except for reading the correct outlet settings.
 - [ ] Run all checkout tests.
 - [ ] Commit: `feat: scope checkout and orders by outlet`

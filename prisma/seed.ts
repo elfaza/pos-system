@@ -1,9 +1,20 @@
-import { PrismaClient } from "@prisma/client";
+import { createMaintenancePrismaClient } from "../src/lib/prisma";
 import { hashPassword } from "../src/features/auth/utils/password";
 
-const prisma = new PrismaClient();
+// This seed is for local development only; these fixture passwords are not production credentials.
+const prisma = createMaintenancePrismaClient();
 
 async function main() {
+  const developmentOrganization = await prisma.organization.upsert({
+    where: { slug: "development" },
+    update: { name: "Development Organization", isActive: true },
+    create: { name: "Development Organization", slug: "development" },
+  });
+  const developmentOutlet = await prisma.outlet.upsert({
+    where: { organizationId_slug: { organizationId: developmentOrganization.id, slug: "main" } },
+    update: { name: "Development Outlet", isActive: true },
+    create: { organizationId: developmentOrganization.id, name: "Development Outlet", slug: "main" },
+  });
   const [adminPasswordHash, cashierPasswordHash, kitchenPasswordHash, queuePasswordHash, cfdPasswordHash] = await Promise.all([
     hashPassword("admin12345"),
     hashPassword("cashier12345"),
@@ -93,156 +104,208 @@ async function main() {
     },
   });
 
+  const seedUsers = await prisma.user.findMany({
+    where: { email: { in: ["admin@pos.local", "cashier@pos.local", "kitchen@pos.local", "queue@pos.local", "cfd@pos.local"] } },
+    select: { id: true, email: true },
+  });
+  const seedRoles = new Map([
+    ["cashier@pos.local", "cashier" as const],
+    ["kitchen@pos.local", "kitchen" as const],
+    ["queue@pos.local", "queue" as const],
+    ["cfd@pos.local", "customer_facing_display" as const],
+  ]);
+  for (const user of seedUsers) {
+    if (user.email === "admin@pos.local") {
+      await prisma.organizationMembership.upsert({
+        where: { organizationId_userId: { organizationId: developmentOrganization.id, userId: user.id } },
+        update: { role: "owner", isActive: true },
+        create: { organizationId: developmentOrganization.id, userId: user.id, role: "owner" },
+      });
+    }
+    await prisma.outletMembership.upsert({
+      where: { outletId_userId: { outletId: developmentOutlet.id, userId: user.id } },
+      update: { organizationId: developmentOrganization.id, role: user.email === "admin@pos.local" ? "admin" : seedRoles.get(user.email)!, isActive: true },
+      create: {
+        organizationId: developmentOrganization.id,
+        outletId: developmentOutlet.id,
+        userId: user.id,
+        role: user.email === "admin@pos.local" ? "admin" : seedRoles.get(user.email)!,
+      },
+    });
+  }
+
   const coffee = await prisma.category.upsert({
-    where: { slug: "coffee" },
-    update: { name: "Coffee", sortOrder: 10, isActive: true },
-    create: { name: "Coffee", slug: "coffee", sortOrder: 10 },
+    where: { slug: "development-coffee" },
+    update: { organizationId: developmentOrganization.id, name: "Coffee", sortOrder: 10, isActive: true },
+    create: { organizationId: developmentOrganization.id, name: "Coffee", slug: "development-coffee", sortOrder: 10 },
   });
 
   const nonCoffee = await prisma.category.upsert({
-    where: { slug: "non-coffee" },
-    update: { name: "Non-Coffee", sortOrder: 20, isActive: true },
-    create: { name: "Non-Coffee", slug: "non-coffee", sortOrder: 20 },
+    where: { slug: "development-non-coffee" },
+    update: { organizationId: developmentOrganization.id, name: "Non-Coffee", sortOrder: 20, isActive: true },
+    create: { organizationId: developmentOrganization.id, name: "Non-Coffee", slug: "development-non-coffee", sortOrder: 20 },
   });
 
   const food = await prisma.category.upsert({
-    where: { slug: "food" },
-    update: { name: "Food", sortOrder: 30, isActive: true },
-    create: { name: "Food", slug: "food", sortOrder: 30 },
+    where: { slug: "development-food" },
+    update: { organizationId: developmentOrganization.id, name: "Food", sortOrder: 30, isActive: true },
+    create: { organizationId: developmentOrganization.id, name: "Food", slug: "development-food", sortOrder: 30 },
   });
 
   const espresso = await prisma.product.upsert({
-    where: { sku: "COF-ESP" },
+    where: { sku: "DEV-COF-ESP" },
     update: {
+      organizationId: developmentOrganization.id,
       categoryId: coffee.id,
       name: "Espresso",
       price: "18000",
-      isAvailable: true,
       trackStock: false,
     },
     create: {
+      organizationId: developmentOrganization.id,
       categoryId: coffee.id,
       name: "Espresso",
-      sku: "COF-ESP",
+      sku: "DEV-COF-ESP",
       price: "18000",
     },
   });
 
   const latte = await prisma.product.upsert({
-    where: { sku: "COF-LAT" },
+    where: { sku: "DEV-COF-LAT" },
     update: {
+      organizationId: developmentOrganization.id,
       categoryId: coffee.id,
       name: "Caffe Latte",
       price: "28000",
-      isAvailable: true,
       trackStock: false,
     },
     create: {
+      organizationId: developmentOrganization.id,
       categoryId: coffee.id,
       name: "Caffe Latte",
-      sku: "COF-LAT",
+      sku: "DEV-COF-LAT",
       price: "28000",
     },
   });
 
   await prisma.productVariant.upsert({
-    where: { sku: "COF-LAT-L" },
-    update: { productId: latte.id, name: "Large", priceDelta: "6000", isActive: true },
-    create: { productId: latte.id, name: "Large", sku: "COF-LAT-L", priceDelta: "6000" },
+    where: { sku: "DEV-COF-LAT-L" },
+    update: { organizationId: developmentOrganization.id, productId: latte.id, name: "Large", priceDelta: "6000", isActive: true },
+    create: { organizationId: developmentOrganization.id, productId: latte.id, name: "Large", sku: "DEV-COF-LAT-L", priceDelta: "6000" },
   });
 
   const matcha = await prisma.product.upsert({
-    where: { sku: "NON-MAT" },
+    where: { sku: "DEV-NON-MAT" },
     update: {
+      organizationId: developmentOrganization.id,
       categoryId: nonCoffee.id,
       name: "Matcha Latte",
       price: "30000",
-      isAvailable: true,
       trackStock: false,
     },
     create: {
+      organizationId: developmentOrganization.id,
       categoryId: nonCoffee.id,
       name: "Matcha Latte",
-      sku: "NON-MAT",
+      sku: "DEV-NON-MAT",
       price: "30000",
     },
   });
 
   const croissant = await prisma.product.upsert({
-    where: { sku: "FOD-CRS" },
+    where: { sku: "DEV-FOD-CRS" },
     update: {
+      organizationId: developmentOrganization.id,
       categoryId: food.id,
       name: "Butter Croissant",
       price: "24000",
-      isAvailable: true,
       trackStock: true,
-      stockQuantity: "25",
-      lowStockThreshold: "5",
     },
     create: {
+      organizationId: developmentOrganization.id,
       categoryId: food.id,
       name: "Butter Croissant",
-      sku: "FOD-CRS",
+      sku: "DEV-FOD-CRS",
       price: "24000",
       trackStock: true,
-      stockQuantity: "25",
-      lowStockThreshold: "5",
     },
   });
 
   const beans = await prisma.ingredient.upsert({
-    where: { sku: "ING-BEANS" },
+    where: { sku: "DEV-ING-BEANS" },
     update: {
+      organizationId: developmentOrganization.id,
       name: "Espresso Beans",
       unit: "gram",
-      currentStock: "5000",
-      lowStockThreshold: "500",
+      currentStock: "0",
+      lowStockThreshold: null,
       isActive: true,
     },
     create: {
+      organizationId: developmentOrganization.id,
       name: "Espresso Beans",
-      sku: "ING-BEANS",
+      sku: "DEV-ING-BEANS",
       unit: "gram",
-      currentStock: "5000",
-      lowStockThreshold: "500",
+      currentStock: "0",
     },
   });
 
   const milk = await prisma.ingredient.upsert({
-    where: { sku: "ING-MILK" },
+    where: { sku: "DEV-ING-MILK" },
     update: {
+      organizationId: developmentOrganization.id,
       name: "Fresh Milk",
       unit: "ml",
-      currentStock: "12000",
-      lowStockThreshold: "2000",
+      currentStock: "0",
+      lowStockThreshold: null,
       isActive: true,
     },
     create: {
+      organizationId: developmentOrganization.id,
       name: "Fresh Milk",
-      sku: "ING-MILK",
+      sku: "DEV-ING-MILK",
       unit: "ml",
-      currentStock: "12000",
-      lowStockThreshold: "2000",
+      currentStock: "0",
     },
   });
 
   const matchaPowder = await prisma.ingredient.upsert({
-    where: { sku: "ING-MATCHA" },
+    where: { sku: "DEV-ING-MATCHA" },
     update: {
+      organizationId: developmentOrganization.id,
       name: "Matcha Powder",
       unit: "gram",
-      currentStock: "1500",
-      lowStockThreshold: "250",
+      currentStock: "0",
+      lowStockThreshold: null,
       isActive: true,
     },
     create: {
+      organizationId: developmentOrganization.id,
       name: "Matcha Powder",
-      sku: "ING-MATCHA",
+      sku: "DEV-ING-MATCHA",
       unit: "gram",
-      currentStock: "1500",
-      lowStockThreshold: "250",
+      currentStock: "0",
     },
   });
+
+  for (const [product, stockQuantity, lowStockThreshold] of [
+    [espresso, null, null], [latte, null, null], [matcha, null, null], [croissant, "25", "5"],
+  ] as const) {
+    await prisma.outletProduct.upsert({
+      where: { outletId_productId: { outletId: developmentOutlet.id, productId: product.id } },
+      update: { isAvailable: true, stockQuantity, lowStockThreshold },
+      create: { outletId: developmentOutlet.id, productId: product.id, isAvailable: true, stockQuantity, lowStockThreshold },
+    });
+  }
+  for (const [ingredient, currentStock, lowStockThreshold] of [
+    [beans, "5000", "500"], [milk, "12000", "2000"], [matchaPowder, "1500", "250"],
+  ] as const) {
+    await prisma.outletIngredientStock.upsert({
+      where: { outletId_ingredientId: { outletId: developmentOutlet.id, ingredientId: ingredient.id } },
+      update: { currentStock, lowStockThreshold },
+      create: { outletId: developmentOutlet.id, ingredientId: ingredient.id, currentStock, lowStockThreshold },
+    });
+  }
 
   await prisma.productIngredient.deleteMany({
     where: { productId: { in: [espresso.id, latte.id, matcha.id, croissant.id] } },
@@ -258,11 +321,15 @@ async function main() {
     ],
   });
 
-  const settings = await prisma.appSetting.findFirst();
+  const settings = await prisma.appSetting.findFirst({
+    where: { organizationId: developmentOrganization.id, outletId: developmentOutlet.id },
+  });
   if (settings) {
-    await prisma.appSetting.update({
-      where: { id: settings.id },
+    await prisma.appSetting.updateMany({
+      where: { id: settings.id, organizationId: developmentOrganization.id, outletId: developmentOutlet.id },
       data: {
+        organizationId: developmentOrganization.id,
+        outletId: developmentOutlet.id,
         storeName: "Maza Cafe",
         storeAddress: "Jakarta",
         storePhone: "+62 812 0000 0000",
@@ -276,6 +343,8 @@ async function main() {
   } else {
     await prisma.appSetting.create({
       data: {
+        organizationId: developmentOrganization.id,
+        outletId: developmentOutlet.id,
         storeName: "Maza Cafe",
         storeAddress: "Jakarta",
         storePhone: "+62 812 0000 0000",
@@ -288,48 +357,49 @@ async function main() {
     });
   }
 
+  const accountCode = (code: string) => `DEVELOPMENT-${code}`;
   const cashAccount = await prisma.account.upsert({
-    where: { code: "1000" },
-    update: { name: "Cash on Hand", type: "asset", isActive: true },
-    create: { code: "1000", name: "Cash on Hand", type: "asset" },
+    where: { code: accountCode("1000") },
+    update: { organizationId: developmentOrganization.id, name: "Cash on Hand", type: "asset", isActive: true },
+    create: { organizationId: developmentOrganization.id, code: accountCode("1000"), name: "Cash on Hand", type: "asset" },
   });
   const equityAccount = await prisma.account.upsert({
-    where: { code: "1100" },
-    update: { name: "QRIS Clearing", type: "asset", isActive: true },
-    create: { code: "1100", name: "QRIS Clearing", type: "asset" },
+    where: { code: accountCode("1100") },
+    update: { organizationId: developmentOrganization.id, name: "QRIS Clearing", type: "asset", isActive: true },
+    create: { organizationId: developmentOrganization.id, code: accountCode("1100"), name: "QRIS Clearing", type: "asset" },
   });
   await prisma.account.upsert({
-    where: { code: "3000" },
-    update: { name: "Owner Equity and Cash Variance", type: "equity", isActive: true },
-    create: { code: "3000", name: "Owner Equity and Cash Variance", type: "equity" },
+    where: { code: accountCode("3000") },
+    update: { organizationId: developmentOrganization.id, name: "Owner Equity and Cash Variance", type: "equity", isActive: true },
+    create: { organizationId: developmentOrganization.id, code: accountCode("3000"), name: "Owner Equity and Cash Variance", type: "equity" },
   });
   await prisma.account.upsert({
-    where: { code: "4000" },
-    update: { name: "Sales Revenue", type: "income", isActive: true },
-    create: { code: "4000", name: "Sales Revenue", type: "income" },
+    where: { code: accountCode("4000") },
+    update: { organizationId: developmentOrganization.id, name: "Sales Revenue", type: "income", isActive: true },
+    create: { organizationId: developmentOrganization.id, code: accountCode("4000"), name: "Sales Revenue", type: "income" },
   });
   await prisma.account.upsert({
-    where: { code: "4010" },
-    update: { name: "Service Charge Revenue", type: "income", isActive: true },
-    create: { code: "4010", name: "Service Charge Revenue", type: "income" },
+    where: { code: accountCode("4010") },
+    update: { organizationId: developmentOrganization.id, name: "Service Charge Revenue", type: "income", isActive: true },
+    create: { organizationId: developmentOrganization.id, code: accountCode("4010"), name: "Service Charge Revenue", type: "income" },
   });
   await prisma.account.upsert({
-    where: { code: "2100" },
-    update: { name: "Tax Payable", type: "liability", isActive: true },
-    create: { code: "2100", name: "Tax Payable", type: "liability" },
+    where: { code: accountCode("2100") },
+    update: { organizationId: developmentOrganization.id, name: "Tax Payable", type: "liability", isActive: true },
+    create: { organizationId: developmentOrganization.id, code: accountCode("2100"), name: "Tax Payable", type: "liability" },
   });
   const expenseAccount = await prisma.account.upsert({
-    where: { code: "5000" },
-    update: { name: "Operating Expense", type: "expense", isActive: true },
-    create: { code: "5000", name: "Operating Expense", type: "expense" },
+    where: { code: accountCode("5000") },
+    update: { organizationId: developmentOrganization.id, name: "Operating Expense", type: "expense", isActive: true },
+    create: { organizationId: developmentOrganization.id, code: accountCode("5000"), name: "Operating Expense", type: "expense" },
   });
 
   await Promise.all(
     ["Supplies", "Utilities", "Maintenance"].map((name) =>
       prisma.expenseCategory.upsert({
-        where: { name },
-        update: { accountId: expenseAccount.id, isActive: true },
-        create: { name, accountId: expenseAccount.id },
+        where: { name: `Development ${name}` },
+        update: { organizationId: developmentOrganization.id, accountId: expenseAccount.id, isActive: true },
+        create: { organizationId: developmentOrganization.id, name: `Development ${name}`, accountId: expenseAccount.id },
       }),
     ),
   );
@@ -338,7 +408,7 @@ async function main() {
     where: {
       sourceType_sourceId: {
         sourceType: "cash_movement",
-        sourceId: "seed-opening-cash",
+        sourceId: "development-seed-opening-cash",
       },
     },
     update: {
@@ -348,8 +418,10 @@ async function main() {
       description: "Opening cash float",
     },
     create: {
+      organizationId: developmentOrganization.id,
+      outletId: developmentOutlet.id,
       sourceType: "cash_movement",
-      sourceId: "seed-opening-cash",
+      sourceId: "development-seed-opening-cash",
       businessDate: "2026-05-04",
       direction: "in",
       amount: "500000",
@@ -361,14 +433,16 @@ async function main() {
     where: {
       sourceType_sourceId: {
         sourceType: "cash_movement",
-        sourceId: "seed-opening-cash",
+        sourceId: "development-seed-opening-cash",
       },
     },
     update: {},
     create: {
-      entryNumber: "JE-SEED-OPENING-CASH",
+      organizationId: developmentOrganization.id,
+      outletId: developmentOutlet.id,
+      entryNumber: "JE-DEVELOPMENT-SEED-OPENING-CASH",
       sourceType: "cash_movement",
-      sourceId: "seed-opening-cash",
+      sourceId: "development-seed-opening-cash",
       businessDate: "2026-05-04",
       description: "Opening cash float",
       lines: {
