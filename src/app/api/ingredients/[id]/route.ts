@@ -1,7 +1,24 @@
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
 import { requireUser } from "@/features/auth/services/session-service";
 import { requireModuleEnabled } from "@/features/catalog/services/module-config";
-import { updateIngredientFromPayload } from "@/features/inventory/services/inventory-service";
+import {
+  deleteIngredientById,
+  updateIngredientFromPayload,
+} from "@/features/inventory/services/inventory-service";
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requireUser(["admin"]);
+    const { id } = await params;
+    await deleteIngredientById(id, user);
+    return jsonOk({ deleted: true });
+  } catch (error) {
+    return jsonError(error);
+  }
+}
 
 export async function PATCH(
   request: Request,

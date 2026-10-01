@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from "@/lib/api-response";
 import {
   adjustIngredientFromPayload,
   createIngredientFromPayload,
+  deleteIngredientById,
   updateIngredientFromPayload,
 } from "./inventory-service";
 
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   activityLogCreate: vi.fn(),
   adjustIngredientStock: vi.fn(),
   createIngredient: vi.fn(),
+  deleteUnusedIngredient: vi.fn(),
   findIngredientById: vi.fn(),
   listIngredients: vi.fn(),
   listStockMovements: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock("../repositories/inventory-repository", () => ({
   adjustIngredientStock: mocks.adjustIngredientStock,
   countLowStockIngredients: mocks.countLowStockIngredients,
   createIngredient: mocks.createIngredient,
+  deleteUnusedIngredient: mocks.deleteUnusedIngredient,
   findIngredientById: mocks.findIngredientById,
   listIngredients: mocks.listIngredients,
   listStockMovements: mocks.listStockMovements,
@@ -183,5 +186,31 @@ describe("inventory service", () => {
       createIngredientFromPayload({ name: "Milk", unit: "ml" }, actor),
     ).rejects.toBeInstanceOf(ForbiddenError);
     expect(mocks.createIngredient).not.toHaveBeenCalled();
+  });
+
+  it("deletes unused ingredients using the current actor", async () => {
+    mocks.deleteUnusedIngredient.mockResolvedValueOnce("deleted");
+    await deleteIngredientById("ingredient-1", actor);
+    expect(mocks.deleteUnusedIngredient).toHaveBeenCalledWith("ingredient-1", actor.id);
+  });
+
+  it("explains why ingredients in use cannot be deleted", async () => {
+    mocks.deleteUnusedIngredient.mockResolvedValueOnce("in_use");
+    await expect(deleteIngredientById("ingredient-1", actor)).rejects.toThrow(
+      "This ingredient has stock, recipe references, or stock history and cannot be deleted.",
+    );
+  });
+
+  it("returns not found when deleting a missing ingredient", async () => {
+    mocks.deleteUnusedIngredient.mockResolvedValueOnce("not_found");
+    await expect(deleteIngredientById("missing", actor)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("does not delete ingredients when inventory is disabled", async () => {
+    mocks.requireModuleEnabled.mockRejectedValueOnce(new Error("Inventory module is disabled."));
+    await expect(deleteIngredientById("ingredient-1", actor)).rejects.toThrow(
+      "Inventory module is disabled.",
+    );
+    expect(mocks.deleteUnusedIngredient).not.toHaveBeenCalled();
   });
 });

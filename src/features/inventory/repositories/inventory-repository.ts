@@ -72,6 +72,39 @@ export function updateIngredient(
   return prisma.ingredient.update({ where: { id }, data });
 }
 
+export async function deleteUnusedIngredient(id: string, actorId: string) {
+  return prisma.$transaction(async (tx) => {
+    // Serialize against stock updates and new references before checking usage.
+    await tx.$queryRaw`SELECT id FROM ingredients WHERE id = ${id} FOR UPDATE`;
+    // Keep the stock and reference guards on the delete itself.
+    const result = await tx.ingredient.deleteMany({
+      where: {
+        id,
+        currentStock: 0,
+        productIngredients: { none: {} },
+        optionValueIngredients: { none: {} },
+        optionValueReplacementSources: { none: {} },
+        optionValueReplacementTargets: { none: {} },
+        stockMovements: { none: {} },
+      },
+    });
+    if (result.count === 0) {
+      const existing = await tx.ingredient.findUnique({ where: { id } });
+      return existing ? "in_use" as const : "not_found" as const;
+    }
+
+    await tx.activityLog.create({
+      data: {
+        userId: actorId,
+        action: "ingredient.deleted",
+        entityType: "ingredient",
+        entityId: id,
+      },
+    });
+    return "deleted" as const;
+  });
+}
+
 export function listStockMovements(filters: {
   ingredientId?: string;
   type?: "sale_deduction" | "adjustment" | "waste" | "refund_restore";
