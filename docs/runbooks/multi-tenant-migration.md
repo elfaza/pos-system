@@ -28,6 +28,15 @@ The migration is split into two production releases.
 
 Never combine these releases. The compatibility observation period must complete first.
 
+## Disposable PostgreSQL Integration Tests
+
+Phase 1 integration tests require PostgreSQL. Never point these commands at production or a database with data that must be kept.
+
+- `TENANT_BACKFILL_TEST_DATABASE_URL` must point to an empty disposable database with the 13 legacy migrations applied. The test loads the deterministic fixture, applies the tenant migrations, and leaves that database migrated for inspection. Its database name must end in `_test`.
+- `TENANT_INTEGRATION_DATABASE_URL` must point to a disposable database with the tenant migrations applied. The schema constraint test creates and removes its test rows.
+
+Run the tests with `TENANT_BACKFILL_TEST_DATABASE_URL=<disposable-test-database-url> npm test -- src/lib/tenant-backfill.integration.test.ts` and `TENANT_INTEGRATION_DATABASE_URL=<disposable-test-database-url> npm test -- src/features/organizations/tenant-schema.integration.test.ts`.
+
 ## Roles
 
 - **Release owner:** controls deploy/pause/rollback decisions.

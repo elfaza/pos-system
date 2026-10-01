@@ -154,30 +154,30 @@ INSERT INTO "organization_memberships" (
     "id", "organization_id", "user_id", "role", "is_active", "created_at", "updated_at"
 )
 SELECT
-    'legacy_org_member_' || md5(user."id"),
+    'legacy_org_member_' || md5(legacy_user."id"),
     'org_legacy_default',
-    user."id",
+    legacy_user."id",
     'owner'::"OrganizationRole",
-    user."is_active",
-    user."created_at",
-    user."updated_at"
-FROM "users" AS user
-WHERE user."role"::TEXT = 'admin'
+    legacy_user."is_active",
+    legacy_user."created_at",
+    legacy_user."updated_at"
+FROM "users" AS legacy_user
+WHERE legacy_user."role"::TEXT = 'admin'
 ON CONFLICT ("organization_id", "user_id") DO NOTHING;
 
 INSERT INTO "outlet_memberships" (
     "id", "organization_id", "outlet_id", "user_id", "role", "is_active", "created_at", "updated_at"
 )
 SELECT
-    'legacy_outlet_member_' || md5(user."id"),
+    'legacy_outlet_member_' || md5(legacy_user."id"),
     'org_legacy_default',
     'outlet_legacy_default',
-    user."id",
-    user."role"::TEXT::"OutletRole",
-    user."is_active",
-    user."created_at",
-    user."updated_at"
-FROM "users" AS user
+    legacy_user."id",
+    legacy_user."role"::TEXT::"OutletRole",
+    legacy_user."is_active",
+    legacy_user."created_at",
+    legacy_user."updated_at"
+FROM "users" AS legacy_user
 ON CONFLICT ("outlet_id", "user_id") DO NOTHING;
 
 INSERT INTO "outlet_products" (

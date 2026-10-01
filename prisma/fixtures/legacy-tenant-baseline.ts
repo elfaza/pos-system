@@ -3,6 +3,15 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 
 const FIXTURE_DATE = new Date("2026-09-30T08:00:00.000Z");
 const BUSINESS_DATE = "2026-09-30";
+const LEGACY_MODEL_NAMES = new Set([
+  "User", "Session", "Category", "Product", "ProductVariant",
+  "ProductOptionGroup", "ProductOptionValue", "Ingredient", "ProductIngredient",
+  "ProductOptionValueIngredient", "ProductOptionValueIngredientReplacement",
+  "AppSetting", "CustomerDisplayState", "Order", "DiningTable", "OrderItem",
+  "OrderItemOptionSelection", "Payment", "Refund", "StockMovement", "ActivityLog",
+  "Account", "JournalEntry", "JournalEntryLine", "ExpenseCategory", "Expense",
+  "CashMovement", "CashLedgerEntry", "DailyClose",
+]);
 
 function deterministicPasswordHash(password: string) {
   const salt = "00112233445566778899aabbccddeeff";
@@ -13,7 +22,7 @@ function deterministicPasswordHash(password: string) {
 async function assertEmptyDatabase(client: Prisma.TransactionClient) {
   const delegates = client as unknown as Record<string, { count(): Promise<number> }>;
   const populatedModels = await Promise.all(
-    Prisma.dmmf.datamodel.models.map((model) => {
+    Prisma.dmmf.datamodel.models.filter((model) => LEGACY_MODEL_NAMES.has(model.name)).map((model) => {
       const delegate = model.name[0].toLowerCase() + model.name.slice(1);
       return delegates[delegate].count();
     }),
@@ -48,6 +57,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         tokenHash: "legacy-fixture-session-token-hash",
         expiresAt: new Date("2026-10-07T08:00:00.000Z"),
       },
+      select: { id: true },
     });
 
     await client.category.createMany({
@@ -93,6 +103,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         priceDelta: "5000",
         costDelta: "2000",
       },
+      select: { id: true },
     });
 
     await client.ingredient.createMany({
@@ -124,6 +135,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
           ],
         },
       },
+      select: { id: true },
     });
 
     await client.productOptionValueIngredient.create({
@@ -133,6 +145,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         ingredientId: "legacy_ingredient_oat",
         quantityRequired: "180",
       },
+      select: { id: true },
     });
     await client.productOptionValueIngredientReplacement.create({
       data: {
@@ -142,6 +155,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         replacementIngredientId: "legacy_ingredient_oat",
         quantityRequired: "180",
       },
+      select: { id: true },
     });
 
     await client.appSetting.create({
@@ -156,6 +170,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         serviceChargeRate: "5",
         receiptFooter: "Legacy fixture receipt",
       },
+      select: { id: true },
     });
     await client.customerDisplayState.create({
       data: {
@@ -165,9 +180,11 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         storeName: "Legacy Cafe",
         payload: { orderNumber: "LEGACY-PAID", totalAmount: 55000 },
       },
+      select: { id: true },
     });
     await client.diningTable.create({
       data: { id: "legacy_table_1", name: "Table 1", sortOrder: 10 },
+      select: { id: true },
     });
 
     const orderDefinitions = [
@@ -211,6 +228,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
             },
           },
         },
+        select: { id: true },
       });
     }
 
@@ -224,6 +242,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         valueNameSnapshot: "Oat milk",
         priceDelta: "5000",
       },
+      select: { id: true },
     });
 
     await client.payment.createMany({
@@ -243,6 +262,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         reason: "Fixture refund",
         stockRestored: true,
       },
+      select: { id: true },
     });
 
     await client.stockMovement.createMany({
@@ -270,6 +290,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         name: "Fixture Supplies",
         accountId: "legacy_account_expense",
       },
+      select: { id: true },
     });
     await client.expense.create({
       data: {
@@ -281,6 +302,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         description: "Fixture supplies",
         createdByUserId: "legacy_user_admin",
       },
+      select: { id: true },
     });
     await client.cashMovement.create({
       data: {
@@ -291,6 +313,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         reason: "Fixture opening cash",
         createdByUserId: "legacy_user_admin",
       },
+      select: { id: true },
     });
     await client.cashLedgerEntry.createMany({
       data: [
@@ -316,6 +339,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
           ],
         },
       },
+      select: { id: true },
     });
     await client.journalEntry.create({
       data: {
@@ -333,6 +357,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
           ],
         },
       },
+      select: { id: true },
     });
     await client.journalEntry.create({
       data: {
@@ -350,6 +375,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
           ],
         },
       },
+      select: { id: true },
     });
 
     await client.dailyClose.create({
@@ -362,6 +388,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         closedByUserId: "legacy_user_admin",
         closedAt: FIXTURE_DATE,
       },
+      select: { id: true },
     });
     await client.activityLog.createMany({
       data: [
@@ -375,7 +402,7 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
     const delegates = client as unknown as Record<string, {
       updateMany(input: { data: Record<string, Date> }): Promise<unknown>;
     }>;
-    for (const model of Prisma.dmmf.datamodel.models) {
+    for (const model of Prisma.dmmf.datamodel.models.filter((candidate) => LEGACY_MODEL_NAMES.has(candidate.name))) {
       const timestampFields = model.fields.filter((field) =>
         field.name === "createdAt" || field.name === "updatedAt",
       );

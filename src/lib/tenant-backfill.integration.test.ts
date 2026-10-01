@@ -1,6 +1,14 @@
+import { execFileSync } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
 import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PrismaClient } from "@prisma/client";
 import { describe, expect, it } from "vitest";
+import { loadLegacyTenantBaseline } from "../../prisma/fixtures/legacy-tenant-baseline";
+
+const legacyDatabaseUrl = process.env.TENANT_BACKFILL_TEST_DATABASE_URL;
+const postgresIntegration = legacyDatabaseUrl ? describe : describe.skip;
 
 const migrationPath = join(
   process.cwd(),
@@ -51,9 +59,9 @@ describe("legacy tenant backfill migration", () => {
   });
 
   it("creates owner and outlet memberships while preserving legacy roles", () => {
-    expect(sql).toContain('user."role"::TEXT = \'admin\'');
+    expect(sql).toContain('legacy_user."role"::TEXT = \'admin\'');
     expect(sql).toContain("'owner'::\"OrganizationRole\"");
-    expect(sql).toContain('user."role"::TEXT::"OutletRole"');
+    expect(sql).toContain('legacy_user."role"::TEXT::"OutletRole"');
     expect(sql).not.toMatch(/ALTER TABLE\s+\"users\"[\s\S]*DROP COLUMN\s+\"role\"/i);
   });
 
@@ -62,4 +70,36 @@ describe("legacy tenant backfill migration", () => {
     expect(sql).toMatch(/INSERT INTO\s+\"outlet_ingredient_stocks\"[\s\S]*?current_stock[\s\S]*?low_stock_threshold/i);
     expect(sql).toMatch(/UPDATE\s+\"sessions\"[\s\S]*?active_organization_id[\s\S]*?active_outlet_id/i);
   });
+});
+
+postgresIntegration("legacy tenant backfill against PostgreSQL", () => {
+  it("loads the deterministic fixture, applies migrations, and verifies all invariants", async () => {
+    const databaseName = new URL(legacyDatabaseUrl!).pathname;
+    expect(databaseName).toMatch(/_test$/);
+
+    const reportsDirectory = await mkdtemp(join(tmpdir(), "tenant-backfill-reports-"));
+    const beforePath = join(reportsDirectory, "before.json");
+    const afterPath = join(reportsDirectory, "after.json");
+    const env = { ...process.env, DATABASE_URL: legacyDatabaseUrl! };
+    const prisma = new PrismaClient({ datasources: { db: { url: legacyDatabaseUrl! } } });
+
+    try {
+      const [migrationState] = await prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*)::bigint AS count
+        FROM "_prisma_migrations"
+        WHERE "finished_at" IS NOT NULL
+      `;
+      expect(Number(migrationState.count)).toBe(13);
+      await loadLegacyTenantBaseline(prisma);
+      await prisma.$disconnect();
+
+      execFileSync("npm", ["run", "tenant:invariants:capture", "--", "--stage", "legacy", "--output", beforePath], { cwd: process.cwd(), env, stdio: "pipe" });
+      execFileSync("npx", ["prisma", "migrate", "deploy"], { cwd: process.cwd(), env, stdio: "pipe" });
+      execFileSync("npm", ["run", "tenant:invariants:capture", "--", "--stage", "tenant", "--output", afterPath], { cwd: process.cwd(), env, stdio: "pipe" });
+      execFileSync("npm", ["run", "tenant:invariants:verify", "--", "--before", beforePath, "--after", afterPath], { cwd: process.cwd(), env, stdio: "pipe" });
+    } finally {
+      await prisma.$disconnect();
+      await rm(reportsDirectory, { recursive: true, force: true });
+    }
+  }, 180_000);
 });

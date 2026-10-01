@@ -60,14 +60,14 @@
 - Create: `prisma/migrations/<timestamp>_tenant_foundation_expand/migration.sql`
 - Test: `src/features/auth/services/tenant-membership.test.ts`
 
-- [ ] Write failing model-level integration tests for organization slug uniqueness, outlet slug uniqueness within an organization, unique organization membership, unique outlet membership, and membership/outlet organization consistency.
-- [ ] Add `Organization`, `Outlet`, `OrganizationMembership`, and `OutletMembership` models plus explicit role enums.
-- [ ] Add nullable `activeOrganizationId` and `activeOutletId` to `Session`.
-- [ ] Keep `User.role` unchanged in this migration.
-- [ ] Add indexes for membership lookup by user and active tenant lookup by session.
-- [ ] Run `npx prisma validate` and `npx prisma generate`.
-- [ ] Run the focused tests.
-- [ ] Commit: `feat: add organization and outlet foundation`
+- [x] Write failing model-level integration tests for organization slug uniqueness, outlet slug uniqueness within an organization, unique organization membership, unique outlet membership, and membership/outlet organization consistency.
+- [x] Add `Organization`, `Outlet`, `OrganizationMembership`, and `OutletMembership` models plus explicit role enums.
+- [x] Add nullable `activeOrganizationId` and `activeOutletId` to `Session`.
+- [x] Keep `User.role` unchanged in this migration.
+- [x] Add indexes for membership lookup by user and active tenant lookup by session.
+- [x] Run `npx prisma validate` and `npx prisma generate`.
+- [x] Run the focused tests against disposable PostgreSQL.
+- [x] Commit: `feat: add organization and outlet foundation`
 
 ### Task 4: Add nullable scope columns and outlet inventory tables
 
@@ -76,14 +76,14 @@
 - Create: `prisma/migrations/<timestamp>_tenant_scope_expand/migration.sql`
 - Test: `src/features/inventory/services/outlet-stock.test.ts`
 
-- [ ] Write failing tests for one outlet-product row per product/outlet and one outlet-ingredient-stock row per ingredient/outlet.
-- [ ] Add nullable `organizationId` to organization-owned root models: `Category`, `Product`, `ProductVariant`, `Ingredient`, `Account`, and `ExpenseCategory`.
-- [ ] Add nullable `organizationId` and `outletId` to operational root models: `AppSetting`, `CustomerDisplayState`, `Order`, `DiningTable`, `StockMovement`, `ActivityLog`, `JournalEntry`, `Expense`, `CashMovement`, `CashLedgerEntry`, and `DailyClose`.
-- [ ] Add `OutletProduct` and `OutletIngredientStock` with decimal stock fields and compound unique keys.
-- [ ] Keep all current global unique constraints and legacy stock/availability columns for compatibility.
-- [ ] Add indexes beginning with tenant keys for the date/status lookup patterns already used by repositories.
-- [ ] Run `npx prisma validate`, `npx prisma generate`, and focused tests.
-- [ ] Commit: `feat: expand schema for tenant-scoped data`
+- [x] Write failing tests for one outlet-product row per product/outlet and one outlet-ingredient-stock row per ingredient/outlet.
+- [x] Add nullable `organizationId` to organization-owned root models: `Category`, `Product`, `ProductVariant`, `Ingredient`, `Account`, and `ExpenseCategory`.
+- [x] Add nullable `organizationId` and `outletId` to operational root models: `AppSetting`, `CustomerDisplayState`, `Order`, `DiningTable`, `StockMovement`, `ActivityLog`, `JournalEntry`, `Expense`, `CashMovement`, `CashLedgerEntry`, and `DailyClose`.
+- [x] Add `OutletProduct` and `OutletIngredientStock` with decimal stock fields and compound unique keys.
+- [x] Keep all current global unique constraints and legacy stock/availability columns for compatibility.
+- [x] Add indexes beginning with tenant keys for the date/status lookup patterns already used by repositories.
+- [x] Run `npx prisma validate`, `npx prisma generate`, and focused PostgreSQL tests.
+- [x] Commit: `feat: expand schema for tenant-scoped data`
 
 ### Task 5: Backfill the existing customer deterministically
 
@@ -92,15 +92,15 @@
 - Create: `scripts/revoke-legacy-sessions.ts`
 - Test: `src/lib/tenant-backfill.integration.test.ts`
 
-- [ ] Write a failing integration test that loads the legacy fixture, applies the backfill, and verifies all invariants.
-- [ ] Insert stable legacy IDs such as `org_legacy_default` and `outlet_legacy_default` only when they do not already exist.
-- [ ] Backfill tenant columns for every existing root row.
-- [ ] Convert existing users: `admin` becomes organization owner plus outlet admin; every other role becomes an outlet membership with the same effective role.
-- [ ] Copy product availability/direct stock and ingredient stock into outlet rows without changing legacy values.
-- [ ] Populate session tenant columns for testability, but plan to revoke production sessions at cutover.
-- [ ] Make the SQL idempotent enough to detect and stop on conflicting legacy IDs rather than silently attaching unrelated data.
-- [ ] Run the invariant verifier against the migrated fixture.
-- [ ] Commit: `feat: backfill legacy data into default tenant`
+- [x] Write a PostgreSQL integration test that loads the legacy fixture, applies the backfill, and verifies all invariants.
+- [x] Insert stable legacy IDs such as `org_legacy_default` and `outlet_legacy_default` only when they do not already exist.
+- [x] Backfill tenant columns for every existing root row.
+- [x] Convert existing users: `admin` becomes organization owner plus outlet admin; every other role becomes an outlet membership with the same effective role.
+- [x] Copy product availability/direct stock and ingredient stock into outlet rows without changing legacy values.
+- [x] Populate session tenant columns for testability, but plan to revoke production sessions at cutover.
+- [x] Make the SQL idempotent enough to detect and stop on conflicting legacy IDs rather than silently attaching unrelated data.
+- [x] Run the invariant verifier against the migrated fixture.
+- [x] Commit: `feat: backfill legacy data into default tenant`
 
 ## Phase 2: Introduce Server-Derived Tenant Context
 
