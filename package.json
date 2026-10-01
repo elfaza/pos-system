@@ -14,7 +14,7 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "tenant:invariants:capture": "tsx scripts/capture-tenant-invariants.ts",
     "tenant:invariants:verify": "tsx scripts/verify-tenant-invariants.ts",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build"
+    "vercel-build": "node scripts/vercel-build.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
