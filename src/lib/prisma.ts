@@ -7,6 +7,14 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+/** Create a dedicated client for scripts, migrations, and provisioning jobs. */
+export function createMaintenancePrismaClient(): PrismaClient {
+  return new PrismaClient({
+    datasourceUrl: getDatabaseUrl(),
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
+}
+
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({

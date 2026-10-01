@@ -146,12 +146,12 @@
 - Create: `src/lib/tenant-prisma.test.ts`
 - Modify: `src/lib/prisma.ts`
 
-- [ ] Write failing tests showing tenant values are transaction-local, cleared after commit/rollback, and never reused by a later transaction.
-- [ ] Implement `withTenantTransaction(context, callback)` using an interactive Prisma transaction and parameterized PostgreSQL `set_config(..., true)` calls.
-- [ ] Expose only `Prisma.TransactionClient` to tenant repository callbacks.
-- [ ] Keep non-request migration/provisioning Prisma access explicit and separate.
-- [ ] Run the test against PostgreSQL, not an in-memory substitute.
-- [ ] Commit: `feat: add tenant-scoped database transactions`
+- [x] Add tests showing tenant values are transaction-local, cleared after commit/rollback, and never reused by a later transaction.
+- [x] Implement `withTenantTransaction(context, callback)` using an interactive Prisma transaction and parameterized PostgreSQL `set_config(..., true)` calls.
+- [x] Expose only `Prisma.TransactionClient` to tenant repository callbacks.
+- [x] Keep non-request migration/provisioning Prisma access explicit and separate.
+- [x] Run the test against PostgreSQL 18 (2 passed).
+- [x] Commit: `feat: add tenant-scoped database transactions`
 
 ## Phase 3: Scope Organization-Owned Features
 
