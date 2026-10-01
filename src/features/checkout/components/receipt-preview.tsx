@@ -141,11 +141,13 @@ export default function ReceiptPreview({
         <div className="grid gap-1">
           {order.items.map((item) => (
             <div key={item.id}>
-              <div className="grid grid-cols-[1fr_28px_58px_58px] gap-1">
-                <span className="min-w-0 truncate">
+              <div className="break-words">
+                <span>
                   {item.productNameSnapshot}
                   {item.variantNameSnapshot ? ` / ${item.variantNameSnapshot}` : ""}
                 </span>
+              </div>
+              <div className="grid grid-cols-[1fr_58px_58px] gap-1 pl-2">
                 <span className="text-right">{item.quantity}x</span>
                 <span className="text-right">
                   {formatReceiptAmount(item.unitPrice)}

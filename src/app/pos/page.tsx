@@ -13,6 +13,10 @@ import type {
   SettingsRecord,
 } from "@/features/catalog/types";
 import { calculateCartTotals, formatRupiah } from "@/features/checkout/services/checkout-calculations";
+import {
+  formatOrderTypeLabel,
+  orderTypeOptions,
+} from "@/features/checkout/services/order-type-options";
 import { useCartStore } from "@/features/checkout/stores/cart-store";
 import { useCustomerDisplaySync } from "@/features/customer-display/hooks/use-customer-display-sync";
 import type {
@@ -22,15 +26,6 @@ import type {
   DiningTableRecord,
   OrderType,
 } from "@/features/checkout/types";
-
-const orderTypeOptions: Array<{ value: OrderType; label: string }> = [
-  { value: "takeaway", label: "Take-away" },
-  { value: "delivery", label: "Delivery" },
-];
-
-function formatOrderTypeLabel(orderType: OrderType | null | undefined) {
-  return orderTypeOptions.find((option) => option.value === orderType)?.label ?? "-";
-}
 
 function isInsufficientStock(item: CartItem, inventoryEnabled: boolean): boolean {
   return (
@@ -231,7 +226,7 @@ function PosCart({
         ) : null}
         {needsOrderType ? (
           <p className="mt-3 rounded-md bg-orange-50 p-2 text-sm text-[var(--warning)]">
-            Choose Take-away or Delivery before checkout.
+            Choose Dine-in, Take-away, or Delivery before checkout.
           </p>
         ) : null}
         {dineInPayLaterDisabled ? (
@@ -1167,7 +1162,7 @@ function PosContent() {
 
   function handleProductClick(product: ProductRecord) {
     if (selectedOrderType === null) {
-      setCartMessage("Choose Take-away or Delivery before selecting products.");
+      setCartMessage("Choose Dine-in, Take-away, or Delivery before selecting products.");
       return;
     }
 

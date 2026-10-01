@@ -34,3 +34,20 @@ export interface CustomerDisplayUpdateInput {
   totals: CartTotals;
   paidOrderNumber?: string | null;
 }
+
+export interface CustomerDisplayMenuItemRecord {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  price: number;
+}
+
+export interface CustomerDisplayMenuCategoryRecord {
+  id: string;
+  name: string;
+  products: CustomerDisplayMenuItemRecord[];
+}
+
+export interface CustomerDisplayMenuRecord {
+  categories: CustomerDisplayMenuCategoryRecord[];
+}

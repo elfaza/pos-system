@@ -309,6 +309,11 @@ export async function getProductList(url: URL, includeUnavailable: boolean) {
   return products.map(mapProduct);
 }
 
+export async function getAvailableProductList() {
+  const products = await listProducts({ includeUnavailable: false });
+  return products.map(mapProduct);
+}
+
 export function getProductListLimit(): number {
   return productListLimit;
 }

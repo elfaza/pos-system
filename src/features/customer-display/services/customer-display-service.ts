@@ -1,7 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { ValidationError } from "@/lib/api-response";
 import { getSettings } from "@/features/catalog/repositories/settings-repository";
+import { getCategoryList } from "@/features/catalog/services/category-service";
+import { getAvailableProductList } from "@/features/catalog/services/product-service";
 import type {
+  CustomerDisplayMenuRecord,
   CustomerDisplayRecord,
   CustomerDisplayUpdateInput,
 } from "../types";
@@ -145,6 +148,30 @@ export async function getCustomerDisplay(): Promise<CustomerDisplayRecord> {
   }
 
   return record;
+}
+
+export async function getCustomerDisplayMenu(): Promise<CustomerDisplayMenuRecord> {
+  const [categories, products] = await Promise.all([
+    getCategoryList(false),
+    getAvailableProductList(),
+  ]);
+
+  return {
+    categories: categories.flatMap((category) => {
+      const categoryProducts = products
+        .filter((product) => product.categoryId === category.id && product.canSellOne)
+        .map((product) => ({
+          id: product.id,
+          name: product.name,
+          imageUrl: product.imageUrl,
+          price: product.price,
+        }));
+
+      if (categoryProducts.length === 0) return [];
+
+      return [{ id: category.id, name: category.name, products: categoryProducts }];
+    }),
+  };
 }
 
 function validateUpdateInput(payload: Record<string, unknown>): CustomerDisplayUpdateInput {

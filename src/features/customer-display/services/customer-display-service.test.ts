@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getCustomerDisplay,
+  getCustomerDisplayMenu,
   updateCustomerDisplayFromPayload,
 } from "./customer-display-service";
 
 const mocks = vi.hoisted(() => ({
   findCustomerDisplayState: vi.fn(),
+  getAvailableProductList: vi.fn(),
+  getCategoryList: vi.fn(),
   getSettings: vi.fn(),
   upsertCustomerDisplayState: vi.fn(),
 }));
@@ -17,6 +20,14 @@ vi.mock("../repositories/customer-display-repository", () => ({
 
 vi.mock("@/features/catalog/repositories/settings-repository", () => ({
   getSettings: mocks.getSettings,
+}));
+
+vi.mock("@/features/catalog/services/category-service", () => ({
+  getCategoryList: mocks.getCategoryList,
+}));
+
+vi.mock("@/features/catalog/services/product-service", () => ({
+  getAvailableProductList: mocks.getAvailableProductList,
 }));
 
 describe("customer display service", () => {
@@ -104,5 +115,71 @@ describe("customer display service", () => {
     expect(mocks.upsertCustomerDisplayState).toHaveBeenCalledWith(
       expect.objectContaining({ status: "active", storeName: "Maza Cafe" }),
     );
+  });
+
+  it("returns only sellable customer-facing menu fields grouped by active category", async () => {
+    mocks.getCategoryList.mockResolvedValue([
+      { id: "cat-drinks", name: "Drinks", sortOrder: 1 },
+      { id: "cat-food", name: "Food", sortOrder: 2 },
+      { id: "cat-empty", name: "Empty", sortOrder: 3 },
+    ]);
+    mocks.getAvailableProductList.mockResolvedValue([
+      {
+        id: "product-coffee",
+        categoryId: "cat-drinks",
+        name: "Coffee",
+        imageUrl: "/coffee.jpg",
+        price: 22000,
+        costPrice: 9000,
+        stockQuantity: 12,
+        recipes: [{ id: "secret-recipe" }],
+        canSellOne: true,
+      },
+      {
+        id: "product-sold-out",
+        categoryId: "cat-drinks",
+        name: "Sold out tea",
+        imageUrl: null,
+        price: 15000,
+        canSellOne: false,
+      },
+      {
+        id: "product-rice",
+        categoryId: "cat-food",
+        name: "Nasi Ayam",
+        imageUrl: null,
+        price: 25000,
+        canSellOne: true,
+      },
+    ]);
+
+    await expect(getCustomerDisplayMenu()).resolves.toEqual({
+      categories: [
+        {
+          id: "cat-drinks",
+          name: "Drinks",
+          products: [
+            {
+              id: "product-coffee",
+              name: "Coffee",
+              imageUrl: "/coffee.jpg",
+              price: 22000,
+            },
+          ],
+        },
+        {
+          id: "cat-food",
+          name: "Food",
+          products: [
+            {
+              id: "product-rice",
+              name: "Nasi Ayam",
+              imageUrl: null,
+              price: 25000,
+            },
+          ],
+        },
+      ],
+    });
   });
 });
