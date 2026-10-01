@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getDatabaseUrl } from "@/lib/env";
+import { ForbiddenError, NotFoundError } from "@/lib/api-response";
 import type { LoginPayload, User } from "../types";
+import type { TenantContext, TenantContextResolution } from "../types";
+import { getAccessibleOutletForUser, getTenantContextForUser } from "./tenant-context-service";
 import { verifyPassword } from "../utils/password";
 import {
   createSessionToken,
@@ -11,6 +14,11 @@ import {
 export interface LoginResult {
   sessionToken: string;
   user: User;
+}
+
+export interface TenantSessionResult {
+  user: User;
+  resolution: TenantContextResolution;
 }
 
 export class AuthServiceError extends Error {
@@ -73,12 +81,35 @@ export const loginRequest = async ({
   const sessionToken = createSessionToken();
   const tokenHash = hashSessionToken(sessionToken);
   const expiresAt = getSessionExpiresAt();
+  const previousSession = await prisma.session.findFirst({
+    where: {
+      userId: user.id,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+      activeOrganizationId: { not: null },
+      activeOutletId: { not: null },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { activeOrganizationId: true, activeOutletId: true },
+  });
+  const tenantResolution = await getTenantContextForUser(user.id, previousSession ? {
+    organizationId: previousSession.activeOrganizationId,
+    outletId: previousSession.activeOutletId,
+  } : undefined);
+
+  if (tenantResolution.status === "no_access") {
+    throw new InvalidCredentialsError();
+  }
+
+  const tenantContext = tenantResolution.status === "ready" ? tenantResolution.context : null;
 
   await prisma.$transaction([
     prisma.session.create({
       data: {
         userId: user.id,
         tokenHash,
+        activeOrganizationId: tenantContext?.organizationId ?? null,
+        activeOutletId: tenantContext?.outletId ?? null,
         expiresAt,
       },
     }),
@@ -92,6 +123,8 @@ export const loginRequest = async ({
         action: "auth.login",
         entityType: "user",
         entityId: user.id,
+        organizationId: tenantContext?.organizationId,
+        outletId: tenantContext?.outletId,
       },
     }),
   ]);
@@ -122,6 +155,68 @@ export const getUserBySessionToken = async (
   }
 
   return toAuthUser(session.user);
+};
+
+export const getTenantSessionByToken = async (
+  sessionToken: string,
+): Promise<TenantSessionResult | null> => {
+  assertDatabaseConfigured();
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: hashSessionToken(sessionToken) },
+    include: { user: true },
+  });
+
+  if (
+    !session || session.revokedAt || session.expiresAt <= new Date() ||
+    !session.user.isActive
+  ) return null;
+
+  const resolution = await getTenantContextForUser(session.userId, {
+    organizationId: session.activeOrganizationId,
+    outletId: session.activeOutletId,
+  });
+  return { user: toAuthUser(session.user), resolution };
+};
+
+export const switchOutletRequest = async (
+  sessionToken: string,
+  outletId: string,
+): Promise<TenantContext> => {
+  assertDatabaseConfigured();
+  const tokenHash = hashSessionToken(sessionToken);
+
+  return prisma.$transaction(async (transaction) => {
+    const session = await transaction.session.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+    if (
+      !session || session.revokedAt || session.expiresAt <= new Date() ||
+      !session.user.isActive
+    ) throw new ForbiddenError("Sign in is required.");
+
+    const context = await getAccessibleOutletForUser(session.userId, outletId, transaction);
+    if (!context) throw new NotFoundError("Outlet was not found.");
+
+    await transaction.session.update({
+      where: { id: session.id },
+      data: {
+        activeOrganizationId: context.organizationId,
+        activeOutletId: context.outletId,
+      },
+    });
+    await transaction.activityLog.create({
+      data: {
+        userId: session.userId,
+        organizationId: context.organizationId,
+        outletId: context.outletId,
+        action: "auth.outlet.switch",
+        entityType: "outlet",
+        entityId: context.outletId,
+      },
+    });
+    return context;
+  });
 };
 
 export const logoutRequest = async (sessionToken: string): Promise<void> => {

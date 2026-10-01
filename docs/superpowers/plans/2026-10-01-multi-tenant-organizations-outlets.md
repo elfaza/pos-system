@@ -113,12 +113,12 @@
 - Test: `src/features/auth/services/tenant-context-service.test.ts`
 - Test: `src/features/auth/services/tenant-role-policy.test.ts`
 
-- [ ] Write failing tests for sole-outlet selection, owner access to all organization outlets, direct outlet membership, inactive membership, inactive organization/outlet, and no-access behavior.
-- [ ] Add `TenantContext`, membership DTOs, and effective-role types.
-- [ ] Implement deterministic effective-role resolution and allowed-route policy.
-- [ ] Keep the existing `User` response compatible while callers migrate.
-- [ ] Run focused auth tests.
-- [ ] Commit: `feat: add tenant context role resolution`
+- [x] Write tests for sole-outlet selection, owner access to all organization outlets, direct outlet membership, inactive membership, inactive organization/outlet, and no-access behavior.
+- [x] Add `TenantContext`, membership DTOs, and effective-role types.
+- [x] Implement deterministic effective-role resolution and allowed-route policy.
+- [x] Keep the existing `User` response compatible while callers migrate.
+- [x] Run focused auth tests.
+- [x] Commit: `feat: add tenant context role resolution` (`9d91189`)
 
 ### Task 7: Make login and session lookup tenant-aware
 
@@ -130,14 +130,14 @@
 - Create: `src/app/api/session/outlet/route.ts`
 - Test: `src/app/api/session/outlet/route.test.ts`
 
-- [ ] Write failing tests proving login selects only a valid membership and outlet switching rejects an outlet in another organization.
-- [ ] Store active organization/outlet on session creation.
-- [ ] Return tenant context from session lookup without trusting cookies beyond the opaque session token.
-- [ ] Add `getCurrentTenantContext()` and `requireTenantContext(allowedRoles)`.
-- [ ] Add an outlet-switch endpoint that updates the session only after authorization and records an activity event.
-- [ ] Return the same not-found/forbidden shape for inaccessible foreign-tenant outlets.
-- [ ] Run focused auth and route tests.
-- [ ] Commit: `feat: bind sessions to organization and outlet`
+- [x] Add tests proving login selects only a valid membership and outlet switching rejects an outlet in another organization.
+- [x] Store active organization/outlet on session creation.
+- [x] Return tenant context from session lookup without trusting cookies beyond the opaque session token.
+- [x] Add `getCurrentTenantContext()` and `requireTenantContext(allowedRoles)`.
+- [x] Add an outlet-switch endpoint that updates the session only after authorization and records an activity event.
+- [x] Return the same not-found/forbidden shape for inaccessible foreign-tenant outlets.
+- [x] Run focused auth and route tests (30 passed).
+- [x] Commit: `feat: bind sessions to organization and outlet`
 
 ### Task 8: Add tenant transaction infrastructure
 
