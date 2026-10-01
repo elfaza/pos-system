@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createTenantInvariantSnapshot,
   parseTenantInvariantSnapshot,
+  ROW_COUNT_METRICS,
   TENANT_INVARIANT_VERSION,
   verifyTenantMigrationInvariants,
   type TenantInvariantSnapshot,
@@ -15,6 +16,7 @@ function snapshot(
     capturedAt: "2026-10-01T00:00:00.000Z",
     stage: "tenant",
     rowCounts: {
+      ...Object.fromEntries(ROW_COUNT_METRICS.map((metric) => [metric, 0])),
       users: 5,
       products: 4,
       orders: 3,
@@ -41,6 +43,26 @@ function snapshot(
 }
 
 describe("tenant migration invariants", () => {
+  it("rejects empty reports, unsupported versions, and non-finite decimals", () => {
+    expect(() => parseTenantInvariantSnapshot(JSON.stringify(snapshot({ rowCounts: {} })))).toThrow("rowCounts must contain metrics");
+    expect(() => parseTenantInvariantSnapshot(JSON.stringify(snapshot({ financialSums: {} })))).toThrow("financialSums must contain metrics");
+    expect(() => parseTenantInvariantSnapshot(JSON.stringify(snapshot({ version: 99 })))).toThrow("Unsupported snapshot version");
+    expect(() => parseTenantInvariantSnapshot(JSON.stringify(snapshot({ financialSums: { paymentAmount: "Infinity" } })))).toThrow("decimal string");
+  });
+
+  it("rejects a tenant snapshot being compared to a legacy target", () => {
+    expect(verifyTenantMigrationInvariants(snapshot(), snapshot({ stage: "legacy", tenantIntegrity: null })).ok).toBe(false);
+  });
+
+  it("rejects an incomplete baseline report", () => {
+    expect(() => parseTenantInvariantSnapshot(JSON.stringify(snapshot({ rowCounts: { users: 5 } })))).toThrow("rowCounts.sessions is required");
+  });
+
+  it("rejects unchanged but unbalanced journal sums", () => {
+    const unbalanced = snapshot({ financialSums: { ...snapshot().financialSums, journalCreditAmount: "0" } });
+    expect(verifyTenantMigrationInvariants(unbalanced, unbalanced).errors).toContain("Journal debit and credit sums do not balance.");
+  });
+
   it("creates a timestamped snapshot from captured database metrics", () => {
     expect(
       createTenantInvariantSnapshot({

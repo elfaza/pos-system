@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import {
   createTenantInvariantSnapshot,
   type TenantIntegrityMetrics,
@@ -44,7 +44,7 @@ function toFinancialRecord(row: QueryRow): Record<string, string> {
   );
 }
 
-async function captureRowCounts(prisma: PrismaClient) {
+async function captureRowCounts(prisma: Prisma.TransactionClient) {
   const [row] = await prisma.$queryRaw<QueryRow[]>`
     SELECT
       (SELECT COUNT(*)::text FROM users) AS "users",
@@ -82,7 +82,7 @@ async function captureRowCounts(prisma: PrismaClient) {
   return toCountRecord(row);
 }
 
-async function captureFinancialSums(prisma: PrismaClient) {
+async function captureFinancialSums(prisma: Prisma.TransactionClient) {
   const [row] = await prisma.$queryRaw<QueryRow[]>`
     SELECT
       (SELECT COALESCE(SUM(total_amount), 0)::text FROM orders) AS "orderTotalAmount",
@@ -99,7 +99,7 @@ async function captureFinancialSums(prisma: PrismaClient) {
 }
 
 async function captureTenantIntegrity(
-  prisma: PrismaClient,
+  prisma: Prisma.TransactionClient,
 ): Promise<TenantIntegrityMetrics> {
   const [row] = await prisma.$queryRaw<QueryRow[]>`
     SELECT
@@ -195,14 +195,17 @@ async function main() {
   const prisma = new PrismaClient();
 
   try {
-    const snapshot = createTenantInvariantSnapshot({
-      capturedAt: new Date(),
-      stage,
-      rowCounts: await captureRowCounts(prisma),
-      financialSums: await captureFinancialSums(prisma),
-      tenantIntegrity:
-        stage === "tenant" ? await captureTenantIntegrity(prisma) : null,
-    });
+    const snapshot = await prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`SET TRANSACTION READ ONLY`;
+      return createTenantInvariantSnapshot({
+        capturedAt: new Date(),
+        stage,
+        rowCounts: await captureRowCounts(transaction),
+        financialSums: await captureFinancialSums(transaction),
+        tenantIntegrity:
+          stage === "tenant" ? await captureTenantIntegrity(transaction) : null,
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 60000 });
 
     await writeSnapshot(`${JSON.stringify(snapshot, null, 2)}\n`);
   } finally {

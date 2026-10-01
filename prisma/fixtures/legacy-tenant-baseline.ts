@@ -11,12 +11,13 @@ function deterministicPasswordHash(password: string) {
 }
 
 async function assertEmptyDatabase(client: Prisma.TransactionClient) {
-  const populatedModels = await Promise.all([
-    client.user.count(),
-    client.product.count(),
-    client.order.count(),
-    client.account.count(),
-  ]);
+  const delegates = client as unknown as Record<string, { count(): Promise<number> }>;
+  const populatedModels = await Promise.all(
+    Prisma.dmmf.datamodel.models.map((model) => {
+      const delegate = model.name[0].toLowerCase() + model.name.slice(1);
+      return delegates[delegate].count();
+    }),
+  );
 
   if (populatedModels.some((count) => count > 0)) {
     throw new Error(
@@ -369,5 +370,20 @@ export async function loadLegacyTenantBaseline(prisma: PrismaClient) {
         { id: "legacy_activity_refund", userId: "legacy_user_admin", action: "order.refunded", entityType: "order", entityId: "legacy_order_refunded" },
       ],
     });
+
+    // Database timestamp defaults vary between runs; keep the rehearsal baseline reproducible.
+    const delegates = client as unknown as Record<string, {
+      updateMany(input: { data: Record<string, Date> }): Promise<unknown>;
+    }>;
+    for (const model of Prisma.dmmf.datamodel.models) {
+      const timestampFields = model.fields.filter((field) =>
+        field.name === "createdAt" || field.name === "updatedAt",
+      );
+      if (timestampFields.length === 0) continue;
+      const delegate = model.name[0].toLowerCase() + model.name.slice(1);
+      await delegates[delegate].updateMany({
+        data: Object.fromEntries(timestampFields.map((field) => [field.name, FIXTURE_DATE])),
+      });
+    }
   });
 }

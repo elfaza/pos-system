@@ -2,6 +2,21 @@ import { Prisma } from "@prisma/client";
 
 export const TENANT_INVARIANT_VERSION = 1;
 
+export const ROW_COUNT_METRICS = [
+  "users", "sessions", "categories", "products", "productVariants",
+  "productOptionGroups", "productOptionValues", "ingredients", "productIngredients",
+  "productOptionValueIngredients", "productOptionValueIngredientReplacements",
+  "appSettings", "customerDisplayStates", "orders", "diningTables", "orderItems",
+  "orderItemOptionSelections", "payments", "refunds", "stockMovements", "activityLogs",
+  "accounts", "journalEntries", "journalEntryLines", "expenseCategories", "expenses",
+  "cashMovements", "cashLedgerEntries", "dailyCloses",
+] as const;
+
+export const FINANCIAL_METRICS = [
+  "orderTotalAmount", "paymentAmount", "refundAmount", "expenseAmount",
+  "cashMovementAmount", "journalDebitAmount", "journalCreditAmount",
+] as const;
+
 export interface TenantIntegrityMetrics {
   nullTenantKeys: number;
   invalidOutletOrganizationPairs: number;
@@ -58,10 +73,13 @@ function parseNonNegativeIntegers(
   path: string,
 ): Record<string, number> {
   const record = assertRecord(value, path);
+  if (Object.keys(record).length === 0) {
+    throw new Error(`${path} must contain metrics.`);
+  }
 
   return Object.fromEntries(
     Object.entries(record).map(([key, metric]) => {
-      if (!Number.isInteger(metric) || (metric as number) < 0) {
+      if (!Number.isSafeInteger(metric) || (metric as number) < 0) {
         throw new Error(`${path}.${key} must be a non-negative integer.`);
       }
 
@@ -72,6 +90,9 @@ function parseNonNegativeIntegers(
 
 function parseFinancialSums(value: unknown): Record<string, string> {
   const record = assertRecord(value, "financialSums");
+  if (Object.keys(record).length === 0) {
+    throw new Error("financialSums must contain metrics.");
+  }
 
   return Object.fromEntries(
     Object.entries(record).map(([key, metric]) => {
@@ -80,7 +101,7 @@ function parseFinancialSums(value: unknown): Record<string, string> {
       }
 
       try {
-        new Prisma.Decimal(metric);
+        if (!new Prisma.Decimal(metric).isFinite()) throw new Error("Non-finite decimal");
       } catch {
         throw new Error(`financialSums.${key} must be a decimal string.`);
       }
@@ -119,6 +140,9 @@ export function parseTenantInvariantSnapshot(
   if (!Number.isInteger(input.version) || (input.version as number) < 1) {
     throw new Error("version must be a positive integer.");
   }
+  if (input.version !== TENANT_INVARIANT_VERSION) {
+    throw new Error(`Unsupported snapshot version: ${input.version}.`);
+  }
   if (input.stage !== "legacy" && input.stage !== "tenant") {
     throw new Error("stage must be legacy or tenant.");
   }
@@ -129,12 +153,21 @@ export function parseTenantInvariantSnapshot(
     throw new Error("capturedAt must be a valid date string.");
   }
 
+  const rowCounts = parseNonNegativeIntegers(input.rowCounts, "rowCounts");
+  const financialSums = parseFinancialSums(input.financialSums);
+  for (const metric of ROW_COUNT_METRICS) {
+    if (rowCounts[metric] === undefined) throw new Error(`rowCounts.${metric} is required.`);
+  }
+  for (const metric of FINANCIAL_METRICS) {
+    if (financialSums[metric] === undefined) throw new Error(`financialSums.${metric} is required.`);
+  }
+
   return {
     version: input.version as number,
     capturedAt: input.capturedAt,
     stage: input.stage,
-    rowCounts: parseNonNegativeIntegers(input.rowCounts, "rowCounts"),
-    financialSums: parseFinancialSums(input.financialSums),
+    rowCounts,
+    financialSums,
     tenantIntegrity: parseTenantIntegrity(input.tenantIntegrity),
   };
 }
@@ -206,9 +239,17 @@ export function verifyTenantMigrationInvariants(
       `Snapshot versions do not match: before ${before.version}, after ${after.version}.`,
     );
   }
+  if (before.stage === "tenant" && after.stage === "legacy") {
+    errors.push("Cannot verify a tenant baseline against a legacy target.");
+  }
 
   errors.push(...compareRowCounts(before, after));
   errors.push(...compareFinancialSums(before, after));
+  const debit = after.financialSums.journalDebitAmount;
+  const credit = after.financialSums.journalCreditAmount;
+  if (debit !== undefined && credit !== undefined && !new Prisma.Decimal(debit).equals(credit)) {
+    errors.push("Journal debit and credit sums do not balance.");
+  }
   if (after.stage === "tenant") {
     errors.push(...verifyTenantIntegrity(after.tenantIntegrity));
   }
