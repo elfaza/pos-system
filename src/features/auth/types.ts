@@ -49,6 +49,7 @@ export interface AuthState {
   isAuthenticated: boolean;
 }
 
+
 export interface ModuleAvailability {
   kitchenEnabled: boolean;
   queueEnabled: boolean;

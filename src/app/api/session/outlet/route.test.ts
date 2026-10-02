@@ -35,6 +35,7 @@ describe("PUT /api/session/outlet", () => {
     await expect(response.json()).resolves.toEqual({
       activeOrganizationId: "org-1",
       activeOutletId: "outlet-2",
+      role: "cashier",
     });
   });
 

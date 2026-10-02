@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 import { useAuth } from "../hooks/use-auth";
-import { UserRole } from "../types";
+import type { EffectiveRole } from "../types";
+import { isTenantRoleAllowed } from "../services/tenant-role-policy";
 
 interface RoleGuardProps {
-  allowedRoles: UserRole[];
+  allowedRoles: EffectiveRole[];
   children: ReactNode;
 }
 
@@ -14,7 +15,7 @@ export default function RoleGuard({
     allowedRoles,
   children,
 }: RoleGuardProps) {
-  const { user, loading, loggingOut } = useAuth();
+  const { user, loading, loggingOut, tenantResolution } = useAuth();
 
   if (loading || loggingOut) {
     return <p className="p-4 text-sm text-[var(--muted-foreground)]">Loading...</p>;
@@ -39,7 +40,11 @@ export default function RoleGuard({
     );
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  const effectiveRole = tenantResolution.status === "ready"
+    ? tenantResolution.context.role
+    : user.role;
+
+  if (!isTenantRoleAllowed(effectiveRole, allowedRoles)) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-[var(--background)] p-4">
         <div className="rounded-md border border-[var(--border)] bg-[var(--card)] p-6 text-center">

@@ -1,17 +1,17 @@
 "use client";
 
 import { createContext, useState, ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import {
   login as loginAction,
   logout as logoutAction,
 } from "../actions/auth-actions";
-import type { AuthState, LoginPayload, ModuleAvailability, User } from "../types";
+import type { AuthState, LoginPayload, ModuleAvailability, TenantContextResolution, User } from "../types";
 import { getDefaultRouteForRole } from "../utils/role-routes";
 
 interface AuthContextType extends AuthState {
   moduleAvailability: ModuleAvailability | null;
   loggingOut: boolean;
+  tenantResolution: TenantContextResolution;
   setModuleAvailability: (moduleAvailability: ModuleAvailability | null) => void;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
@@ -22,18 +22,19 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({
   user,
   moduleAvailability,
+  tenantResolution,
   children,
 }: {
   user: User | null;
   moduleAvailability: ModuleAvailability | null;
+  tenantResolution: TenantContextResolution;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(user);
   const [currentModuleAvailability, setCurrentModuleAvailability] =
     useState<ModuleAvailability | null>(moduleAvailability);
+  const [currentTenantResolution] = useState(tenantResolution);
 
   const login = async (payload: LoginPayload): Promise<void> => {
     setLoading(true);
@@ -43,10 +44,7 @@ export function AuthProvider({
         throw new Error(result.error);
       }
 
-      const authenticatedUser = result.user;
-      setCurrentUser(authenticatedUser);
-      router.push(getDefaultRouteForRole(authenticatedUser.role));
-      router.refresh();
+      window.location.replace(getDefaultRouteForRole(result.user.role));
     } finally {
       setLoading(false);
     }
@@ -68,12 +66,13 @@ export function AuthProvider({
   return (
     <AuthContext.Provider
       value={{
-        user: currentUser,
+        user,
         loading,
         moduleAvailability: currentModuleAvailability,
         loggingOut,
+        tenantResolution: currentTenantResolution,
         setModuleAvailability: setCurrentModuleAvailability,
-        isAuthenticated: !!currentUser,
+        isAuthenticated: !!user,
         login,
         logout,
       }}

@@ -12,6 +12,7 @@ export async function PUT(request: Request) {
     return jsonOk({
       activeOrganizationId: context.organizationId,
       activeOutletId: context.outletId,
+      role: context.role,
     });
   } catch (error) {
     return jsonError(error);

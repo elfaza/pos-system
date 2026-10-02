@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getDefaultRouteForEffectiveRole,
   getDefaultRouteForRole,
   getRoleLabel,
   isDisplayRole,
@@ -12,6 +13,8 @@ describe("role routes", () => {
     expect(getDefaultRouteForRole("kitchen")).toBe("/kitchen");
     expect(getDefaultRouteForRole("queue")).toBe("/queue");
     expect(getDefaultRouteForRole("customer_facing_display")).toBe("/customer-display");
+    expect(getDefaultRouteForEffectiveRole("owner")).toBe("/dashboard");
+    expect(getDefaultRouteForEffectiveRole("kitchen")).toBe("/kitchen");
   });
 
   it("labels display roles", () => {

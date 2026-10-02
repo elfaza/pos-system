@@ -1,4 +1,4 @@
-import type { UserRole } from "../types";
+import type { EffectiveRole, UserRole } from "../types";
 
 export function getDefaultRouteForRole(role: UserRole): string {
   switch (role) {
@@ -13,6 +13,10 @@ export function getDefaultRouteForRole(role: UserRole): string {
     case "customer_facing_display":
       return "/customer-display";
   }
+}
+
+export function getDefaultRouteForEffectiveRole(role: EffectiveRole): string {
+  return role === "owner" ? "/dashboard" : getDefaultRouteForRole(role);
 }
 
 export function getRoleLabel(role: UserRole): string {
