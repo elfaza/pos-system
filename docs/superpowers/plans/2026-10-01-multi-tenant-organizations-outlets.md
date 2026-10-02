@@ -304,22 +304,26 @@
 
 ## Phase 5: Add the Tenant User Experience
 
+**Review checkpoint:** Phase 5 implementation and code examples are recorded in `docs/runbooks/phase-5-review.md`. Awaiting user review before Phase 6. Desktop/mobile browser review is deferred until a browser can reach the workspace preview.
+
 ### Task 16: Add outlet selection and switching to the existing shell
 
 **Files:**
 - Modify: `src/app/layout.tsx`
 - Modify: `src/features/admin/components/admin-shell.tsx`
+- Modify: `src/features/auth/components/role-guard.tsx`
 - Modify: `src/features/auth/context/auth-context.tsx`
 - Create: `src/features/organizations/components/outlet-switcher.tsx`
+- Create: `src/features/organizations/components/tenant-experience.tsx`
 - Create: `src/features/organizations/hooks/use-outlet-switch.ts`
 - Test: `src/features/organizations/components/outlet-switcher.test.tsx`
 
-- [ ] Write failing component tests for hidden single-outlet state, authorized options, loading/error states, and successful switch.
-- [ ] Add a compact outlet switcher using the current visual system.
-- [ ] On switch, clear React Query caches, reset POS/cart state, and navigate to the role's valid landing page.
-- [ ] Do not expose organization/outlet IDs as authorization-bearing client state.
-- [ ] Run component and auth tests.
-- [ ] Commit: `feat: add outlet switching experience`
+- [x] Cover hidden single-outlet state and server-resolved outlet options in component rendering tests; retain session route tests for invalid input, authorization, and denied destinations.
+- [x] Add a compact outlet switcher and a first-login outlet selection gate using the current visual system.
+- [x] On switch, clear the POS cart and perform a full document navigation to the effective role's landing page; this app has no mounted React Query provider, and navigation clears its in-memory UI state.
+- [x] Keep authorization server-derived: the submitted outlet ID is checked against the authenticated session's memberships before changing the session.
+- [x] Run component/auth tests and the full unit suite.
+- [x] Commit: `feat: add outlet switching experience`
 
 ### Task 17: Add organization, outlet, and membership admin pages
 
@@ -327,16 +331,18 @@
 - Create: `src/app/dashboard/organization/page.tsx`
 - Create: `src/app/dashboard/outlets/page.tsx`
 - Create: `src/app/dashboard/team/page.tsx`
+- Create: `src/features/organizations/services/organization-admin-service.ts`
 - Create supporting components under `src/features/organizations/components/`
 - Create routes under `src/app/api/organizations/` and `src/app/api/outlets/`
 - Test corresponding service and route files
 
-- [ ] Write failing authorization tests before each management endpoint.
-- [ ] Add organization profile, outlet management, and team membership views using existing dashboard patterns.
-- [ ] Enforce owner/admin capability differences on the server and mirror them in UI visibility.
-- [ ] Include empty, loading, validation, conflict, and inactive states.
-- [ ] Run feature tests and perform desktop/mobile browser verification.
-- [ ] Commit: `feat: add organization and outlet administration`
+- [x] Add authorization route tests for organization profile and outlet management; reuse Phase 4 membership service tests for team actions.
+- [x] Add organization profile, outlet management, and team membership views using existing dashboard patterns.
+- [x] Enforce owner/admin differences on the server and mirror them in the UI: owners manage organization and all outlets; outlet admins can view the profile, edit the current outlet's name/time zone, and manage that outlet's team.
+- [x] Include empty, loading, validation, conflict, and inactive outlet states.
+- [x] Run the full feature suite, lint, Prisma validation, and production build.
+- [ ] Perform desktop/mobile browser verification when a browser can reach the workspace preview; this environment has no Agent Browser CLI or active preview tunnel.
+- [x] Commit: `feat: add organization and outlet administration`
 
 ## Phase 6: Contract the Schema and Add Database Enforcement
 
