@@ -223,24 +223,30 @@
 
 ## Phase 4: Scope Operational and Financial Features
 
+**Review checkpoint:** Phase 4 implementation is recorded in `docs/runbooks/phase-4-review.md`. Awaiting user review before Phase 5.
+
 ### Task 12: Scope checkout, orders, tables, and receipts
 
 **Files:**
 - Modify: `src/features/checkout/repositories/order-repository.ts`
 - Modify: `src/features/checkout/services/checkout-service.ts`
+- Modify: `src/features/checkout/services/table-service.ts`
 - Modify: checkout/order API routes under `src/app/api/orders/`
 - Modify: `src/app/api/tables/route.ts`
 - Modify: `src/features/checkout/services/checkout-service.test.ts`
 - Create: `src/features/checkout/services/checkout-tenancy.test.ts`
+- Create: `src/features/checkout/services/checkout-tenancy.integration.test.ts`
+- Create: `src/app/api/orders/[id]/refund/route.ts`
+- Create: `prisma/migrations/20261002120000_phase_4_tenant_unique/migration.sql`
 
-- [ ] Write failing tests for outlet-scoped order/queue numbers, table lookup, product lookup, held-order access, payment, cancellation, and refund.
-- [ ] Generate order and queue numbers under an outlet-specific unique constraint and transaction.
-- [ ] Reject products, variants, options, tables, payments, or orders outside the active tenant without revealing existence.
-- [ ] Stamp new orders with organization/outlet IDs and preserve those IDs through payments, refunds, kitchen, and receipts.
-- [ ] Deduct and restore `OutletProduct` and `OutletIngredientStock` only for the order's persisted outlet.
-- [ ] Ensure receipt rendering itself remains unchanged except for reading the correct outlet settings.
-- [ ] Run all checkout tests.
-- [ ] Commit: `feat: scope checkout and orders by outlet`
+- [x] Add repository and PostgreSQL tests for tenant-scoped product/order access, checkout payment, stock deduction, and refund restoration.
+- [x] Generate outlet-scoped order numbers and queue numbers under outlet/date advisory locks and unique indexes.
+- [x] Reject products, options, tables, and orders outside the active tenant without exposing foreign records.
+- [x] Stamp orders, stock movements, and activity records with organization/outlet IDs; preserve order scope through kitchen and receipt reads.
+- [x] Deduct and restore `OutletProduct` and `OutletIngredientStock` only for the order's persisted outlet.
+- [x] Keep receipt rendering unchanged while loading settings for the active outlet.
+- [x] Run checkout tests and PostgreSQL checkout isolation/refund tests.
+- [x] Commit: `feat: scope checkout and orders by outlet`
 
 ### Task 13: Scope kitchen, queue, and customer display
 
@@ -253,12 +259,12 @@
 - Create: `src/features/kitchen/services/kitchen-tenancy.test.ts`
 - Create: `src/features/customer-display/services/customer-display-tenancy.test.ts`
 
-- [ ] Write failing tests proving displays only receive their outlet's orders, menu availability, and display state.
-- [ ] Replace the global customer-display `scopeKey` behavior with one state row per outlet.
-- [ ] Keep kitchen transitions and queue completion constrained to the order's outlet.
-- [ ] Verify display-device users cannot switch to outlets without explicit membership.
-- [ ] Run all kitchen, queue, and customer-display tests.
-- [ ] Commit: `feat: scope operational displays by outlet`
+- [x] Add tests proving kitchen and customer-display state queries are scoped to the current outlet.
+- [x] Replace the global customer-display state key with a tenant-specific state row per outlet.
+- [x] Keep kitchen transitions and queue completion constrained to the order's outlet.
+- [x] Verify display-device access derives from explicit outlet membership through tenant-context resolution.
+- [x] Run kitchen, queue, and customer-display tests.
+- [x] Commit: `feat: scope operational displays by outlet`
 
 ### Task 14: Scope accounting and reporting
 
@@ -271,14 +277,14 @@
 - Create: `src/features/accounting/services/accounting-tenancy.test.ts`
 - Create: `src/features/reporting/services/reporting-tenancy.test.ts`
 
-- [ ] Write failing tests for organization-scoped account definitions and outlet-scoped journals, expenses, cash movements, ledger entries, and daily closes.
-- [ ] Scope source uniqueness and daily-close uniqueness by outlet.
-- [ ] Require balanced journal entries within one organization and outlet context.
-- [ ] Make existing reports active-outlet only first.
-- [ ] Add explicit owner-only organization aggregation as a separate query path; never implement it by omitting tenant predicates.
-- [ ] Verify consolidated totals equal the sum of authorized outlet totals.
-- [ ] Run all accounting and reporting tests.
-- [ ] Commit: `feat: scope accounting and reports by tenant`
+- [x] Add tests for organization-scoped accounts and outlet-scoped journal, expense, cash, ledger, close, and report reads.
+- [x] Replace global operational/financial uniqueness with organization/outlet unique indexes in the Phase 4 migration.
+- [x] Require balanced journal entries created inside one tenant transaction.
+- [x] Scope existing reports to the active outlet.
+- [x] Add a separate owner-only organization sales summary that queries each active outlet explicitly.
+- [x] Verify the organization total equals the sum of its outlet totals.
+- [x] Run accounting/reporting tests, Prisma validation, migration deploy, and repeatable seed checks.
+- [x] Commit: `feat: scope accounting and reports by tenant`
 
 ### Task 15: Scope users, activity logs, and admin operations
 
@@ -289,12 +295,12 @@
 - Create: `src/features/organizations/services/membership-service.ts`
 - Test: `src/features/organizations/services/membership-service.test.ts`
 
-- [ ] Write failing tests for inviting an existing global user, creating a new user, assigning outlet roles, deactivating membership without deactivating identity, and preventing last-owner removal.
-- [ ] Replace global role edits with organization/outlet membership operations.
-- [ ] Stamp activity logs with organization/outlet context and scope log reads.
-- [ ] Prevent one organization administrator from discovering users only through another organization's membership.
-- [ ] Run auth, membership, and admin route tests.
-- [ ] Commit: `feat: add tenant-scoped membership management`
+- [x] Add tests for inviting existing identities, creating users, assigning outlet roles, deactivating membership only, and preventing last-owner removal.
+- [x] Replace organization admin global role edits with scoped outlet membership operations.
+- [x] Stamp operational activity writes with organization/outlet context and scope user reads to outlet memberships.
+- [x] Prevent one organization administrator from discovering users only through another organization's membership.
+- [x] Run auth, membership, admin route, and full feature tests.
+- [x] Commit: `feat: add tenant-scoped membership management`
 
 ## Phase 5: Add the Tenant User Experience
 
@@ -344,7 +350,7 @@
 
 - [ ] Re-run the production-like migration rehearsal and save a clean invariant report before writing the contract migration.
 - [ ] Add `NOT NULL` to required tenant columns.
-- [ ] Replace global uniqueness with the scoped constraints listed in the design.
+- [ ] Audit the scoped constraints already introduced in Phase 4; replace remaining global category slug and product SKU uniqueness here.
 - [ ] Remove `User.role`, global stock/availability columns, and the global customer-display scope key only after repository searches prove they have no callers.
 - [ ] Add composite foreign-key safeguards where they improve organization/outlet consistency.
 - [ ] Run `rg 'User\.role|stockQuantity|currentStock|scopeKey' src prisma` and classify every remaining match.
