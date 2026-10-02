@@ -192,7 +192,9 @@ async function writeSnapshot(serialized: string) {
 
 async function main() {
   const stage = parseStage();
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    datasourceUrl: process.env.MIGRATION_DATABASE_URL,
+  });
 
   try {
     const snapshot = await prisma.$transaction(async (transaction) => {

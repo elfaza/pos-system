@@ -10,7 +10,7 @@ const globalForPrisma = globalThis as unknown as {
 /** Create a dedicated client for scripts, migrations, and provisioning jobs. */
 export function createMaintenancePrismaClient(): PrismaClient {
   return new PrismaClient({
-    datasourceUrl: getDatabaseUrl(),
+    datasourceUrl: process.env.MIGRATION_DATABASE_URL ?? getDatabaseUrl(),
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 }

@@ -4,9 +4,14 @@ import { withTenantTransaction } from "@/lib/tenant-prisma";
 
 export const ingredientListLimit = 200;
 
+type IngredientWithBalance = Omit<Ingredient, "currentStock" | "lowStockThreshold"> & {
+  currentStock: Prisma.Decimal;
+  lowStockThreshold: Prisma.Decimal | null;
+};
+
 function withOutletBalance(
   ingredient: Ingredient & { outletStocks: Array<{ currentStock: Prisma.Decimal; lowStockThreshold: Prisma.Decimal | null }> },
-): Ingredient {
+): IngredientWithBalance {
   const balance = ingredient.outletStocks[0];
   return {
     ...ingredient,
@@ -83,8 +88,6 @@ export async function createIngredient(context: TenantContext, data: {
         name: data.name,
         sku: data.sku,
         unit: data.unit,
-        currentStock: "0",
-        lowStockThreshold: null,
         isActive: data.isActive,
       },
     });

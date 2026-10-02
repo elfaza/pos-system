@@ -24,7 +24,8 @@ The migration is split into two production releases.
 - makes required tenant columns non-null
 - replaces global unique constraints with scoped constraints
 - removes retired compatibility columns
-- enables and forces RLS for the runtime role
+- enables and forces RLS for `pos_runtime`, a non-login, non-bypass role
+- separates application runtime access from migration and invariant-capture access
 
 Never combine these releases. The compatibility observation period must complete first.
 
@@ -34,8 +35,9 @@ Phase 1 integration tests require PostgreSQL. Never point these commands at prod
 
 - `TENANT_BACKFILL_TEST_DATABASE_URL` must point to an empty disposable database with the 13 legacy migrations applied. The test loads the deterministic fixture, applies the tenant migrations, and leaves that database migrated for inspection. Its database name must end in `_test`.
 - `TENANT_INTEGRATION_DATABASE_URL` must point to a disposable database with the tenant migrations applied. The schema constraint test creates and removes its test rows.
+- `TENANT_RLS_TEST_DATABASE_URL` must point to a disposable database with all migrations through `tenant_rls` applied. Tests switch to `pos_runtime` and must never use production.
 
-Run the tests with `TENANT_BACKFILL_TEST_DATABASE_URL=<disposable-test-database-url> npm test -- src/lib/tenant-backfill.integration.test.ts` and `TENANT_INTEGRATION_DATABASE_URL=<disposable-test-database-url> npm test -- src/features/organizations/tenant-schema.integration.test.ts`.
+Run the tests with `TENANT_BACKFILL_TEST_DATABASE_URL=<disposable-test-database-url> npm test -- src/lib/tenant-backfill.integration.test.ts`, `TENANT_INTEGRATION_DATABASE_URL=<disposable-test-database-url> npm test -- src/features/organizations/tenant-schema.integration.test.ts`, and `TENANT_RLS_TEST_DATABASE_URL=<disposable-test-database-url> npm test -- src/lib/tenant-rls.integration.test.ts`.
 
 ## Roles
 
@@ -50,6 +52,7 @@ Record a named person for each role before starting.
 
 - release commit SHA and Vercel deployment ID
 - production Neon project/branch name without credentials
+- effective runtime role verification (`current_user`, `rolsuper`, and `rolbypassrls`)
 - UTC recovery-point timestamp
 - encrypted `pg_dump` checksum
 - successful restore-rehearsal record
@@ -64,7 +67,8 @@ Record a named person for each role before starting.
 - [ ] Compatibility release tests, lint, and build pass.
 - [ ] Prisma migrations have been reviewed line by line.
 - [ ] Restore rehearsal passed using a recent production snapshot.
-- [ ] `DATABASE_URL` identifies the production direct endpoint.
+- [ ] `DATABASE_URL` uses a dedicated runtime login that is a member of `pos_runtime`, is not a superuser, and has no `BYPASSRLS` privilege.
+- [ ] `MIGRATION_DATABASE_URL` uses a separate migration identity with DDL privileges; it is never loaded by the running application.
 - [ ] Vercel production environment still uses the expected runtime endpoint.
 - [ ] No unrelated schema or application deployment shares the window.
 - [ ] Customer traffic and background writes can be paused.
@@ -87,7 +91,7 @@ Create a Neon branch/snapshot at the recorded time and an independent custom-for
 ### 3. Capture the legacy baseline
 
 ```bash
-npm run tenant:invariants:capture -- \
+MIGRATION_DATABASE_URL=<migration-connection> npm run tenant:invariants:capture -- \
   --stage legacy \
   --output /secure/migration/production-before.json
 ```
@@ -99,7 +103,7 @@ Save its checksum. The file is immutable deployment evidence.
 Use the release artifact and production direct connection:
 
 ```bash
-npm run prisma:deploy
+MIGRATION_DATABASE_URL=<migration-connection> npm run prisma:deploy
 ```
 
 Do not run `prisma migrate dev` in production. Stop on the first non-zero exit or unexpected migration.
@@ -107,7 +111,7 @@ Do not run `prisma migrate dev` in production. Stop on the first non-zero exit o
 ### 5. Verify the backfill before application deployment
 
 ```bash
-npm run tenant:invariants:capture -- \
+MIGRATION_DATABASE_URL=<migration-connection> npm run tenant:invariants:capture -- \
   --stage tenant \
   --output /secure/migration/production-after-backfill.json
 
@@ -178,11 +182,11 @@ Proceed only after compatibility sign-off and a new restore rehearsal against th
 1. Start maintenance and quiesce writes.
 2. Create a new Neon recovery point and independent dump.
 3. Capture a new tenant-stage invariant snapshot.
-4. Apply contract migrations with `npm run prisma:deploy`.
+4. Apply contract migrations with `MIGRATION_DATABASE_URL=<migration-connection> npm run prisma:deploy`.
 5. Confirm required tenant columns are non-null and scoped constraints exist.
-6. Confirm the runtime database role has RLS forced and no bypass privilege.
+6. Verify the application's effective `current_user` is `pos_runtime`, with `rolsuper = false` and `rolbypassrls = false`.
 7. Run cross-organization isolation tests with at least two organizations.
-8. Capture and verify a post-contract tenant snapshot.
+8. Capture and verify a post-contract tenant snapshot using `MIGRATION_DATABASE_URL`.
 9. Deploy the contract-compatible application artifact.
 10. Repeat the full role/workflow smoke test before restoring traffic.
 
@@ -210,5 +214,9 @@ The release owner decides between compatibility rollback and restore using the l
 - Store URLs and tokens only in Vercel/Neon secret controls or an approved password manager.
 - Do not commit `.env` files, dumps, snapshots containing sensitive row-level data, or command transcripts containing URLs.
 - Use separate runtime and migration database roles before RLS activation.
+- The RLS migration creates `pos_runtime` as `NOLOGIN NOBYPASSRLS`. A database administrator must grant the runtime login membership in that role and configure the connection to assume it. Never run the application using the migration identity.
+- Runtime tenant transactions set `app.user_id`, `app.organization_id`, `app.outlet_id`, and the server-derived owner-wide flag with transaction-local `set_config`. Missing tenant settings deny access to tenant tables.
+- `users` and `sessions` stay outside RLS because password login and opaque-token lookup happen before a tenant context exists. Keep those global reads in the auth service. Membership, organization, and outlet lookup uses the transaction-local user ID policy.
+- Emergency access uses an approved DBA/migration identity, a recorded incident reason, and a time-bounded audited session. Do not disable RLS or grant `BYPASSRLS` to the application login to resolve an incident.
 - Rotate any credential exposed in terminal logs, screenshots, chat, or tickets.
 - Delete temporary restore credentials when the rehearsal or migration closes.

@@ -1,4 +1,3 @@
-import type { UserRole as PrismaUserRole } from "@prisma/client";
 import { ForbiddenError, ValidationError } from "@/lib/api-response";
 import type { User, UserRole } from "@/features/auth/types";
 import { listOutletMembers, saveOutletMember } from "@/features/organizations/services/membership-service";
@@ -14,7 +13,7 @@ export interface UserRecord {
   updatedAt: string;
 }
 
-function parseUserRole(value: unknown): PrismaUserRole {
+function parseUserRole(value: unknown): UserRole {
   if (
     value === "admin" ||
     value === "cashier" ||

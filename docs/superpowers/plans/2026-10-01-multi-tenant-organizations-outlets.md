@@ -354,14 +354,14 @@
 - Modify: `prisma/seed.ts`
 - Modify affected tests and fixtures
 
-- [ ] Re-run the production-like migration rehearsal and save a clean invariant report before writing the contract migration.
-- [ ] Add `NOT NULL` to required tenant columns.
-- [ ] Audit the scoped constraints already introduced in Phase 4; replace remaining global category slug and product SKU uniqueness here.
-- [ ] Remove `User.role`, global stock/availability columns, and the global customer-display scope key only after repository searches prove they have no callers.
-- [ ] Add composite foreign-key safeguards where they improve organization/outlet consistency.
-- [ ] Run `rg 'User\.role|stockQuantity|currentStock|scopeKey' src prisma` and classify every remaining match.
-- [ ] Run Prisma validation, generation, full tests, lint, and build.
-- [ ] Commit: `refactor: contract schema around tenant ownership`
+- [x] Re-run the deterministic legacy migration rehearsal and save clean before/after invariant reports before the contract migration. This fixture is synthetic and not a restored production snapshot.
+- [x] Add `NOT NULL` to required tenant columns.
+- [x] Audit the scoped constraints already introduced in Phase 4; replace remaining global category slug and product SKU uniqueness here.
+- [x] Remove `User.role`, global stock/availability columns, and the global customer-display scope key only after repository searches prove they have no callers.
+- [x] Add composite foreign-key safeguards where they improve organization/outlet consistency.
+- [x] Run `rg 'User\.role|stockQuantity|currentStock|scopeKey' src prisma` and classify remaining matches as outlet balances, DTOs, or the frozen legacy fixture.
+- [x] Run Prisma validation, generation, full tests, lint, and build.
+- [x] Commit implementation and review evidence.
 
 ### Task 19: Enable PostgreSQL row-level security
 
@@ -370,13 +370,13 @@
 - Create: `src/lib/tenant-rls.integration.test.ts`
 - Modify: `docs/runbooks/multi-tenant-migration.md`
 
-- [ ] Write failing real-PostgreSQL tests for read, insert, update, delete, guessed foreign ID, unset context, transaction rollback, and pooled-connection reuse.
-- [ ] Add RLS policies for organization- and outlet-scoped root tables using transaction-local settings.
-- [ ] Force RLS for the runtime role and keep migration privileges on a separate role.
-- [ ] Deny access when tenant settings are absent.
-- [ ] Document emergency access and audit requirements without embedding credentials.
-- [ ] Run the RLS test suite repeatedly with concurrent organizations.
-- [ ] Commit: `feat: enforce tenant isolation with postgres rls`
+- [x] Add real-PostgreSQL tests for CRUD, guessed foreign IDs, missing context, rollback, connection reuse, and concurrent organizations.
+- [x] Add RLS policies for organization- and outlet-scoped tables using transaction-local settings.
+- [x] Force RLS for the runtime role and keep migration privileges separate.
+- [x] Deny access when tenant settings are absent.
+- [x] Document emergency access and audit requirements without credentials.
+- [x] Run the RLS tests as the restricted role in the full PostgreSQL-backed suite.
+- [x] Commit implementation and review evidence.
 
 ## Phase 7: Release Verification
 
@@ -386,16 +386,16 @@
 - Create: `tests/e2e/multi-tenant-smoke.spec.ts` if the repository adopts Playwright in this phase
 - Modify: `docs/runbooks/multi-tenant-migration.md`
 
-- [ ] Run `npm test`.
-- [ ] Run `npm run lint`.
-- [ ] Run `npm run build`.
-- [ ] Run `npx prisma validate`.
+- [x] Run `npm test` (54 files passed; 252 passed, 1 skipped).
+- [x] Run `npm run lint`.
+- [x] Run `npm run build` (Google Fonts network access enabled for the configured Inter font).
+- [x] Run `npx prisma validate`.
 - [ ] Run migration and invariant verification against a restored production snapshot.
 - [ ] Verify Organization A cannot access Organization B through every public API family.
 - [ ] Browser-test login, outlet switch, POS checkout, receipt, kitchen, queue, customer display, inventory, reporting, expense, and daily close.
 - [ ] Verify single-outlet users experience no unnecessary selection step.
-- [ ] Record results and unresolved operational risks in the runbook.
-- [ ] Commit: `test: verify multi-tenant workflows end to end`
+- [x] Record results and unresolved operational risks in `docs/runbooks/phase-7-review.md`.
+- [x] Record Phase 7 local verification in `docs/runbooks/phase-7-review.md`.
 
 ### Task 21: Execute staged production rollout
 

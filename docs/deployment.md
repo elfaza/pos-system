@@ -9,6 +9,7 @@ Set these variables in the deployment environment before starting the app:
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | PostgreSQL connection string used by Prisma |
+| `MIGRATION_DATABASE_URL` | Release operations | Separate privileged connection for migrations and invariant capture; do not expose it to the running web application |
 | `AUTH_SESSION_DAYS` | No | Positive whole number of days before sessions expire. Defaults to `7` |
 | `NEXT_PUBLIC_APP_URL` | No | Public app URL for environments that need absolute links |
 
@@ -21,17 +22,18 @@ For a production-like Node.js deployment:
 ```bash
 npm ci
 npm run prisma:generate
-npm run prisma:deploy
+MIGRATION_DATABASE_URL=<migration-connection> npm run prisma:deploy
 npm run build
 npm run start
 ```
 
-For Vercel-style builds, `npm run vercel-build` runs Prisma generation, migration deploy, and the Next.js build in one command.
+For Vercel-style builds, `npm run vercel-build` generates Prisma Client and builds Next.js. Apply migrations as a separate release step with `MIGRATION_DATABASE_URL` before deploying the matching application artifact.
 
 ## Database Notes
 
 - PostgreSQL is required.
-- Use `npm run prisma:deploy` for production migration application.
+- Use `MIGRATION_DATABASE_URL=<migration-connection> npm run prisma:deploy` for production migration application.
+- After RLS activation, keep `DATABASE_URL` on the non-superuser runtime login that assumes `pos_runtime`; never use the migration identity at runtime.
 - `npm run prisma:migrate` is for local development only.
 - `npm run prisma:seed` creates demo/local data and is not required for production correctness.
 - Migration history must remain committed before deployment.

@@ -28,14 +28,12 @@ async function main() {
     update: {
       name: "Admin User",
       passwordHash: adminPasswordHash,
-      role: "admin",
       isActive: true,
     },
     create: {
       name: "Admin User",
       email: "admin@pos.local",
       passwordHash: adminPasswordHash,
-      role: "admin",
     },
   });
 
@@ -45,14 +43,12 @@ async function main() {
     update: {
       name: "Kitchen Display",
       passwordHash: kitchenPasswordHash,
-      role: "kitchen",
       isActive: true,
     },
     create: {
       name: "Kitchen Display",
       email: "kitchen@pos.local",
       passwordHash: kitchenPasswordHash,
-      role: "kitchen",
     },
   });
 
@@ -61,14 +57,12 @@ async function main() {
     update: {
       name: "Queue Display",
       passwordHash: queuePasswordHash,
-      role: "queue",
       isActive: true,
     },
     create: {
       name: "Queue Display",
       email: "queue@pos.local",
       passwordHash: queuePasswordHash,
-      role: "queue",
     },
   });
 
@@ -77,14 +71,12 @@ async function main() {
     update: {
       name: "Customer Facing Display",
       passwordHash: cfdPasswordHash,
-      role: "customer_facing_display",
       isActive: true,
     },
     create: {
       name: "Customer Facing Display",
       email: "cfd@pos.local",
       passwordHash: cfdPasswordHash,
-      role: "customer_facing_display",
     },
   });
 
@@ -93,14 +85,12 @@ async function main() {
     update: {
       name: "Cashier User",
       passwordHash: cashierPasswordHash,
-      role: "cashier",
       isActive: true,
     },
     create: {
       name: "Cashier User",
       email: "cashier@pos.local",
       passwordHash: cashierPasswordHash,
-      role: "cashier",
     },
   });
 
@@ -135,25 +125,25 @@ async function main() {
   }
 
   const coffee = await prisma.category.upsert({
-    where: { slug: "development-coffee" },
+    where: { organizationId_slug: { organizationId: developmentOrganization.id, slug: "development-coffee" } },
     update: { organizationId: developmentOrganization.id, name: "Coffee", sortOrder: 10, isActive: true },
     create: { organizationId: developmentOrganization.id, name: "Coffee", slug: "development-coffee", sortOrder: 10 },
   });
 
   const nonCoffee = await prisma.category.upsert({
-    where: { slug: "development-non-coffee" },
+    where: { organizationId_slug: { organizationId: developmentOrganization.id, slug: "development-non-coffee" } },
     update: { organizationId: developmentOrganization.id, name: "Non-Coffee", sortOrder: 20, isActive: true },
     create: { organizationId: developmentOrganization.id, name: "Non-Coffee", slug: "development-non-coffee", sortOrder: 20 },
   });
 
   const food = await prisma.category.upsert({
-    where: { slug: "development-food" },
+    where: { organizationId_slug: { organizationId: developmentOrganization.id, slug: "development-food" } },
     update: { organizationId: developmentOrganization.id, name: "Food", sortOrder: 30, isActive: true },
     create: { organizationId: developmentOrganization.id, name: "Food", slug: "development-food", sortOrder: 30 },
   });
 
   const espresso = await prisma.product.upsert({
-    where: { sku: "DEV-COF-ESP" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-COF-ESP" } },
     update: {
       organizationId: developmentOrganization.id,
       categoryId: coffee.id,
@@ -171,7 +161,7 @@ async function main() {
   });
 
   const latte = await prisma.product.upsert({
-    where: { sku: "DEV-COF-LAT" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-COF-LAT" } },
     update: {
       organizationId: developmentOrganization.id,
       categoryId: coffee.id,
@@ -189,13 +179,13 @@ async function main() {
   });
 
   await prisma.productVariant.upsert({
-    where: { sku: "DEV-COF-LAT-L" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-COF-LAT-L" } },
     update: { organizationId: developmentOrganization.id, productId: latte.id, name: "Large", priceDelta: "6000", isActive: true },
     create: { organizationId: developmentOrganization.id, productId: latte.id, name: "Large", sku: "DEV-COF-LAT-L", priceDelta: "6000" },
   });
 
   const matcha = await prisma.product.upsert({
-    where: { sku: "DEV-NON-MAT" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-NON-MAT" } },
     update: {
       organizationId: developmentOrganization.id,
       categoryId: nonCoffee.id,
@@ -213,7 +203,7 @@ async function main() {
   });
 
   const croissant = await prisma.product.upsert({
-    where: { sku: "DEV-FOD-CRS" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-FOD-CRS" } },
     update: {
       organizationId: developmentOrganization.id,
       categoryId: food.id,
@@ -232,13 +222,11 @@ async function main() {
   });
 
   const beans = await prisma.ingredient.upsert({
-    where: { sku: "DEV-ING-BEANS" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-ING-BEANS" } },
     update: {
       organizationId: developmentOrganization.id,
       name: "Espresso Beans",
       unit: "gram",
-      currentStock: "0",
-      lowStockThreshold: null,
       isActive: true,
     },
     create: {
@@ -246,18 +234,15 @@ async function main() {
       name: "Espresso Beans",
       sku: "DEV-ING-BEANS",
       unit: "gram",
-      currentStock: "0",
     },
   });
 
   const milk = await prisma.ingredient.upsert({
-    where: { sku: "DEV-ING-MILK" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-ING-MILK" } },
     update: {
       organizationId: developmentOrganization.id,
       name: "Fresh Milk",
       unit: "ml",
-      currentStock: "0",
-      lowStockThreshold: null,
       isActive: true,
     },
     create: {
@@ -265,18 +250,15 @@ async function main() {
       name: "Fresh Milk",
       sku: "DEV-ING-MILK",
       unit: "ml",
-      currentStock: "0",
     },
   });
 
   const matchaPowder = await prisma.ingredient.upsert({
-    where: { sku: "DEV-ING-MATCHA" },
+    where: { organizationId_sku: { organizationId: developmentOrganization.id, sku: "DEV-ING-MATCHA" } },
     update: {
       organizationId: developmentOrganization.id,
       name: "Matcha Powder",
       unit: "gram",
-      currentStock: "0",
-      lowStockThreshold: null,
       isActive: true,
     },
     create: {
@@ -284,7 +266,6 @@ async function main() {
       name: "Matcha Powder",
       sku: "DEV-ING-MATCHA",
       unit: "gram",
-      currentStock: "0",
     },
   });
 

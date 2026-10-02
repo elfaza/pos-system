@@ -12,11 +12,11 @@ const context = { userId: "display-1", organizationId: "org-a", outletId: "outle
 describe("customer display tenant state", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("reads state with organization, outlet, and a tenant-specific scope key", async () => {
+  it("reads state by organization and outlet", async () => {
     mocks.findFirst.mockResolvedValue(null);
     await findCustomerDisplayState(context);
     expect(mocks.findFirst).toHaveBeenCalledWith({
-      where: { scopeKey: "org-a:outlet-a", organizationId: "org-a", outletId: "outlet-a" },
+      where: { organizationId: "org-a", outletId: "outlet-a" },
     });
   });
 
@@ -31,8 +31,8 @@ describe("customer display tenant state", () => {
       paidAt: null,
     });
     expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { scopeKey: "org-a:outlet-a" },
-      create: expect.objectContaining({ organizationId: "org-a", outletId: "outlet-a", scopeKey: "org-a:outlet-a" }),
+      where: { organizationId_outletId: { organizationId: "org-a", outletId: "outlet-a" } },
+      create: expect.objectContaining({ organizationId: "org-a", outletId: "outlet-a" }),
     }));
   });
 });

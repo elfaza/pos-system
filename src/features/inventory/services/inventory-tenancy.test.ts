@@ -37,11 +37,11 @@ integrationDescribe("outlet inventory tenancy (PostgreSQL)", () => {
     ]);
     [outletAId, outletBId, foreignOutletId] = outlets.map(({ id }) => id);
     const user = await prisma.user.create({ data: {
-      name: "Inventory test", email: `inventory-${suffix}@example.test`, passwordHash: "fixture-hash", role: "admin",
+      name: "Inventory test", email: `inventory-${suffix}@example.test`, passwordHash: "fixture-hash",
     } });
     userId = user.id;
     const ingredient = await prisma.ingredient.create({
-      data: { organizationId, name: `Beans ${suffix}`, sku: `beans-${suffix}`, unit: "g", currentStock: "900" },
+      data: { organizationId, name: `Beans ${suffix}`, sku: `beans-${suffix}`, unit: "g" },
     });
     ingredientId = ingredient.id;
     await prisma.outletIngredientStock.createMany({ data: [
@@ -51,6 +51,9 @@ integrationDescribe("outlet inventory tenancy (PostgreSQL)", () => {
   });
 
   afterAll(async () => {
+    if (organizationId || foreignOrganizationId) {
+      await prisma.activityLog.deleteMany({ where: { organizationId: { in: [organizationId, foreignOrganizationId].filter(Boolean) } } });
+    }
     if (ingredientId) {
       await prisma.stockMovement.deleteMany({ where: { ingredientId } });
       await prisma.outletIngredientStock.deleteMany({ where: { ingredientId } });

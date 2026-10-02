@@ -80,18 +80,18 @@ The seed script creates:
 | `npm run prisma:deploy` | Apply committed Prisma migrations in production/staging |
 | `npm run prisma:migrate` | Run Prisma migrations in development |
 | `npm run prisma:seed` | Seed demo users, catalog data, and app settings |
-| `npm run vercel-build` | Generate Prisma Client, deploy migrations, and build for Vercel |
+| `npm run vercel-build` | Generate Prisma Client and build for Vercel (migrations run separately) |
 
 ## Production Deployment
 
-Production-like deployments require `DATABASE_URL`; `AUTH_SESSION_DAYS` is optional and must be a positive whole number when set. The app fails fast when required environment configuration is missing or invalid.
+The application uses `DATABASE_URL` for runtime queries. After the RLS release, set it to the runtime login that assumes the `pos_runtime` role. Set `MIGRATION_DATABASE_URL` separately for schema migrations, tenant invariant captures, and maintenance scripts. `AUTH_SESSION_DAYS` is optional and must be a positive whole number when set.
 
 Use the deployment flow in [docs/deployment.md](docs/deployment.md):
 
 ```bash
 npm ci
 npm run prisma:generate
-npm run prisma:deploy
+MIGRATION_DATABASE_URL=<migration-connection> npm run prisma:deploy
 npm run build
 npm run start
 ```

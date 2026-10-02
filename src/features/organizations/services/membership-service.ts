@@ -1,4 +1,3 @@
-import type { UserRole } from "@prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/api-response";
 import { requireTenantContext } from "@/features/auth/services/session-service";
 import { hashPassword } from "@/features/auth/utils/password";
@@ -61,7 +60,7 @@ async function saveOutletMemberInTenant(
         });
       }
       user = await tx.user.create({
-        data: { name: input.name, email: input.email, passwordHash: await hashPassword(input.password), role: input.role as UserRole },
+        data: { name: input.name, email: input.email, passwordHash: await hashPassword(input.password) },
       });
     }
 

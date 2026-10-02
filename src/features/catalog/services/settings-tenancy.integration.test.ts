@@ -33,7 +33,7 @@ integrationDescribe("outlet settings tenancy (PostgreSQL)", () => {
     outletAId = outletA.id;
     outletBId = outletB.id;
     const user = await prisma.user.create({
-      data: { name: "Settings Test", email: `settings-${suffix}@example.test`, passwordHash: "fixture-hash", role: "admin" },
+      data: { name: "Settings Test", email: `settings-${suffix}@example.test`, passwordHash: "fixture-hash" },
     });
     userId = user.id;
   });

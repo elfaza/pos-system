@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "capturedAt": "2026-10-02T09:46:58.090Z",
+  "stage": "tenant",
+  "rowCounts": {
+    "users": 5,
+    "sessions": 1,
+    "categories": 2,
+    "products": 2,
+    "productVariants": 1,
+    "productOptionGroups": 1,
+    "productOptionValues": 2,
+    "ingredients": 3,
+    "productIngredients": 2,
+    "productOptionValueIngredients": 1,
+    "productOptionValueIngredientReplacements": 1,
+    "appSettings": 1,
+    "customerDisplayStates": 1,
+    "orders": 6,
+    "diningTables": 1,
+    "orderItems": 6,
+    "orderItemOptionSelections": 1,
+    "payments": 3,
+    "refunds": 1,
+    "stockMovements": 4,
+    "activityLogs": 3,
+    "accounts": 6,
+    "journalEntries": 3,
+    "journalEntryLines": 6,
+    "expenseCategories": 1,
+    "expenses": 1,
+    "cashMovements": 1,
+    "cashLedgerEntries": 3,
+    "dailyCloses": 1
+  },
+  "financialSums": {
+    "orderTotalAmount": "200000.00",
+    "paymentAmount": "120000.00",
+    "refundAmount": "30000.00",
+    "expenseAmount": "12500.00",
+    "cashMovementAmount": "500000.00",
+    "journalDebitAmount": "567500.00",
+    "journalCreditAmount": "567500.00"
+  },
+  "tenantIntegrity": {
+    "nullTenantKeys": 0,
+    "invalidOutletOrganizationPairs": 0,
+    "usersWithoutMembership": 0,
+    "missingOutletProductRows": 0,
+    "missingOutletIngredientStockRows": 0
+  }
+}

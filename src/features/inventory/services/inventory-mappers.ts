@@ -11,7 +11,7 @@ import type {
 } from "../types";
 
 export function getIngredientStockStatus(
-  ingredient: Pick<Ingredient, "currentStock" | "lowStockThreshold" | "isActive">,
+  ingredient: Pick<Ingredient, "isActive"> & { currentStock: unknown; lowStockThreshold: unknown | null },
 ): IngredientRecord["stockStatus"] {
   if (!ingredient.isActive) return "inactive";
   const currentStock = Number(ingredient.currentStock);
@@ -26,7 +26,7 @@ export function getIngredientStockStatus(
   return "ok";
 }
 
-export function mapIngredient(ingredient: Ingredient): IngredientRecord {
+export function mapIngredient(ingredient: Ingredient & { currentStock: unknown; lowStockThreshold: unknown | null }): IngredientRecord {
   return {
     id: ingredient.id,
     name: ingredient.name,

@@ -13,18 +13,18 @@ integration("tenant schema constraints (PostgreSQL)", () => {
   const organizationIds: string[] = [];
   const outletIds: string[] = [];
   const userIds: string[] = [];
-  let categoryId: string | undefined;
-  let productId: string | undefined;
-  let ingredientId: string | undefined;
+  const categoryIds: string[] = [];
+  const productIds: string[] = [];
+  const ingredientIds: string[] = [];
 
   afterAll(async () => {
     if (outletIds.length) await prisma.outletMembership.deleteMany({ where: { outletId: { in: outletIds } } });
     if (organizationIds.length) await prisma.organizationMembership.deleteMany({ where: { organizationId: { in: organizationIds } } });
     if (outletIds.length) await prisma.outletIngredientStock.deleteMany({ where: { outletId: { in: outletIds } } });
     if (outletIds.length) await prisma.outletProduct.deleteMany({ where: { outletId: { in: outletIds } } });
-    if (productId) await prisma.product.deleteMany({ where: { id: productId } });
-    if (categoryId) await prisma.category.deleteMany({ where: { id: categoryId } });
-    if (ingredientId) await prisma.ingredient.deleteMany({ where: { id: ingredientId } });
+    if (productIds.length) await prisma.product.deleteMany({ where: { id: { in: productIds } } });
+    if (categoryIds.length) await prisma.category.deleteMany({ where: { id: { in: categoryIds } } });
+    if (ingredientIds.length) await prisma.ingredient.deleteMany({ where: { id: { in: ingredientIds } } });
     if (outletIds.length) await prisma.outlet.deleteMany({ where: { id: { in: outletIds } } });
     if (userIds.length) await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     if (organizationIds.length) await prisma.organization.deleteMany({ where: { id: { in: organizationIds } } });
@@ -59,8 +59,8 @@ integration("tenant schema constraints (PostgreSQL)", () => {
 
     const users = await prisma.user.createManyAndReturn({
       data: [
-        { name: "Tenant Test User A", email: `tenant-test-a-${suffix}@example.test`, passwordHash: "fixture-hash", role: "admin" },
-        { name: "Tenant Test User B", email: `tenant-test-b-${suffix}@example.test`, passwordHash: "fixture-hash", role: "admin" },
+        { name: "Tenant Test User A", email: `tenant-test-a-${suffix}@example.test`, passwordHash: "fixture-hash" },
+        { name: "Tenant Test User B", email: `tenant-test-b-${suffix}@example.test`, passwordHash: "fixture-hash" },
       ],
       select: { id: true },
     });
@@ -86,15 +86,28 @@ integration("tenant schema constraints (PostgreSQL)", () => {
     const category = await prisma.category.create({
       data: { organizationId: organizationA.id, name: "Tenant Test", slug: `tenant-test-${suffix}` },
     });
-    categoryId = category.id;
+    const categoryB = await prisma.category.create({
+      data: { organizationId: organizationB.id, name: "Tenant Test B", slug: category.slug },
+    });
+    categoryIds.push(category.id, categoryB.id);
     const product = await prisma.product.create({
       data: { organizationId: organizationA.id, categoryId: category.id, name: "Tenant Test Product", sku: `tenant-test-${suffix}`, price: "10.00" },
     });
-    productId = product.id;
+    const productB = await prisma.product.create({
+      data: { organizationId: organizationB.id, categoryId: categoryB.id, name: "Tenant Test Product B", sku: product.sku, price: "10.00" },
+    });
+    productIds.push(product.id, productB.id);
+    await Promise.all([
+      prisma.productVariant.create({ data: { organizationId: organizationA.id, productId: product.id, name: "Variant A", sku: `variant-${suffix}` } }),
+      prisma.productVariant.create({ data: { organizationId: organizationB.id, productId: productB.id, name: "Variant B", sku: `variant-${suffix}` } }),
+    ]);
     const ingredient = await prisma.ingredient.create({
       data: { organizationId: organizationA.id, name: "Tenant Test Ingredient", sku: `tenant-test-${suffix}`, unit: "g" },
     });
-    ingredientId = ingredient.id;
+    const ingredientB = await prisma.ingredient.create({
+      data: { organizationId: organizationB.id, name: "Tenant Test Ingredient B", sku: ingredient.sku, unit: "g" },
+    });
+    ingredientIds.push(ingredient.id, ingredientB.id);
 
     await prisma.outletProduct.create({ data: { outletId: outletA.id, productId: product.id } });
     await expect(prisma.outletProduct.create({

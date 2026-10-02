@@ -27,23 +27,23 @@ describe("outlet stock schema", () => {
     expect(hasUnique("OutletIngredientStock", ["outletId", "ingredientId"])).toBe(true);
   });
 
-  it("keeps stock quantities decimal and preserves legacy product stock", () => {
+  it("keeps outlet stock quantities decimal and removes global product stock", () => {
     const quantity = model("OutletProduct").fields.find((field) => field.name === "stockQuantity");
     expect(quantity).toMatchObject({ type: "Decimal", isRequired: false });
-    expect(model("Product").fields.some((field) => field.name === "stockQuantity")).toBe(true);
+    expect(model("Product").fields.some((field) => field.name === "stockQuantity")).toBe(false);
   });
 
-  it("adds nullable scope fields to organization and operational roots", () => {
+  it("requires tenant scope fields on organization and operational roots", () => {
     for (const modelName of ["Category", "Product", "ProductVariant", "Ingredient", "Account", "ExpenseCategory"]) {
       expect(model(modelName).fields.find((field) => field.name === "organizationId")).toMatchObject({
-        isRequired: false,
+        isRequired: true,
       });
     }
 
     for (const modelName of ["AppSetting", "CustomerDisplayState", "Order", "DiningTable", "StockMovement", "ActivityLog", "JournalEntry", "Expense", "CashMovement", "CashLedgerEntry", "DailyClose"]) {
       for (const fieldName of ["organizationId", "outletId"]) {
         expect(model(modelName).fields.find((field) => field.name === fieldName)).toMatchObject({
-          isRequired: false,
+          isRequired: true,
         });
       }
     }

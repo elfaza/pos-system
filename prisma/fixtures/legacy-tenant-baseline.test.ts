@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "../../node_modules/.prisma/legacy-prisma-client";
 import { expect, it, vi } from "vitest";
 import { loadLegacyTenantBaseline } from "./legacy-tenant-baseline";
 

@@ -106,10 +106,12 @@ function mapProductRecipe(
   };
 }
 
-function getCanSellOne(product: Product & {
+function getCanSellOne(product: Omit<Product, "isAvailable" | "stockQuantity" | "lowStockThreshold"> & {
+  isAvailable: boolean;
+  stockQuantity: unknown | null;
   ingredients?: Array<
     ProductIngredient & {
-      ingredient: Pick<Ingredient, "currentStock" | "isActive" | "name">;
+      ingredient: Pick<Ingredient, "isActive" | "name"> & { currentStock: unknown };
     }
   >;
 }) {
@@ -145,7 +147,10 @@ function getCanSellOne(product: Product & {
 }
 
 export function mapProduct(
-  product: Product & {
+  product: Omit<Product, "isAvailable" | "stockQuantity" | "lowStockThreshold"> & {
+    isAvailable: boolean;
+    stockQuantity: unknown | null;
+    lowStockThreshold: unknown | null;
     category: { name: string };
     optionGroups?: Array<
       ProductOptionGroup & {
@@ -168,7 +173,7 @@ export function mapProduct(
     >;
     ingredients?: Array<
       ProductIngredient & {
-        ingredient: Pick<Ingredient, "name" | "sku" | "unit" | "currentStock" | "isActive">;
+        ingredient: Pick<Ingredient, "name" | "sku" | "unit" | "isActive"> & { currentStock: unknown };
       }
     >;
   },

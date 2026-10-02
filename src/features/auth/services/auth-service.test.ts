@@ -78,6 +78,7 @@ describe("auth service", () => {
     mocks.transaction.mockImplementation((callbackOrOperations: unknown) => {
       if (typeof callbackOrOperations === "function") {
         return callbackOrOperations({
+          $queryRaw: vi.fn().mockResolvedValue([]),
           activityLog: { create: mocks.activityLogCreate },
           organizationMembership: { findMany: mocks.organizationMembershipFindMany },
           outletMembership: { findMany: mocks.outletMembershipFindMany },
@@ -116,7 +117,7 @@ describe("auth service", () => {
         expiresAt: new Date("2026-05-04T00:00:00.000Z"),
       },
     });
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.transaction).toHaveBeenCalledTimes(3);
   });
 
   it("does not reuse an old session selection that is no longer authorized", async () => {
@@ -166,7 +167,7 @@ describe("auth service", () => {
     mocks.outletMembershipFindMany.mockResolvedValue([]);
 
     await expect(loginRequest({ email: activeUser.email, password: "secret" })).rejects.toBeInstanceOf(InvalidCredentialsError);
-    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("rejects inactive users without checking the password", async () => {

@@ -83,7 +83,6 @@ export async function provisionOrganization(
         name: values.ownerName,
         email: values.ownerEmail,
         passwordHash,
-        role: "admin",
       },
     });
     await tx.organizationMembership.create({

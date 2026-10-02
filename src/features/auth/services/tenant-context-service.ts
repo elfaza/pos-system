@@ -1,8 +1,8 @@
-import type { OrganizationRole, OutletRole, PrismaClient } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import type { OrganizationRole, OutletRole, Prisma } from "@prisma/client";
+import { setDatabaseTenantContext, withDatabaseUserContext } from "@/lib/tenant-prisma";
 import type { AccessibleOutlet, TenantContext, TenantContextResolution } from "../types";
 
-type TenantMembershipReader = Pick<PrismaClient, "organizationMembership" | "outletMembership">;
+type TenantMembershipReader = Pick<Prisma.TransactionClient, "organizationMembership" | "outletMembership" | "$queryRaw">;
 
 export interface OrganizationMembershipDTO {
   organizationId: string;
@@ -41,28 +41,33 @@ export interface TenantSelection {
 
 export async function getTenantMembershipsForUser(
   userId: string,
-  client: TenantMembershipReader = prisma,
+  client?: TenantMembershipReader,
 ): Promise<TenantMembershipDTO> {
-  const [organizationMemberships, outletMemberships] = await Promise.all([
-    client.organizationMembership.findMany({
-      where: { userId },
-      include: {
-        organization: {
-          include: {
-            outlets: { orderBy: [{ name: "asc" }, { id: "asc" }] },
+  const read = async (reader: TenantMembershipReader) => {
+    await setDatabaseTenantContext(reader as Prisma.TransactionClient, { userId });
+    const [organizationMemberships, outletMemberships] = await Promise.all([
+      reader.organizationMembership.findMany({
+        where: { userId },
+        include: {
+          organization: {
+            include: {
+              outlets: { orderBy: [{ name: "asc" }, { id: "asc" }] },
+            },
           },
         },
-      },
-    }),
-    client.outletMembership.findMany({
-      where: { userId },
-      include: {
-        outlet: { include: { organization: true } },
-      },
-    }),
-  ]);
+      }),
+      reader.outletMembership.findMany({
+        where: { userId },
+        include: {
+          outlet: { include: { organization: true } },
+        },
+      }),
+    ]);
 
-  return { organizationMemberships, outletMemberships } as TenantMembershipDTO;
+    return { organizationMemberships, outletMemberships } as TenantMembershipDTO;
+  };
+  if (client) return read(client);
+  return withDatabaseUserContext(userId, read);
 }
 
 export function resolveTenantContext(
@@ -136,7 +141,7 @@ export function resolveTenantContext(
 export async function getTenantContextForUser(
   userId: string,
   selection?: TenantSelection,
-  client: TenantMembershipReader = prisma,
+  client?: TenantMembershipReader,
 ): Promise<TenantContextResolution> {
   const memberships = await getTenantMembershipsForUser(userId, client);
   return resolveTenantContext(userId, memberships, selection);
@@ -145,7 +150,7 @@ export async function getTenantContextForUser(
 export async function getAccessibleOutletForUser(
   userId: string,
   outletId: string,
-  client: TenantMembershipReader = prisma,
+  client?: TenantMembershipReader,
 ): Promise<TenantContext | null> {
   const result = await getTenantContextForUser(userId, {}, client);
   if (result.status === "no_access") return null;

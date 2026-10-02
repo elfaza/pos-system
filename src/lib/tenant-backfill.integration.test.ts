@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
+import { PrismaClient as LegacyPrismaClient } from "../../node_modules/.prisma/legacy-prisma-client";
 import { describe, expect, it } from "vitest";
 import { loadLegacyTenantBaseline } from "../../prisma/fixtures/legacy-tenant-baseline";
 
@@ -82,6 +83,7 @@ postgresIntegration("legacy tenant backfill against PostgreSQL", () => {
     const afterPath = join(reportsDirectory, "after.json");
     const env = { ...process.env, DATABASE_URL: legacyDatabaseUrl! };
     const prisma = new PrismaClient({ datasources: { db: { url: legacyDatabaseUrl! } } });
+    const legacyPrisma = new LegacyPrismaClient({ datasources: { db: { url: legacyDatabaseUrl! } } });
 
     try {
       const [migrationState] = await prisma.$queryRaw<Array<{ count: bigint }>>`
@@ -90,7 +92,8 @@ postgresIntegration("legacy tenant backfill against PostgreSQL", () => {
         WHERE "finished_at" IS NOT NULL
       `;
       expect(Number(migrationState.count)).toBe(13);
-      await loadLegacyTenantBaseline(prisma);
+      await loadLegacyTenantBaseline(legacyPrisma);
+      await legacyPrisma.$disconnect();
       await prisma.$disconnect();
 
       execFileSync("npm", ["run", "tenant:invariants:capture", "--", "--stage", "legacy", "--output", beforePath], { cwd: process.cwd(), env, stdio: "pipe" });
@@ -99,6 +102,7 @@ postgresIntegration("legacy tenant backfill against PostgreSQL", () => {
       execFileSync("npm", ["run", "tenant:invariants:verify", "--", "--before", beforePath, "--after", afterPath], { cwd: process.cwd(), env, stdio: "pipe" });
     } finally {
       await prisma.$disconnect();
+      await legacyPrisma.$disconnect();
       await rm(reportsDirectory, { recursive: true, force: true });
     }
   }, 180_000);

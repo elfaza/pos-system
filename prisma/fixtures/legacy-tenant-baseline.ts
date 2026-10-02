@@ -1,5 +1,5 @@
 import { pbkdf2Sync } from "node:crypto";
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "../../node_modules/.prisma/legacy-prisma-client";
 
 const FIXTURE_DATE = new Date("2026-09-30T08:00:00.000Z");
 const BUSINESS_DATE = "2026-09-30";

@@ -125,9 +125,6 @@ export async function createProduct(client: Prisma.TransactionClient, organizati
       price: data.price,
       costPrice: data.costPrice,
       trackStock: data.trackStock,
-      stockQuantity: null,
-      lowStockThreshold: null,
-      isAvailable: true,
       outletProducts: {
         create: {
           outletId,

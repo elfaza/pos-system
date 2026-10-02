@@ -55,8 +55,8 @@ describe("tenant membership schema", () => {
     expect(hasUnique("Outlet", ["organizationId", "id"])).toBe(true);
   });
 
-  it("keeps legacy global roles and stores nullable active tenant session keys", () => {
-    expect(model("User").fields.some((field) => field.name === "role")).toBe(true);
+  it("derives roles from memberships and stores nullable active tenant session keys", () => {
+    expect(model("User").fields.some((field) => field.name === "role")).toBe(false);
     expect(model("Session").fields.find((field) => field.name === "activeOrganizationId")).toMatchObject({
       isRequired: false,
     });

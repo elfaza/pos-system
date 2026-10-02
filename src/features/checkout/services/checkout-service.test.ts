@@ -85,8 +85,7 @@ const checkoutProduct = {
   name: "Coffee",
   price: "20000",
   trackStock: true,
-  stockQuantity: "10",
-  isAvailable: true,
+  outletProducts: [{ stockQuantity: "10", isAvailable: true }],
   category: {
     name: "Drinks",
     isActive: true,
@@ -135,7 +134,7 @@ const checkoutProduct = {
                 id: "ingredient-oat",
                 name: "Oat milk",
                 unit: "ml",
-                currentStock: "500",
+                outletStocks: [{ currentStock: "500" }],
                 isActive: true,
               },
             },
@@ -709,7 +708,7 @@ describe("checkout service", () => {
                       id: "ingredient-oat",
                       name: "Oat milk",
                       unit: "ml",
-                      currentStock: "500",
+                      outletStocks: [{ currentStock: "500" }],
                       isActive: true,
                     },
                   },
@@ -881,7 +880,7 @@ describe("checkout service", () => {
               id: "ingredient-milk",
               name: "Fresh milk",
               unit: "ml",
-              currentStock: "100",
+              outletStocks: [{ currentStock: "100" }],
               isActive: true,
             },
           },
@@ -905,14 +904,14 @@ describe("checkout service", () => {
                       id: "ingredient-milk",
                       name: "Fresh milk",
                       unit: "ml",
-                      currentStock: "100",
+                      outletStocks: [{ currentStock: "100" }],
                       isActive: true,
                     },
                     replacementIngredient: {
                       id: "ingredient-oat",
                       name: "Oat milk",
                       unit: "ml",
-                      currentStock: "500",
+                      outletStocks: [{ currentStock: "500" }],
                       isActive: true,
                     },
                   },
@@ -971,7 +970,7 @@ describe("checkout service", () => {
               id: "ingredient-milk",
               name: "Fresh milk",
               unit: "ml",
-              currentStock: "500",
+              outletStocks: [{ currentStock: "500" }],
               isActive: true,
             },
           },
@@ -995,14 +994,14 @@ describe("checkout service", () => {
                       id: "ingredient-milk",
                       name: "Fresh milk",
                       unit: "ml",
-                      currentStock: "500",
+                      outletStocks: [{ currentStock: "500" }],
                       isActive: true,
                     },
                     replacementIngredient: {
                       id: "ingredient-oat",
                       name: "Oat milk",
                       unit: "ml",
-                      currentStock: "100",
+                      outletStocks: [{ currentStock: "100" }],
                       isActive: true,
                     },
                   },
@@ -1133,7 +1132,7 @@ describe("checkout service", () => {
     mocks.findProductsForCheckout.mockResolvedValue([
       {
         ...checkoutProduct,
-        isAvailable: false,
+        outletProducts: [{ stockQuantity: "10", isAvailable: false }],
       },
     ]);
 
@@ -1161,7 +1160,7 @@ describe("checkout service", () => {
     mocks.findProductsForCheckout.mockResolvedValue([
       {
         ...checkoutProduct,
-        stockQuantity: "1",
+        outletProducts: [{ stockQuantity: "1", isAvailable: true }],
       },
     ]);
 
@@ -1190,7 +1189,7 @@ describe("checkout service", () => {
       {
         ...checkoutProduct,
         trackStock: false,
-        stockQuantity: null,
+        outletProducts: [{ stockQuantity: null, isAvailable: true }],
         ingredients: [
           {
             id: "recipe-1",
@@ -1202,7 +1201,7 @@ describe("checkout service", () => {
               id: "ingredient-1",
               name: "Milk",
               unit: "ml",
-              currentStock: "10",
+              outletStocks: [{ currentStock: "10" }],
               isActive: true,
             },
           },
@@ -1637,7 +1636,7 @@ describe("checkout service", () => {
     mocks.findProductsForCheckout.mockResolvedValueOnce([
       {
         ...checkoutProduct,
-        stockQuantity: "0",
+        outletProducts: [{ stockQuantity: "0", isAvailable: true }],
         ingredients: [
           {
             id: "recipe-1",
@@ -1649,7 +1648,7 @@ describe("checkout service", () => {
               id: "ingredient-1",
               name: "Milk",
               unit: "ml",
-              currentStock: "0",
+              outletStocks: [{ currentStock: "0" }],
               isActive: true,
             },
           },

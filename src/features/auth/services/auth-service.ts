@@ -2,9 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { getDatabaseUrl } from "@/lib/env";
 import { ForbiddenError, NotFoundError } from "@/lib/api-response";
 import type { LoginPayload, User } from "../types";
-import type { TenantContext, TenantContextResolution } from "../types";
+import type { EffectiveRole, TenantContext, TenantContextResolution, UserRole } from "../types";
 import { getAccessibleOutletForUser, getTenantContextForUser } from "./tenant-context-service";
 import { verifyPassword } from "../utils/password";
+import { withTenantTransaction, setDatabaseTenantContext } from "@/lib/tenant-prisma";
 import {
   createSessionToken,
   getSessionExpiresAt,
@@ -49,14 +50,19 @@ function toAuthUser(user: {
   id: string;
   name: string;
   email: string;
-  role: User["role"];
-}): User {
+}, effectiveRole: EffectiveRole): User {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    role: effectiveRole === "owner" ? "admin" : effectiveRole,
   };
+}
+
+function getUserRole(resolution: TenantContextResolution): UserRole | null {
+  const role = resolution.status === "ready" ? resolution.context.role : resolution.outlets[0]?.role;
+  if (!role) return null;
+  return role === "owner" ? "admin" : role;
 }
 
 export const loginRequest = async ({
@@ -93,8 +99,8 @@ export const loginRequest = async ({
     select: { activeOrganizationId: true, activeOutletId: true },
   });
   const tenantResolution = await getTenantContextForUser(user.id, previousSession ? {
-    organizationId: previousSession.activeOrganizationId,
-    outletId: previousSession.activeOutletId,
+    organizationId: previousSession.activeOrganizationId ?? undefined,
+    outletId: previousSession.activeOutletId ?? undefined,
   } : undefined);
 
   if (tenantResolution.status === "no_access") {
@@ -102,6 +108,8 @@ export const loginRequest = async ({
   }
 
   const tenantContext = tenantResolution.status === "ready" ? tenantResolution.context : null;
+  const role = getUserRole(tenantResolution);
+  if (!role) throw new InvalidCredentialsError();
 
   await prisma.$transaction([
     prisma.session.create({
@@ -117,21 +125,22 @@ export const loginRequest = async ({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     }),
-    prisma.activityLog.create({
-      data: {
-        userId: user.id,
-        action: "auth.login",
-        entityType: "user",
-        entityId: user.id,
-        organizationId: tenantContext?.organizationId,
-        outletId: tenantContext?.outletId,
-      },
-    }),
   ]);
+
+  if (tenantContext) await withTenantTransaction(tenantContext, (transaction) => transaction.activityLog.create({
+    data: {
+      userId: user.id,
+      action: "auth.login",
+      entityType: "user",
+      entityId: user.id,
+      organizationId: tenantContext.organizationId,
+      outletId: tenantContext.outletId,
+    },
+  }));
 
   return {
     sessionToken,
-    user: toAuthUser(user),
+    user: toAuthUser(user, role),
   };
 };
 
@@ -153,8 +162,12 @@ export const getUserBySessionToken = async (
   ) {
     return null;
   }
-
-  return toAuthUser(session.user);
+  const resolution = await getTenantContextForUser(session.userId, {
+    organizationId: session.activeOrganizationId ?? undefined,
+    outletId: session.activeOutletId ?? undefined,
+  });
+  const role = getUserRole(resolution);
+  return role ? toAuthUser(session.user, role) : null;
 };
 
 export const getTenantSessionByToken = async (
@@ -175,7 +188,8 @@ export const getTenantSessionByToken = async (
     organizationId: session.activeOrganizationId,
     outletId: session.activeOutletId,
   });
-  return { user: toAuthUser(session.user), resolution };
+  const role = getUserRole(resolution);
+  return role ? { user: toAuthUser(session.user, role), resolution } : null;
 };
 
 export const switchOutletRequest = async (
@@ -197,6 +211,7 @@ export const switchOutletRequest = async (
 
     const context = await getAccessibleOutletForUser(session.userId, outletId, transaction);
     if (!context) throw new NotFoundError("Outlet was not found.");
+    await setDatabaseTenantContext(transaction, context);
 
     await transaction.session.update({
       where: { id: session.id },
@@ -236,13 +251,22 @@ export const logoutRequest = async (sessionToken: string): Promise<void> => {
       where: { id: session.id },
       data: { revokedAt: new Date() },
     }),
-    prisma.activityLog.create({
-      data: {
-        userId: session.userId,
-        action: "auth.logout",
-        entityType: "session",
-        entityId: session.id,
-      },
-    }),
   ]);
+  if (session.activeOrganizationId && session.activeOutletId) {
+    const organizationId = session.activeOrganizationId;
+    const outletId = session.activeOutletId;
+    await withTenantTransaction({
+      userId: session.userId,
+      organizationId,
+      outletId,
+      role: "cashier",
+    }, (transaction) => transaction.activityLog.create({ data: {
+      userId: session.userId,
+      organizationId,
+      outletId,
+      action: "auth.logout",
+      entityType: "session",
+      entityId: session.id,
+    } }));
+  }
 };

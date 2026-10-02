@@ -33,7 +33,7 @@ integrationDescribe("checkout tenancy (PostgreSQL)", () => {
     ]);
     outletId = outlet.id;
     const otherOutlet = await client.outlet.create({ data: { organizationId: otherOrganization.id, name: "Other", slug: `other-${suffix}` } });
-    const user = await client.user.create({ data: { name: "Cashier", email: `cashier-${suffix}@example.test`, passwordHash: "fixture", role: "cashier" } });
+    const user = await client.user.create({ data: { name: "Cashier", email: `cashier-${suffix}@example.test`, passwordHash: "fixture" } });
     userId = user.id;
     Object.assign(tenant, { userId, organizationId, outletId });
     mocks.requireTenantContext.mockResolvedValue(tenant);
@@ -50,7 +50,7 @@ integrationDescribe("checkout tenancy (PostgreSQL)", () => {
     productId = product.id;
     otherProductId = otherProduct.id;
     const ingredient = await client.ingredient.create({
-      data: { organizationId, name: `Coffee ${suffix}`, unit: "g", currentStock: "0",
+      data: { organizationId, name: `Coffee ${suffix}`, unit: "g",
         outletStocks: { create: { outletId, currentStock: "10" } } },
     });
     ingredientId = ingredient.id;

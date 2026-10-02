@@ -182,12 +182,12 @@ async function prepareCheckoutItems(
     const outletProduct = product.outletProducts?.[0];
     const outletIngredient = (ingredient: (typeof product.ingredients)[number]["ingredient"]) => ({
       ...ingredient,
-      currentStock: ingredient.outletStocks?.[0]?.currentStock ?? ingredient.currentStock,
+      currentStock: ingredient.outletStocks?.[0]?.currentStock ?? new Prisma.Decimal(0),
     });
     return {
       ...product,
-      isAvailable: outletProduct?.isAvailable ?? product.isAvailable,
-      stockQuantity: outletProduct?.stockQuantity ?? product.stockQuantity,
+      isAvailable: outletProduct?.isAvailable ?? false,
+      stockQuantity: outletProduct?.stockQuantity ?? null,
       ingredients: (product.ingredients ?? []).map((recipe) => ({ ...recipe, ingredient: outletIngredient(recipe.ingredient) })),
       optionGroups: (product.optionGroups ?? []).map((group) => ({
         ...group,
