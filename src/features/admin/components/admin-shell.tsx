@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import type { ModuleAvailability } from "@/features/auth/types";
+import type { EffectiveRole, ModuleAvailability } from "@/features/auth/types";
 
 type OptionalModuleKey = "kitchen" | "queue" | "inventory" | "accounting";
 
@@ -21,13 +21,16 @@ const navItems = [
   { href: "/dashboard/tables", label: "Tables" },
   { href: "/dashboard/inventory", label: "Inventory", moduleKey: "inventory" },
   { href: "/dashboard/accounting", label: "Accounting", moduleKey: "accounting" },
-  { href: "/dashboard/users", label: "Users" },
+  { href: "/dashboard/organization", label: "Organization", tenantRoles: ["owner", "admin"] },
+  { href: "/dashboard/outlets", label: "Outlets", tenantRoles: ["owner", "admin"] },
+  { href: "/dashboard/team", label: "Team", tenantRoles: ["owner", "admin"] },
   { href: "/dashboard/settings", label: "Settings" },
 ] satisfies Array<{
   href: string;
   label: string;
   opensInNewTab?: boolean;
   moduleKey?: OptionalModuleKey;
+  tenantRoles?: readonly EffectiveRole[];
 }>;
 
 function isModuleEnabled(settings: ModuleAvailability | null, moduleKey?: OptionalModuleKey) {
@@ -77,6 +80,7 @@ export default function AdminShell({
     moduleAvailability: initialModuleAvailability,
     setModuleAvailability: setInitialModuleAvailability,
     user,
+    tenantResolution,
   } = useAuth();
   const pathname = usePathname();
   const [moduleAvailability, setModuleAvailability] = useState<ModuleAvailability | null>(
@@ -127,11 +131,15 @@ export default function AdminShell({
       !isModuleEnabled(moduleAvailability, item.moduleKey) &&
       (pathname === item.href || pathname.startsWith(`${item.href}/`)),
   );
+  const effectiveRole = tenantResolution.status === "ready" ? tenantResolution.context.role : user?.role;
+  const hasOutletSwitcher = tenantResolution.status === "ready" && tenantResolution.outlets.length > 1;
+  const shellHeightClass = hasOutletSwitcher ? "lg:min-h-[calc(100dvh-125px)]" : "lg:min-h-[calc(100dvh-69px)]";
+  const sidebarPositionClass = hasOutletSwitcher ? "lg:top-[125px] lg:h-[calc(100dvh-125px)]" : "lg:top-[69px] lg:h-[calc(100dvh-69px)]";
 
   return (
-    <RoleGuard allowedRoles={["admin"]}>
+    <RoleGuard allowedRoles={["owner", "admin"]}>
       <main className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
-        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur lg:px-6">
+        <header className={`sticky ${hasOutletSwitcher ? "top-14" : "top-0"} z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur lg:px-6`}>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
               {eyebrow}
@@ -152,10 +160,11 @@ export default function AdminShell({
           </div>
         </header>
 
-        <div className="lg:grid lg:min-h-[calc(100dvh-69px)] lg:grid-cols-[248px_1fr]">
-          <aside className="border-b border-[var(--border)] bg-[#152238] p-3 text-white lg:sticky lg:top-[69px] lg:h-[calc(100dvh-69px)] lg:overflow-y-auto lg:border-b-0 lg:p-4">
+        <div className={`lg:grid ${shellHeightClass} lg:grid-cols-[248px_1fr]`}>
+          <aside className={`border-b border-[var(--border)] bg-[#152238] p-3 text-white lg:sticky ${sidebarPositionClass} lg:overflow-y-auto lg:border-b-0 lg:p-4`}>
             <nav className="flex gap-2 overflow-x-auto lg:grid lg:gap-1">
               {navItems.map((item) => {
+                if (item.tenantRoles && !item.tenantRoles.some((role) => role === effectiveRole)) return null;
                 if (!isModuleEnabled(moduleAvailability, item.moduleKey)) return null;
 
                 const isActive =
