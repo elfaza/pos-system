@@ -1,38 +1,13 @@
-import type { UserRole } from "@prisma/client";
+import type { TenantContext } from "@/features/auth/types";
 import { prisma } from "@/lib/prisma";
 
 export const userListLimit = 100;
 
-export function listUsers() {
-  return prisma.user.findMany({
-    orderBy: [{ role: "asc" }, { name: "asc" }],
+export function listUsers(context: TenantContext) {
+  return prisma.outletMembership.findMany({
+    where: { organizationId: context.organizationId, outletId: context.outletId },
+    include: { user: true },
+    orderBy: [{ role: "asc" }, { user: { name: "asc" } }],
     take: userListLimit,
   });
-}
-
-export function findUserById(id: string) {
-  return prisma.user.findUnique({ where: { id } });
-}
-
-export function createUser(data: {
-  name: string;
-  email: string;
-  passwordHash: string;
-  role: UserRole;
-  isActive: boolean;
-}) {
-  return prisma.user.create({ data });
-}
-
-export function updateUser(
-  id: string,
-  data: {
-    name: string;
-    email: string;
-    role: UserRole;
-    isActive: boolean;
-    passwordHash?: string;
-  },
-) {
-  return prisma.user.update({ where: { id }, data });
 }

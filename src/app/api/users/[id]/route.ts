@@ -7,7 +7,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(["admin"]);
+    const user = await requireUser();
     const { id } = await params;
     const payload = await readJsonObject(request);
 

@@ -1,14 +1,7 @@
 import type { UserRole as PrismaUserRole } from "@prisma/client";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/api-response";
-import { prisma } from "@/lib/prisma";
+import { ForbiddenError, ValidationError } from "@/lib/api-response";
 import type { User, UserRole } from "@/features/auth/types";
-import { hashPassword } from "../utils/password";
-import {
-  createUser,
-  findUserById,
-  listUsers,
-  updateUser,
-} from "../repositories/user-repository";
+import { listOutletMembers, saveOutletMember } from "@/features/organizations/services/membership-service";
 
 export interface UserRecord {
   id: string;
@@ -19,28 +12,6 @@ export interface UserRecord {
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-function mapUserRecord(user: {
-  id: string;
-  name: string;
-  email: string;
-  role: PrismaUserRole;
-  isActive: boolean;
-  lastLoginAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): UserRecord {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    isActive: user.isActive,
-    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
-    createdAt: user.createdAt.toISOString(),
-    updatedAt: user.updatedAt.toISOString(),
-  };
 }
 
 function parseUserRole(value: unknown): PrismaUserRole {
@@ -91,34 +62,27 @@ function parseUserPayload(
 }
 
 export async function getUserList() {
-  const users = await listUsers();
-  return users.map(mapUserRecord);
+  const members = await listOutletMembers();
+  return members.map((membership) => ({
+    id: membership.user.id,
+    name: membership.user.name,
+    email: membership.user.email,
+    role: membership.role,
+    isActive: membership.isActive,
+    lastLoginAt: membership.user.lastLoginAt?.toISOString() ?? null,
+    createdAt: membership.createdAt.toISOString(),
+    updatedAt: membership.updatedAt.toISOString(),
+  }));
 }
 
 export async function createUserFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
-  const data = parseUserPayload(payload, { requirePassword: true });
-  const user = await createUser({
-    name: data.name,
-    email: data.email,
-    role: data.role,
-    isActive: data.isActive,
-    passwordHash: await hashPassword(data.password),
-  });
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "user.created",
-      entityType: "user",
-      entityId: user.id,
-      metadata: { role: user.role },
-    },
-  });
-
-  return mapUserRecord(user);
+  const data = parseUserPayload(payload, { requirePassword: false });
+  const membership = await saveOutletMember(data, actor.id);
+  return { id: membership.user.id, name: membership.user.name, email: membership.user.email, role: membership.role,
+    isActive: membership.isActive, lastLoginAt: null, createdAt: membership.createdAt.toISOString(), updatedAt: membership.updatedAt.toISOString() };
 }
 
 export async function updateUserFromPayload(
@@ -126,40 +90,12 @@ export async function updateUserFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
-  const existing = await findUserById(id);
-  if (!existing) {
-    throw new NotFoundError("User was not found.");
-  }
-
   const data = parseUserPayload(payload, { requirePassword: false });
   if (id === actor.id && !data.isActive) {
     throw new ForbiddenError("You cannot deactivate your own account.");
   }
-
-  const passwordHash = data.password
-    ? await hashPassword(data.password)
-    : undefined;
-  const user = await updateUser(id, {
-    name: data.name,
-    email: data.email,
-    role: data.role,
-    isActive: data.isActive,
-    ...(passwordHash ? { passwordHash } : {}),
-  });
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actor.id,
-      action: "user.updated",
-      entityType: "user",
-      entityId: user.id,
-      metadata: {
-        role: user.role,
-        isActive: user.isActive,
-        passwordChanged: Boolean(passwordHash),
-      },
-    },
-  });
-
-  return mapUserRecord(user);
+  const membership = await saveOutletMember(data, actor.id, id);
+  return { id: membership.user.id, name: membership.user.name, email: membership.user.email, role: membership.role,
+    isActive: membership.isActive, lastLoginAt: membership.user.lastLoginAt?.toISOString() ?? null,
+    createdAt: membership.createdAt.toISOString(), updatedAt: membership.updatedAt.toISOString() };
 }

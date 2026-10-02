@@ -7,7 +7,7 @@ import {
 
 export async function GET() {
   try {
-    await requireUser(["admin"]);
+    await requireUser();
 
     return jsonOk({ users: await getUserList() });
   } catch (error) {
@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const user = await requireUser();
     const payload = await readJsonObject(request);
 
     return jsonOk(

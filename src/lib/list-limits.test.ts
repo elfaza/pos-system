@@ -31,14 +31,15 @@ const mocks = vi.hoisted(() => ({
   ingredientFindMany: vi.fn(),
   orderFindMany: vi.fn(),
   productFindMany: vi.fn(),
-  userFindMany: vi.fn(),
+  membershipFindMany: vi.fn(),
   queryRaw: vi.fn(),
   transaction: vi.fn(),
 }));
 
 mocks.transaction.mockImplementation(async (callback) => callback({
-  $queryRaw: mocks.queryRaw,
+  $queryRaw: vi.fn().mockResolvedValue([]),
   ingredient: { findMany: mocks.ingredientFindMany },
+  order: { findMany: mocks.orderFindMany },
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -51,7 +52,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     order: { findMany: mocks.orderFindMany },
     product: { findMany: mocks.productFindMany },
-    user: { findMany: mocks.userFindMany },
+    outletMembership: { findMany: mocks.membershipFindMany },
   },
 }));
 
@@ -62,7 +63,7 @@ describe("repository list limits", () => {
     mocks.ingredientFindMany.mockResolvedValue([]);
     mocks.orderFindMany.mockResolvedValue([]);
     mocks.productFindMany.mockResolvedValue([]);
-    mocks.userFindMany.mockResolvedValue([]);
+    mocks.membershipFindMany.mockResolvedValue([]);
   });
 
   it("caps product lists used by POS and catalog management", async () => {
@@ -79,7 +80,7 @@ describe("repository list limits", () => {
   });
 
   it("caps held orders while preserving cashier ownership filtering", async () => {
-    await listHeldOrdersForUser({
+    await listHeldOrdersForUser({ organizationId: "org-1", outletId: "outlet-1", userId: "cashier-1", role: "cashier" }, {
       id: "cashier-1",
       role: "cashier",
     });
@@ -93,8 +94,9 @@ describe("repository list limits", () => {
   });
 
   it("caps active kitchen and queue display lists", async () => {
-    await listActiveKitchenOrders();
-    await listReadyQueueOrders();
+    const tenant = { organizationId: "org-1", outletId: "outlet-1", userId: "kitchen-1", role: "kitchen" as const };
+    await listActiveKitchenOrders(tenant);
+    await listReadyQueueOrders(tenant);
 
     expect(mocks.orderFindMany).toHaveBeenNthCalledWith(
       1,
@@ -122,8 +124,8 @@ describe("repository list limits", () => {
     })));
     const ingredients = await listIngredients({ organizationId: "org-1", outletId: "outlet-1", userId: "user-1", role: "admin" }, {});
     await listCategories({ category: { findMany: mocks.categoryFindMany } } as never, "org-1", false);
-    await listUsers();
-    await listOrdersForUser({ id: "admin-1", role: "admin" });
+    await listUsers({ organizationId: "org-1", outletId: "outlet-1", userId: "admin-1", role: "admin" });
+    await listOrdersForUser({ organizationId: "org-1", outletId: "outlet-1", userId: "admin-1", role: "admin" }, { id: "admin-1", role: "admin" });
 
     expect(mocks.ingredientFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ organizationId: "org-1" }),
@@ -132,8 +134,11 @@ describe("repository list limits", () => {
     expect(mocks.categoryFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ take: categoryListLimit }),
     );
-    expect(mocks.userFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: userListLimit }),
+    expect(mocks.membershipFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: userListLimit,
+        where: { organizationId: "org-1", outletId: "outlet-1" },
+      }),
     );
     expect(mocks.orderFindMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ take: 100 }),
