@@ -63,7 +63,7 @@ describe("accounting API routes", () => {
       expect(await response.json()).toEqual({
         error: "You do not have permission to perform this action.",
       });
-      expect(mocks.requireUser).toHaveBeenCalledWith(["admin"]);
+      expect(mocks.requireUser).toHaveBeenCalledWith();
       expect(mocks.getAccountsAndCategories).not.toHaveBeenCalled();
     });
 

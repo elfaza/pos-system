@@ -5,7 +5,7 @@ import { createOpeningCashFromPayload } from "@/features/accounting/services/acc
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const user = await requireUser();
     await requireModuleEnabled("accountingEnabled");
     const payload = await readJsonObject(request);
     return jsonOk(

@@ -12,6 +12,7 @@ import {
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   tx: {
+    $queryRaw: vi.fn(),
     account: { upsert: vi.fn() },
     cashMovement: { create: vi.fn() },
     expenseCategory: { upsert: vi.fn(), findFirst: vi.fn() },
@@ -19,10 +20,14 @@ const mocks = vi.hoisted(() => ({
     journalEntry: { upsert: vi.fn() },
     journalEntryLine: { create: vi.fn() },
     cashLedgerEntry: { upsert: vi.fn(), create: vi.fn(), findMany: vi.fn() },
-    dailyClose: { findUnique: vi.fn(), create: vi.fn() },
+    dailyClose: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
     activityLog: { create: vi.fn() },
   },
   requireModuleEnabled: vi.fn(),
+}));
+
+vi.mock("@/features/auth/services/session-service", () => ({
+  requireTenantContext: vi.fn().mockResolvedValue({ userId: "admin-1", organizationId: "org-12345678", outletId: "outlet-1", role: "admin" }),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -66,9 +71,9 @@ describe("accounting service", () => {
       businessDayStartTime: "00:00",
     });
     mocks.transaction.mockImplementation((callback) => callback(mocks.tx));
-    mocks.tx.account.upsert.mockImplementation(({ where }: { where: { code: string } }) => ({
-      id: accountsByCode[where.code].id,
-      code: where.code,
+    mocks.tx.account.upsert.mockImplementation(({ where }: { where: { organizationId_code: { code: string } } }) => ({
+      id: accountsByCode[where.organizationId_code.code]?.id ?? `account-${where.organizationId_code.code}`,
+      code: where.organizationId_code.code,
     }));
     mocks.tx.expenseCategory.upsert.mockResolvedValue({});
     mocks.tx.expenseCategory.findFirst.mockResolvedValue({
@@ -93,6 +98,7 @@ describe("accounting service", () => {
       { amount: "25000", direction: "out" },
     ]);
     mocks.tx.dailyClose.findUnique.mockResolvedValue(null);
+    mocks.tx.dailyClose.findFirst.mockResolvedValue(null);
     mocks.tx.dailyClose.create.mockResolvedValue({
       id: "close-1",
       businessDate: "2026-05-04",
@@ -107,6 +113,8 @@ describe("accounting service", () => {
   it("creates a balanced sales journal and cash ledger row for a paid cash order", async () => {
     await createSalesAccountingForPaidCashOrder(mocks.tx as never, {
       orderId: "order-1",
+      organizationId: "org-12345678",
+      outletId: "outlet-1",
       orderNumber: "ORD-001",
       paymentId: "payment-1",
       businessDate: "2026-05-04",
@@ -121,12 +129,15 @@ describe("accounting service", () => {
     expect(mocks.tx.journalEntry.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          sourceType_sourceId: {
+          outletId_sourceType_sourceId: {
+            outletId: "outlet-1",
             sourceType: "order",
             sourceId: "order-1",
           },
         },
         create: expect.objectContaining({
+          organizationId: "org-12345678",
+          outletId: "outlet-1",
           sourceType: "order",
           lines: {
             create: expect.arrayContaining([
@@ -142,7 +153,8 @@ describe("accounting service", () => {
     expect(mocks.tx.cashLedgerEntry.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          sourceType_sourceId: {
+          outletId_sourceType_sourceId: {
+            outletId: "outlet-1",
             sourceType: "order",
             sourceId: "payment-1",
           },
@@ -154,6 +166,8 @@ describe("accounting service", () => {
   it("creates a QRIS sales journal without a cash ledger row", async () => {
     await createSalesAccountingForPaidOrder(mocks.tx as never, {
       orderId: "order-qris",
+      organizationId: "org-12345678",
+      outletId: "outlet-1",
       orderNumber: "ORD-QRIS",
       paymentId: "payment-qris",
       paymentMethod: "qris",
@@ -290,7 +304,7 @@ describe("accounting service", () => {
   });
 
   it("rejects duplicate daily closes for the same business date", async () => {
-    mocks.tx.dailyClose.findUnique.mockResolvedValueOnce({ id: "close-existing" });
+    mocks.tx.dailyClose.findFirst.mockResolvedValueOnce({ id: "close-existing" });
 
     await expect(
       createDailyCloseFromPayload(

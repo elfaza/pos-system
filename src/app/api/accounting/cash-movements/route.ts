@@ -8,7 +8,7 @@ import {
 
 export async function GET() {
   try {
-    await requireUser(["admin"]);
+    await requireUser();
     await requireModuleEnabled("accountingEnabled");
     return jsonOk({ cashMovements: await getCashMovementList() });
   } catch (error) {
@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const user = await requireUser();
     await requireModuleEnabled("accountingEnabled");
     const payload = await readJsonObject(request);
     return jsonOk(

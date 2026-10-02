@@ -6,7 +6,7 @@ import { getDashboardReport } from "@/features/reporting/services/reporting-serv
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(["admin"]);
+    await requireUser();
     await requireModuleEnabled("reportingEnabled");
 
     return jsonOk({

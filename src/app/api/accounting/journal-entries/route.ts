@@ -5,7 +5,7 @@ import { getJournalEntryList } from "@/features/accounting/services/accounting-s
 
 export async function GET() {
   try {
-    await requireUser(["admin"]);
+    await requireUser();
     await requireModuleEnabled("accountingEnabled");
     return jsonOk({ journalEntries: await getJournalEntryList() });
   } catch (error) {

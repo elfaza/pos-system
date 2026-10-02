@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ValidationError } from "@/lib/api-response";
 import {
   getDashboardReport,
+  getOrganizationSalesSummary,
   parseReportDateRange,
 } from "./reporting-service";
 
@@ -11,6 +12,12 @@ const mocks = vi.hoisted(() => ({
   listReportProducts: vi.fn(),
   listReportStockMovements: vi.fn(),
   requireModuleEnabled: vi.fn(),
+  requireTenantContext: vi.fn(),
+  outletFindMany: vi.fn(),
+}));
+
+vi.mock("@/features/auth/services/session-service", () => ({
+  requireTenantContext: mocks.requireTenantContext,
 }));
 
 vi.mock("@/features/catalog/services/module-config", () => ({
@@ -23,6 +30,7 @@ vi.mock("../repositories/reporting-repository", () => ({
   listReportProducts: mocks.listReportProducts,
   listReportStockMovements: mocks.listReportStockMovements,
 }));
+vi.mock("@/lib/prisma", () => ({ prisma: { outlet: { findMany: mocks.outletFindMany } } }));
 
 const paidAt = new Date("2026-04-29T03:00:00.000Z");
 
@@ -92,6 +100,8 @@ describe("reporting service", () => {
       timeZone: "Asia/Jakarta",
       businessDayStartTime: "00:00",
     });
+    mocks.requireTenantContext.mockResolvedValue({ userId: "owner-1", organizationId: "org-1", outletId: "outlet-1", role: "owner" });
+    mocks.outletFindMany.mockResolvedValue([{ id: "outlet-1", name: "One" }, { id: "outlet-2", name: "Two" }]);
     mocks.listReportIngredients.mockResolvedValue([
       {
         id: "ingredient-1",
@@ -100,6 +110,7 @@ describe("reporting service", () => {
         unit: "ml",
         currentStock: "20",
         lowStockThreshold: "30",
+        outletStocks: [{ currentStock: "20", lowStockThreshold: "30" }],
         isActive: true,
         stockMovements: [{ createdAt: new Date("2026-04-29T02:00:00.000Z") }],
       },
@@ -112,6 +123,7 @@ describe("reporting service", () => {
         stockQuantity: "0",
         lowStockThreshold: "5",
         isAvailable: true,
+        outletProducts: [{ isAvailable: true, stockQuantity: "0", lowStockThreshold: "5" }],
         stockMovements: [],
       },
     ]);
@@ -262,6 +274,18 @@ describe("reporting service", () => {
       refundAmount: 25000,
     });
     expect(range.dateFrom).toBe("2026-04-29");
+  });
+
+  it("adds explicit outlet totals for the owner organization summary", async () => {
+    mocks.listReportOrders.mockImplementation(async (context: { outletId: string }) => [
+      buildOrder({ id: `order-${context.outletId}`, totalAmount: context.outletId === "outlet-1" ? "100" : "200", refunds: [] }),
+    ]);
+    const summary = await getOrganizationSalesSummary(new URL("http://localhost/api/reports/organization"));
+    expect(mocks.requireTenantContext).toHaveBeenCalledWith(["owner"]);
+    expect(mocks.outletFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { organizationId: "org-1", isActive: true },
+    }));
+    expect(summary.totals).toEqual({ grossSales: 300, refundAmount: 0, netSales: 300, orderCount: 2 });
   });
 
   it("rejects dashboard reports when reporting is disabled", async () => {

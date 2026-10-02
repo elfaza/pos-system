@@ -5,7 +5,7 @@ import { createCashDropFromPayload } from "@/features/accounting/services/accoun
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const user = await requireUser();
     await requireModuleEnabled("accountingEnabled");
     const payload = await readJsonObject(request);
     return jsonOk(

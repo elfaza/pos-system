@@ -3,6 +3,9 @@ import { NotFoundError, ValidationError } from "@/lib/api-response";
 import { toBoolean, toDecimalString } from "@/lib/number";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
+import type { TenantContext } from "@/features/auth/types";
+import { requireTenantContext } from "@/features/auth/services/session-service";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
 import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import { getQueueBusinessDate } from "@/features/kitchen/services/queue-number";
 import {
@@ -86,21 +89,22 @@ function makeEntryNumber(prefix: string, date = new Date()) {
   return `${prefix}-${stamp}-${suffix}`;
 }
 
-async function ensureDefaultAccountingSetup(tx: TransactionClient = prisma) {
+async function ensureDefaultAccountingSetup(tenant: TenantContext, tx: TransactionClient = prisma) {
   const accountByCode = new Map<string, { id: string }>();
 
   for (const account of defaultAccounts) {
+    const code = account.code;
     const created = await tx.account.upsert({
-      where: { code: account.code },
+      where: { organizationId_code: { organizationId: tenant.organizationId, code } },
       update: {
         name: account.name,
         type: account.type,
         isActive: true,
       },
-      create: account,
+      create: { ...account, organizationId: tenant.organizationId, code },
       select: { id: true, code: true },
     });
-    accountByCode.set(created.code, created);
+    accountByCode.set(account.code, created);
   }
 
   for (const category of defaultExpenseCategories) {
@@ -108,9 +112,10 @@ async function ensureDefaultAccountingSetup(tx: TransactionClient = prisma) {
     if (!account) continue;
 
     await tx.expenseCategory.upsert({
-      where: { name: category.name },
+      where: { organizationId_name: { organizationId: tenant.organizationId, name: category.name } },
       update: { accountId: account.id, isActive: true },
       create: {
+        organizationId: tenant.organizationId,
         name: category.name,
         accountId: account.id,
       },
@@ -137,6 +142,7 @@ function validateBalancedLines(
 
 async function createJournalEntry(
   tx: TransactionClient,
+  tenant: TenantContext,
   input: {
     sourceType: "order" | "expense" | "cash_movement" | "daily_close";
     sourceId: string;
@@ -150,7 +156,8 @@ async function createJournalEntry(
 
   return tx.journalEntry.upsert({
     where: {
-      sourceType_sourceId: {
+      outletId_sourceType_sourceId: {
+        outletId: tenant.outletId,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
       },
@@ -158,6 +165,8 @@ async function createJournalEntry(
     update: {},
     create: {
       entryNumber: makeEntryNumber("JE"),
+      organizationId: tenant.organizationId,
+      outletId: tenant.outletId,
       sourceType: input.sourceType,
       sourceId: input.sourceId,
       businessDate: input.businessDate,
@@ -178,6 +187,8 @@ export async function createSalesAccountingForPaidOrder(
   tx: TransactionClient,
   input: {
     orderId: string;
+    organizationId: string;
+    outletId: string;
     orderNumber: string;
     paymentId: string;
     paymentMethod: "cash" | "qris";
@@ -190,7 +201,8 @@ export async function createSalesAccountingForPaidOrder(
     totalAmount: number;
   },
 ) {
-  const accounts = await ensureDefaultAccountingSetup(tx);
+  const tenant = { userId: input.actorId, organizationId: input.organizationId, outletId: input.outletId, role: "admin" as const };
+  const accounts = await ensureDefaultAccountingSetup(tenant, tx);
   const paymentAccount = accounts.get(input.paymentMethod === "cash" ? "1000" : "1100");
   const sales = accounts.get("4000");
   const serviceCharge = accounts.get("4010");
@@ -201,7 +213,7 @@ export async function createSalesAccountingForPaidOrder(
   }
 
   const netSales = roundMoney(input.subtotalAmount - input.discountAmount);
-  const lines = [
+  const lines: { accountId: string; debitAmount?: number; creditAmount?: number }[] = [
     { accountId: paymentAccount.id, debitAmount: input.totalAmount },
     { accountId: sales.id, creditAmount: netSales },
   ];
@@ -215,7 +227,7 @@ export async function createSalesAccountingForPaidOrder(
     });
   }
 
-  await createJournalEntry(tx, {
+  await createJournalEntry(tx, tenant, {
     sourceType: "order",
     sourceId: input.orderId,
     businessDate: input.businessDate,
@@ -227,13 +239,16 @@ export async function createSalesAccountingForPaidOrder(
   if (input.paymentMethod === "cash") {
     await tx.cashLedgerEntry.upsert({
       where: {
-        sourceType_sourceId: {
+        outletId_sourceType_sourceId: {
+          outletId: tenant.outletId,
           sourceType: "order",
           sourceId: input.paymentId,
         },
       },
       update: {},
       create: {
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         sourceType: "order",
         sourceId: input.paymentId,
         businessDate: input.businessDate,
@@ -255,12 +270,57 @@ export async function createSalesAccountingForPaidCashOrder(
   });
 }
 
+export async function createSalesAccountingForRefund(
+  tx: TransactionClient,
+  input: {
+    organizationId: string;
+    outletId: string;
+    actorId: string;
+    refundId: string;
+    orderNumber: string;
+    paymentMethod: "cash" | "qris";
+    businessDate: string;
+    subtotalAmount: number;
+    discountAmount: number;
+    taxAmount: number;
+    serviceChargeAmount: number;
+    totalAmount: number;
+  },
+) {
+  const tenant: TenantContext = { userId: input.actorId, organizationId: input.organizationId, outletId: input.outletId, role: "admin" };
+  const accounts = await ensureDefaultAccountingSetup(tenant, tx);
+  const payment = accounts.get(input.paymentMethod === "cash" ? "1000" : "1100");
+  const sales = accounts.get("4000");
+  const service = accounts.get("4010");
+  const tax = accounts.get("2100");
+  if (!payment || !sales || !service || !tax) throw new ValidationError("Accounting accounts are not configured.");
+  const lines = [
+    { accountId: sales.id, debitAmount: roundMoney(input.subtotalAmount - input.discountAmount) },
+    { accountId: payment.id, creditAmount: input.totalAmount },
+  ];
+  if (input.taxAmount > 0) lines.push({ accountId: tax.id, debitAmount: input.taxAmount });
+  if (input.serviceChargeAmount > 0) lines.push({ accountId: service.id, debitAmount: input.serviceChargeAmount });
+  await createJournalEntry(tx, tenant, {
+    sourceType: "order", sourceId: input.refundId, businessDate: input.businessDate,
+    description: `Refund ${input.orderNumber}`, createdByUserId: input.actorId, lines,
+  });
+  if (input.paymentMethod === "cash") {
+    await tx.cashLedgerEntry.upsert({
+      where: { outletId_sourceType_sourceId: { outletId: input.outletId, sourceType: "order", sourceId: input.refundId } },
+      update: {},
+      create: { organizationId: input.organizationId, outletId: input.outletId, sourceType: "order", sourceId: input.refundId,
+        businessDate: input.businessDate, direction: "out", amount: new Prisma.Decimal(input.totalAmount), description: `Cash refund ${input.orderNumber}` },
+    });
+  }
+}
+
 export async function getAccountsAndCategories() {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
-  await ensureDefaultAccountingSetup();
+  await ensureDefaultAccountingSetup(tenant);
   const [accounts, expenseCategories] = await Promise.all([
-    prisma.account.findMany({ orderBy: [{ code: "asc" }] }),
-    prisma.expenseCategory.findMany({ orderBy: [{ name: "asc" }] }),
+    prisma.account.findMany({ where: { organizationId: tenant.organizationId }, orderBy: [{ code: "asc" }] }),
+    prisma.expenseCategory.findMany({ where: { organizationId: tenant.organizationId }, orderBy: [{ name: "asc" }] }),
   ]);
 
   return {
@@ -270,6 +330,7 @@ export async function getAccountsAndCategories() {
 }
 
 export async function createAccountFromPayload(payload: Record<string, unknown>) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const code = optionalString(payload.code) ?? "";
   const name = optionalString(payload.name) ?? "";
@@ -288,6 +349,7 @@ export async function createAccountFromPayload(payload: Record<string, unknown>)
 
   const account = await prisma.account.create({
     data: {
+      organizationId: tenant.organizationId,
       code,
       name,
       type: type as (typeof allowedTypes)[number],
@@ -302,12 +364,13 @@ export async function updateAccountFromPayload(
   id: string,
   payload: Record<string, unknown>,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
-  const existing = await prisma.account.findUnique({ where: { id } });
+  const existing = await prisma.account.findFirst({ where: { id, organizationId: tenant.organizationId } });
   if (!existing) throw new NotFoundError("Account was not found.");
 
   const account = await prisma.account.update({
-    where: { id },
+    where: { id, organizationId: tenant.organizationId },
     data: {
       name: optionalString(payload.name) ?? existing.name,
       isActive: toBoolean(payload.isActive, existing.isActive),
@@ -318,8 +381,10 @@ export async function updateAccountFromPayload(
 }
 
 export async function getJournalEntryList() {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const entries = await prisma.journalEntry.findMany({
+    where: { organizationId: tenant.organizationId, outletId: tenant.outletId },
     include: {
       lines: {
         include: { account: true },
@@ -334,8 +399,10 @@ export async function getJournalEntryList() {
 }
 
 export async function getExpenseList() {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const expenses = await prisma.expense.findMany({
+    where: { organizationId: tenant.organizationId, outletId: tenant.outletId },
     include: { category: true },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -348,6 +415,7 @@ export async function createExpenseFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const categoryId = optionalString(payload.categoryId) ?? "";
   const amount = parsePositiveMoney(payload.amount);
@@ -361,10 +429,10 @@ export async function createExpenseFromPayload(
     });
   }
 
-  return prisma.$transaction(async (tx) => {
-    const accounts = await ensureDefaultAccountingSetup(tx);
+  return withTenantTransaction(tenant, async (tx) => {
+    const accounts = await ensureDefaultAccountingSetup(tenant, tx);
     const category = await tx.expenseCategory.findFirst({
-      where: { id: categoryId, isActive: true },
+      where: { id: categoryId, organizationId: tenant.organizationId, isActive: true },
       include: { account: true },
     });
     if (!category) {
@@ -380,6 +448,8 @@ export async function createExpenseFromPayload(
 
     const expense = await tx.expense.create({
       data: {
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         categoryId,
         amount: new Prisma.Decimal(amount),
         businessDate,
@@ -390,7 +460,7 @@ export async function createExpenseFromPayload(
       include: { category: true },
     });
 
-    await createJournalEntry(tx, {
+    await createJournalEntry(tx, tenant, {
       sourceType: "expense",
       sourceId: expense.id,
       businessDate,
@@ -405,6 +475,8 @@ export async function createExpenseFromPayload(
     if (paymentSource === "cash") {
       await tx.cashLedgerEntry.create({
         data: {
+          organizationId: tenant.organizationId,
+          outletId: tenant.outletId,
           sourceType: "expense",
           sourceId: expense.id,
           businessDate,
@@ -418,6 +490,8 @@ export async function createExpenseFromPayload(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "accounting.expense.created",
         entityType: "expense",
         entityId: expense.id,
@@ -429,8 +503,10 @@ export async function createExpenseFromPayload(
 }
 
 export async function getCashMovementList() {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const movements = await prisma.cashMovement.findMany({
+    where: { organizationId: tenant.organizationId, outletId: tenant.outletId },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
@@ -442,6 +518,7 @@ export async function createCashMovementFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const type = payload.type === "cash_out" ? "cash_out" : "cash_in";
   const amount = parsePositiveMoney(payload.amount);
@@ -453,8 +530,8 @@ export async function createCashMovementFromPayload(
     });
   }
 
-  return prisma.$transaction(async (tx) => {
-    const accounts = await ensureDefaultAccountingSetup(tx);
+  return withTenantTransaction(tenant, async (tx) => {
+    const accounts = await ensureDefaultAccountingSetup(tenant, tx);
     const cash = accounts.get("1000");
     const equity = accounts.get("3000");
     if (!cash || !equity) {
@@ -463,6 +540,8 @@ export async function createCashMovementFromPayload(
 
     const movement = await tx.cashMovement.create({
       data: {
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         type,
         amount: new Prisma.Decimal(amount),
         businessDate,
@@ -471,7 +550,7 @@ export async function createCashMovementFromPayload(
       },
     });
 
-    await createJournalEntry(tx, {
+    await createJournalEntry(tx, tenant, {
       sourceType: "cash_movement",
       sourceId: movement.id,
       businessDate,
@@ -491,6 +570,8 @@ export async function createCashMovementFromPayload(
 
     await tx.cashLedgerEntry.create({
       data: {
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         sourceType: "cash_movement",
         sourceId: movement.id,
         businessDate,
@@ -503,6 +584,8 @@ export async function createCashMovementFromPayload(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "accounting.cash_movement.created",
         entityType: "cash_movement",
         entityId: movement.id,
@@ -549,10 +632,11 @@ export async function createCashDropFromPayload(
 
 async function getExpectedCashForBusinessDate(
   tx: TransactionClient,
+  tenant: TenantContext,
   businessDate: string,
 ) {
   const entries = await tx.cashLedgerEntry.findMany({
-    where: { businessDate },
+    where: { organizationId: tenant.organizationId, outletId: tenant.outletId, businessDate },
     select: { amount: true, direction: true },
   });
 
@@ -565,8 +649,10 @@ async function getExpectedCashForBusinessDate(
 }
 
 export async function getDailyCloseList() {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const closes = await prisma.dailyClose.findMany({
+    where: { organizationId: tenant.organizationId, outletId: tenant.outletId },
     orderBy: { businessDate: "desc" },
     take: 100,
   });
@@ -578,29 +664,32 @@ export async function createDailyCloseFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   await requireModuleEnabled("accountingEnabled");
   const businessDate = parseBusinessDate(payload.businessDate);
   const countedCashAmount = parsePositiveMoney(payload.countedCashAmount, "countedCashAmount");
 
-  return prisma.$transaction(async (tx) => {
-    const existing = await tx.dailyClose.findUnique({ where: { businessDate } });
+  return withTenantTransaction(tenant, async (tx) => {
+    const existing = await tx.dailyClose.findFirst({ where: { organizationId: tenant.organizationId, outletId: tenant.outletId, businessDate } });
     if (existing) {
       throw new ValidationError("Business date has already been closed.", {
         businessDate: "Choose an open business date.",
       });
     }
 
-    const accounts = await ensureDefaultAccountingSetup(tx);
+    const accounts = await ensureDefaultAccountingSetup(tenant, tx);
     const cash = accounts.get("1000");
     const equity = accounts.get("3000");
     if (!cash || !equity) {
       throw new ValidationError("Accounting accounts are not configured.");
     }
 
-    const expectedCashAmount = await getExpectedCashForBusinessDate(tx, businessDate);
+    const expectedCashAmount = await getExpectedCashForBusinessDate(tx, tenant, businessDate);
     const differenceAmount = roundMoney(Number(countedCashAmount) - expectedCashAmount);
     const close = await tx.dailyClose.create({
       data: {
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         businessDate,
         expectedCashAmount: new Prisma.Decimal(expectedCashAmount),
         countedCashAmount: new Prisma.Decimal(countedCashAmount),
@@ -610,7 +699,7 @@ export async function createDailyCloseFromPayload(
     });
 
     if (differenceAmount !== 0) {
-      await createJournalEntry(tx, {
+      await createJournalEntry(tx, tenant, {
         sourceType: "daily_close",
         sourceId: close.id,
         businessDate,
@@ -630,6 +719,8 @@ export async function createDailyCloseFromPayload(
 
       await tx.cashLedgerEntry.create({
         data: {
+          organizationId: tenant.organizationId,
+          outletId: tenant.outletId,
           sourceType: "daily_close",
           sourceId: close.id,
           businessDate,
@@ -643,6 +734,8 @@ export async function createDailyCloseFromPayload(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "accounting.daily_close.created",
         entityType: "daily_close",
         entityId: close.id,
@@ -654,8 +747,9 @@ export async function createDailyCloseFromPayload(
 }
 
 export async function getAccountingReport(url: URL): Promise<AccountingReport> {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   const settings = await requireModuleEnabled("accountingEnabled");
-  await ensureDefaultAccountingSetup();
+  await ensureDefaultAccountingSetup(tenant);
   const today = getQueueBusinessDate(
     new Date(),
     settings.timeZone,
@@ -670,18 +764,18 @@ export async function getAccountingReport(url: URL): Promise<AccountingReport> {
 
   const [ledger, journalEntries, closes] = await Promise.all([
     prisma.cashLedgerEntry.findMany({
-      where: { businessDate: { gte: dateFrom, lte: dateTo } },
+      where: { organizationId: tenant.organizationId, outletId: tenant.outletId, businessDate: { gte: dateFrom, lte: dateTo } },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
     prisma.journalEntry.findMany({
-      where: { businessDate: { gte: dateFrom, lte: dateTo } },
+      where: { organizationId: tenant.organizationId, outletId: tenant.outletId, businessDate: { gte: dateFrom, lte: dateTo } },
       include: { lines: { include: { account: true } } },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
     prisma.dailyClose.findMany({
-      where: { businessDate: { gte: dateFrom, lte: dateTo } },
+      where: { organizationId: tenant.organizationId, outletId: tenant.outletId, businessDate: { gte: dateFrom, lte: dateTo } },
       orderBy: { businessDate: "desc" },
       take: 100,
     }),

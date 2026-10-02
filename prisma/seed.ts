@@ -357,39 +357,39 @@ async function main() {
     });
   }
 
-  const accountCode = (code: string) => `DEVELOPMENT-${code}`;
+  const accountCode = (code: string) => code;
   const cashAccount = await prisma.account.upsert({
-    where: { code: accountCode("1000") },
+    where: { organizationId_code: { organizationId: developmentOrganization.id, code: accountCode("1000") } },
     update: { organizationId: developmentOrganization.id, name: "Cash on Hand", type: "asset", isActive: true },
     create: { organizationId: developmentOrganization.id, code: accountCode("1000"), name: "Cash on Hand", type: "asset" },
   });
   const equityAccount = await prisma.account.upsert({
-    where: { code: accountCode("1100") },
+    where: { organizationId_code: { organizationId: developmentOrganization.id, code: accountCode("1100") } },
     update: { organizationId: developmentOrganization.id, name: "QRIS Clearing", type: "asset", isActive: true },
     create: { organizationId: developmentOrganization.id, code: accountCode("1100"), name: "QRIS Clearing", type: "asset" },
   });
   await prisma.account.upsert({
-    where: { code: accountCode("3000") },
+    where: { organizationId_code: { organizationId: developmentOrganization.id, code: accountCode("3000") } },
     update: { organizationId: developmentOrganization.id, name: "Owner Equity and Cash Variance", type: "equity", isActive: true },
     create: { organizationId: developmentOrganization.id, code: accountCode("3000"), name: "Owner Equity and Cash Variance", type: "equity" },
   });
   await prisma.account.upsert({
-    where: { code: accountCode("4000") },
+    where: { organizationId_code: { organizationId: developmentOrganization.id, code: accountCode("4000") } },
     update: { organizationId: developmentOrganization.id, name: "Sales Revenue", type: "income", isActive: true },
     create: { organizationId: developmentOrganization.id, code: accountCode("4000"), name: "Sales Revenue", type: "income" },
   });
   await prisma.account.upsert({
-    where: { code: accountCode("4010") },
+    where: { organizationId_code: { organizationId: developmentOrganization.id, code: accountCode("4010") } },
     update: { organizationId: developmentOrganization.id, name: "Service Charge Revenue", type: "income", isActive: true },
     create: { organizationId: developmentOrganization.id, code: accountCode("4010"), name: "Service Charge Revenue", type: "income" },
   });
   await prisma.account.upsert({
-    where: { code: accountCode("2100") },
+    where: { organizationId_code: { organizationId: developmentOrganization.id, code: accountCode("2100") } },
     update: { organizationId: developmentOrganization.id, name: "Tax Payable", type: "liability", isActive: true },
     create: { organizationId: developmentOrganization.id, code: accountCode("2100"), name: "Tax Payable", type: "liability" },
   });
   const expenseAccount = await prisma.account.upsert({
-    where: { code: accountCode("5000") },
+    where: { organizationId_code: { organizationId: developmentOrganization.id, code: accountCode("5000") } },
     update: { organizationId: developmentOrganization.id, name: "Operating Expense", type: "expense", isActive: true },
     create: { organizationId: developmentOrganization.id, code: accountCode("5000"), name: "Operating Expense", type: "expense" },
   });
@@ -397,16 +397,16 @@ async function main() {
   await Promise.all(
     ["Supplies", "Utilities", "Maintenance"].map((name) =>
       prisma.expenseCategory.upsert({
-        where: { name: `Development ${name}` },
-        update: { organizationId: developmentOrganization.id, accountId: expenseAccount.id, isActive: true },
-        create: { organizationId: developmentOrganization.id, name: `Development ${name}`, accountId: expenseAccount.id },
+        where: { organizationId_name: { organizationId: developmentOrganization.id, name } },
+        update: { accountId: expenseAccount.id, isActive: true },
+        create: { organizationId: developmentOrganization.id, name, accountId: expenseAccount.id },
       }),
     ),
   );
 
   await prisma.cashLedgerEntry.upsert({
     where: {
-      sourceType_sourceId: {
+      outletId_sourceType_sourceId: { outletId: developmentOutlet.id,
         sourceType: "cash_movement",
         sourceId: "development-seed-opening-cash",
       },
@@ -431,7 +431,7 @@ async function main() {
 
   await prisma.journalEntry.upsert({
     where: {
-      sourceType_sourceId: {
+      outletId_sourceType_sourceId: { outletId: developmentOutlet.id,
         sourceType: "cash_movement",
         sourceId: "development-seed-opening-cash",
       },

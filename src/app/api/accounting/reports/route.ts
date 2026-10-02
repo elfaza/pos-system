@@ -6,7 +6,7 @@ import { getAccountingReport } from "@/features/accounting/services/accounting-s
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(["admin"]);
+    await requireUser();
     await requireModuleEnabled("accountingEnabled");
     return jsonOk({ report: await getAccountingReport(request.nextUrl) });
   } catch (error) {

@@ -1,12 +1,15 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { TenantContext } from "@/features/auth/types";
 
 const reportOrderLimit = 5_000;
 const reportStockItemLimit = 1_000;
 
-export function listReportOrders(filters: { paidFrom: Date; paidTo: Date }) {
+export function listReportOrders(context: TenantContext, filters: { paidFrom: Date; paidTo: Date }) {
   return prisma.order.findMany({
     where: {
+      organizationId: context.organizationId,
+      outletId: context.outletId,
       status: { in: ["paid", "refunded"] },
       payments: {
         some: {
@@ -42,9 +45,11 @@ export function listReportOrders(filters: { paidFrom: Date; paidTo: Date }) {
 
 export type ReportOrderRow = Prisma.PromiseReturnType<typeof listReportOrders>[number];
 
-export function listReportIngredients() {
+export function listReportIngredients(context: TenantContext) {
   return prisma.ingredient.findMany({
+    where: { organizationId: context.organizationId },
     include: {
+      outletStocks: { where: { outletId: context.outletId }, take: 1 },
       stockMovements: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -59,10 +64,11 @@ export type ReportIngredientRow = Prisma.PromiseReturnType<
   typeof listReportIngredients
 >[number];
 
-export function listReportProducts() {
+export function listReportProducts(context: TenantContext) {
   return prisma.product.findMany({
-    where: { trackStock: true },
+    where: { organizationId: context.organizationId, trackStock: true },
     include: {
+      outletProducts: { where: { outletId: context.outletId }, take: 1 },
       stockMovements: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -75,10 +81,12 @@ export function listReportProducts() {
 
 export type ReportProductRow = Prisma.PromiseReturnType<typeof listReportProducts>[number];
 
-export function listReportStockMovements(filters: { dateFrom: Date; dateTo: Date }) {
+export function listReportStockMovements(context: TenantContext, filters: { dateFrom: Date; dateTo: Date }) {
   return prisma.stockMovement.groupBy({
     by: ["type"],
     where: {
+      organizationId: context.organizationId,
+      outletId: context.outletId,
       createdAt: {
         gte: filters.dateFrom,
         lt: filters.dateTo,

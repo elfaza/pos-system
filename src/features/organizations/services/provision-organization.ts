@@ -103,8 +103,7 @@ export async function provisionOrganization(
     const accounts = await Promise.all(accountDefinitions.map((account) => tx.account.create({
       data: {
         organizationId: organization.id,
-        // Global legacy uniqueness remains until the contract migration.
-        code: `${values.organizationSlug.toUpperCase()}-${account.code}`,
+        code: account.code,
         name: account.name,
         type: account.type,
       },
@@ -114,7 +113,7 @@ export async function provisionOrganization(
       await tx.expenseCategory.create({
         data: {
           organizationId: organization.id,
-          name: `${values.organizationName} ${name}`,
+          name,
           accountId: expenseAccount.id,
         },
       });

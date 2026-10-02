@@ -1,6 +1,8 @@
 import { PaymentMethod, Prisma } from "@prisma/client";
 import { ValidationError } from "@/lib/api-response";
 import { requireModuleEnabled } from "@/features/catalog/services/module-config";
+import { requireTenantContext } from "@/features/auth/services/session-service";
+import { prisma } from "@/lib/prisma";
 import {
   listReportIngredients,
   listReportOrders,
@@ -281,35 +283,40 @@ function getStockStatus(row: {
 }
 
 function mapIngredientStockItem(ingredient: ReportIngredientRow): StockReportItem {
+  const balance = ingredient.outletStocks[0];
+  const currentStock = balance?.currentStock ?? 0;
+  const threshold = balance?.lowStockThreshold ?? null;
   return {
     id: ingredient.id,
     kind: "ingredient",
     name: ingredient.name,
     unit: ingredient.unit,
-    currentStock: toNumber(ingredient.currentStock),
-    lowStockThreshold:
-      ingredient.lowStockThreshold === null ? null : toNumber(ingredient.lowStockThreshold),
-    status: getStockStatus(ingredient),
+    currentStock: toNumber(currentStock),
+    lowStockThreshold: threshold === null ? null : toNumber(threshold),
+    status: getStockStatus({ ...ingredient, currentStock, lowStockThreshold: threshold }),
     isActive: ingredient.isActive,
     lastMovementAt: ingredient.stockMovements[0]?.createdAt.toISOString() ?? null,
   };
 }
 
 function mapProductStockItem(product: ReportProductRow): StockReportItem {
+  const balance = product.outletProducts[0];
+  const stockQuantity = balance?.stockQuantity ?? null;
+  const isAvailable = balance?.isAvailable ?? false;
+  const lowStockThreshold = balance?.lowStockThreshold ?? null;
   return {
     id: product.id,
     kind: "product",
     name: product.name,
     unit: "pcs",
-    currentStock: toNumber(product.stockQuantity),
-    lowStockThreshold:
-      product.lowStockThreshold === null ? null : toNumber(product.lowStockThreshold),
+    currentStock: toNumber(stockQuantity),
+    lowStockThreshold: lowStockThreshold === null ? null : toNumber(lowStockThreshold),
     status: getStockStatus({
-      isActive: product.isAvailable,
-      currentStock: product.stockQuantity,
-      lowStockThreshold: product.lowStockThreshold,
+      isActive: isAvailable,
+      currentStock: stockQuantity,
+      lowStockThreshold,
     }),
-    isActive: product.isAvailable,
+    isActive: isAvailable,
     lastMovementAt: product.stockMovements[0]?.createdAt.toISOString() ?? null,
   };
 }
@@ -390,16 +397,17 @@ function buildCashierReport(orders: ReportOrderRow[]): CashierReportItem[] {
 }
 
 export async function getDashboardReport(url: URL): Promise<DashboardReport> {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   const settings = await requireModuleEnabled("reportingEnabled");
   const dateRange = parseReportDateRange(url, {
     timeZone: settings.timeZone,
     businessDayStartTime: settings.businessDayStartTime,
   });
   const [orders, ingredients, products, movements] = await Promise.all([
-    listReportOrders({ paidFrom: dateRange.from, paidTo: dateRange.to }),
-    listReportIngredients(),
-    listReportProducts(),
-    listReportStockMovements({ dateFrom: dateRange.from, dateTo: dateRange.to }),
+    listReportOrders(tenant, { paidFrom: dateRange.from, paidTo: dateRange.to }),
+    listReportIngredients(tenant),
+    listReportProducts(tenant),
+    listReportStockMovements(tenant, { dateFrom: dateRange.from, dateTo: dateRange.to }),
   ]);
 
   const refundAmount = roundMoney(
@@ -452,5 +460,40 @@ export async function getDashboardReport(url: URL): Promise<DashboardReport> {
         kitchenStatus: order.kitchenStatus,
       };
     }),
+  };
+}
+
+/** Owner-only aggregation explicitly visits each active outlet in the organization. */
+export async function getOrganizationSalesSummary(url: URL) {
+  const tenant = await requireTenantContext(["owner"]);
+  const settings = await requireModuleEnabled("reportingEnabled");
+  const dateRange = parseReportDateRange(url, {
+    timeZone: settings.timeZone,
+    businessDayStartTime: settings.businessDayStartTime,
+  });
+  const outlets = await prisma.outlet.findMany({
+    where: { organizationId: tenant.organizationId, isActive: true },
+    select: { id: true, name: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+  });
+  const outletSummaries = await Promise.all(outlets.map(async (outlet) => {
+    const orders = await listReportOrders(
+      { ...tenant, outletId: outlet.id },
+      { paidFrom: dateRange.from, paidTo: dateRange.to },
+    );
+    const grossSales = roundMoney(orders.reduce((sum, order) => sum + toNumber(order.totalAmount), 0));
+    const refundAmount = roundMoney(orders.reduce((sum, order) => sum + getOrderRefundAmount(order), 0));
+    return { outletId: outlet.id, outletName: outlet.name, grossSales, refundAmount, netSales: roundMoney(grossSales - refundAmount), orderCount: orders.length };
+  }));
+  return {
+    dateFrom: dateRange.dateFrom,
+    dateTo: dateRange.dateTo,
+    outlets: outletSummaries,
+    totals: outletSummaries.reduce((total, outlet) => ({
+      grossSales: roundMoney(total.grossSales + outlet.grossSales),
+      refundAmount: roundMoney(total.refundAmount + outlet.refundAmount),
+      netSales: roundMoney(total.netSales + outlet.netSales),
+      orderCount: total.orderCount + outlet.orderCount,
+    }), { grossSales: 0, refundAmount: 0, netSales: 0, orderCount: 0 }),
   };
 }

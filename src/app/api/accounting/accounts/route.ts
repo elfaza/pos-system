@@ -8,7 +8,7 @@ import {
 
 export async function GET() {
   try {
-    await requireUser(["admin"]);
+    await requireUser();
     await requireModuleEnabled("accountingEnabled");
     return jsonOk(await getAccountsAndCategories());
   } catch (error) {
@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireUser(["admin"]);
+    await requireUser();
     await requireModuleEnabled("accountingEnabled");
     const payload = await readJsonObject(request);
     return jsonOk({ account: await createAccountFromPayload(payload) }, { status: 201 });
