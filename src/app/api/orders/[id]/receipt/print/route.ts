@@ -11,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const user = await requireUser();
     const { id } = await params;
     const [order, settings] = await Promise.all([getOrder(id, user), getAppSettings()]);
 

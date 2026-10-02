@@ -1,5 +1,6 @@
 import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { TenantContext } from "@/features/auth/types";
 
 export const checkoutOrderInclude = {
   table: true,
@@ -43,9 +44,13 @@ export type CheckoutTransactionClient = Prisma.TransactionClient;
 
 export const heldOrderListLimit = 100;
 
-export async function findProductsForCheckout(productIds: string[]) {
+export async function findProductsForCheckout(tenant: TenantContext, productIds: string[]) {
   return prisma.product.findMany({
-    where: { id: { in: productIds } },
+    where: {
+      organizationId: tenant.organizationId,
+      id: { in: productIds },
+      outletProducts: { some: { outletId: tenant.outletId, isAvailable: true } },
+    },
     include: {
       category: true,
       optionGroups: {
@@ -54,13 +59,13 @@ export async function findProductsForCheckout(productIds: string[]) {
             include: {
               recipes: {
                 include: {
-                  ingredient: true,
+                  ingredient: { include: { outletStocks: { where: { outletId: tenant.outletId }, take: 1 } } },
                 },
               },
               replacementRules: {
                 include: {
-                  replacedIngredient: true,
-                  replacementIngredient: true,
+                  replacedIngredient: { include: { outletStocks: { where: { outletId: tenant.outletId }, take: 1 } } },
+                  replacementIngredient: { include: { outletStocks: { where: { outletId: tenant.outletId }, take: 1 } } },
                 },
               },
             },
@@ -68,16 +73,19 @@ export async function findProductsForCheckout(productIds: string[]) {
         },
       },
       ingredients: {
-        include: { ingredient: true },
+        include: { ingredient: { include: { outletStocks: { where: { outletId: tenant.outletId }, take: 1 } } } },
       },
+      outletProducts: { where: { outletId: tenant.outletId }, take: 1 },
     },
   });
 }
 
-export async function listHeldOrdersForUser(user: { id: string; role: string }) {
+export async function listHeldOrdersForUser(tenant: TenantContext, user: { id: string; role: string }) {
   return prisma.order.findMany({
     where: {
       status: "held",
+      organizationId: tenant.organizationId,
+      outletId: tenant.outletId,
       ...(user.role === "admin" ? {} : { cashierId: user.id }),
     },
     include: checkoutOrderInclude,
@@ -86,11 +94,13 @@ export async function listHeldOrdersForUser(user: { id: string; role: string }) 
   });
 }
 
-export async function findHeldOrderById(id: string, user: { id: string; role: string }) {
+export async function findHeldOrderById(tenant: TenantContext, id: string, user: { id: string; role: string }) {
   return prisma.order.findFirst({
     where: {
       id,
       status: "held",
+      organizationId: tenant.organizationId,
+      outletId: tenant.outletId,
       ...(user.role === "admin" ? {} : { cashierId: user.id }),
     },
     include: checkoutOrderInclude,
@@ -98,6 +108,7 @@ export async function findHeldOrderById(id: string, user: { id: string; role: st
 }
 
 export async function listOrdersForUser(
+  tenant: TenantContext,
   user: { id: string; role: string },
   filters: {
     status?: OrderStatus;
@@ -123,6 +134,8 @@ export async function listOrdersForUser(
 
   return prisma.order.findMany({
     where: {
+      organizationId: tenant.organizationId,
+      outletId: tenant.outletId,
       ...(filters.status ? { status: filters.status } : {}),
       ...(hasPaymentFilter ? { payments: { some: paymentFilter } } : {}),
       ...(user.role === "admin" ? {} : { cashierId: user.id }),
@@ -134,12 +147,15 @@ export async function listOrdersForUser(
 }
 
 export async function findOrderByIdForUser(
+  tenant: TenantContext,
   id: string,
   user: { id: string; role: string },
 ) {
   return prisma.order.findFirst({
     where: {
       id,
+      organizationId: tenant.organizationId,
+      outletId: tenant.outletId,
       ...(user.role === "admin" ? {} : { cashierId: user.id }),
     },
     include: orderHistoryInclude,

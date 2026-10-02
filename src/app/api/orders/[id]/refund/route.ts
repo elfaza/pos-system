@@ -1,17 +1,13 @@
 import { jsonError, jsonOk, readJsonObject } from "@/lib/api-response";
 import { requireUser } from "@/features/auth/services/session-service";
-import {
-  finalizeCheckout,
-  parseCheckoutPayload,
-} from "@/features/checkout/services/checkout-service";
+import { refundOrder } from "@/features/checkout/services/checkout-service";
 
-export async function POST(request: Request) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    const { id } = await params;
     const payload = await readJsonObject(request);
-    const input = parseCheckoutPayload(payload);
-
-    return jsonOk({ order: await finalizeCheckout(input, user) }, { status: 201 });
+    return jsonOk({ order: await refundOrder(id, payload, user) });
   } catch (error) {
     return jsonError(error);
   }

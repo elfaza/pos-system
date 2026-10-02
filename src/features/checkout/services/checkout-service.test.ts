@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ValidationError } from "@/lib/api-response";
+import { NotFoundError, ValidationError } from "@/lib/api-response";
 import {
   finalizeCashCheckout,
   finalizeCheckout,
   mergeHeldDineInOrders,
   moveHeldDineInOrderTable,
+  refundOrder,
   parseCheckoutPayload,
   parseCashCheckoutPayload,
   parseHoldOrderPayload,
@@ -20,16 +21,31 @@ const mocks = vi.hoisted(() => ({
   findHeldOrderById: vi.fn(),
   createSalesAccountingForPaidCashOrder: vi.fn(),
   createSalesAccountingForPaidOrder: vi.fn(),
+  createSalesAccountingForRefund: vi.fn(),
   transaction: vi.fn(),
   tx: {
+    $queryRaw: vi.fn(),
     activityLog: { create: vi.fn() },
     diningTable: { findFirst: vi.fn() },
-    ingredient: { findUnique: vi.fn(), update: vi.fn() },
+    ingredient: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    outletIngredientStock: { update: vi.fn(), updateMany: vi.fn() },
     order: { aggregate: vi.fn(), create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     orderItem: { updateMany: vi.fn() },
+    payment: { update: vi.fn() },
+    refund: { create: vi.fn() },
     product: { update: vi.fn() },
+    outletProduct: { update: vi.fn(), updateMany: vi.fn() },
     stockMovement: { create: vi.fn() },
   },
+}));
+
+vi.mock("@/features/auth/services/session-service", () => ({
+  requireTenantContext: vi.fn().mockResolvedValue({
+    userId: "cashier-1",
+    organizationId: "org-1",
+    outletId: "outlet-1",
+    role: "admin",
+  }),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -54,6 +70,7 @@ vi.mock("@/features/catalog/repositories/settings-repository", () => ({
 vi.mock("@/features/accounting/services/accounting-service", () => ({
   createSalesAccountingForPaidCashOrder: mocks.createSalesAccountingForPaidCashOrder,
   createSalesAccountingForPaidOrder: mocks.createSalesAccountingForPaidOrder,
+  createSalesAccountingForRefund: mocks.createSalesAccountingForRefund,
 }));
 
 const actor = {
@@ -162,8 +179,13 @@ describe("checkout service", () => {
 
       return Promise.resolve(null);
     });
+    mocks.tx.ingredient.findFirst.mockImplementation(({ where }) => mocks.tx.ingredient.findUnique({ where }));
     mocks.tx.ingredient.update.mockResolvedValue({});
+    mocks.tx.outletIngredientStock.update.mockResolvedValue({});
+    mocks.tx.outletIngredientStock.updateMany.mockResolvedValue({ count: 1 });
     mocks.tx.product.update.mockResolvedValue({});
+    mocks.tx.outletProduct.update.mockResolvedValue({});
+    mocks.tx.outletProduct.updateMany.mockResolvedValue({ count: 1 });
     mocks.tx.stockMovement.create.mockResolvedValue({});
     mocks.tx.activityLog.create.mockResolvedValue({});
     mocks.tx.diningTable.findFirst.mockResolvedValue({
@@ -387,11 +409,11 @@ describe("checkout service", () => {
 
     expect(order.tableId).toBe("table-2");
     expect(mocks.tx.diningTable.findFirst).toHaveBeenCalledWith({
-      where: { id: "table-2", isActive: true },
+      where: { id: "table-2", organizationId: "org-1", outletId: "outlet-1", isActive: true },
     });
     expect(mocks.tx.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "held-1" },
+        where: { id: "held-1", organizationId: "org-1", outletId: "outlet-1" },
         data: { tableId: "table-2" },
       }),
     );
@@ -449,23 +471,23 @@ describe("checkout service", () => {
 
     expect(order.id).toBe("target-held");
     expect(mocks.tx.orderItem.updateMany).toHaveBeenCalledWith({
-      where: { orderId: "source-held" },
+      where: { orderId: "source-held", order: { organizationId: "org-1", outletId: "outlet-1" } },
       data: { orderId: "target-held" },
     });
     expect(mocks.tx.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "target-held" },
+        where: { id: "target-held", organizationId: "org-1", outletId: "outlet-1" },
         data: expect.objectContaining({
-          subtotalAmount: expect.any(Object),
-          discountAmount: expect.any(Object),
-          taxAmount: expect.any(Object),
-          totalAmount: expect.any(Object),
+          subtotalAmount: expect.anything(),
+          discountAmount: expect.anything(),
+          taxAmount: expect.anything(),
+          totalAmount: expect.anything(),
         }),
       }),
     );
     expect(mocks.tx.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "source-held" },
+        where: { id: "source-held", organizationId: "org-1", outletId: "outlet-1" },
         data: expect.objectContaining({ status: "cancelled", tableId: null }),
       }),
     );
@@ -823,12 +845,10 @@ describe("checkout service", () => {
       actor,
     );
 
-    expect(mocks.tx.ingredient.update).toHaveBeenCalledWith({
-      where: { id: "ingredient-oat" },
+    expect(mocks.tx.outletIngredientStock.updateMany).toHaveBeenCalledWith({
+      where: { outletId: "outlet-1", ingredientId: "ingredient-oat", currentStock: { gte: expect.any(Object) } },
       data: {
-        currentStock: {
-          decrement: expect.any(Object),
-        },
+        currentStock: { decrement: expect.any(Object) },
       },
     });
     expect(mocks.tx.stockMovement.create).toHaveBeenCalledWith({
@@ -923,16 +943,14 @@ describe("checkout service", () => {
       actor,
     );
 
-    expect(mocks.tx.ingredient.update).toHaveBeenCalledWith({
-      where: { id: "ingredient-oat" },
+    expect(mocks.tx.outletIngredientStock.updateMany).toHaveBeenCalledWith({
+      where: { outletId: "outlet-1", ingredientId: "ingredient-oat", currentStock: { gte: expect.any(Object) } },
       data: {
-        currentStock: {
-          decrement: expect.any(Object),
-        },
+        currentStock: { decrement: expect.any(Object) },
       },
     });
-    expect(mocks.tx.ingredient.update).not.toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "ingredient-milk" } }),
+    expect(mocks.tx.outletIngredientStock.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ ingredientId: "ingredient-milk" }) }),
     );
   });
 
@@ -1553,8 +1571,8 @@ describe("checkout service", () => {
         include: expect.any(Object),
       }),
     );
-    expect(mocks.tx.product.update).toHaveBeenCalledWith({
-      where: { id: "product-1" },
+    expect(mocks.tx.outletProduct.updateMany).toHaveBeenCalledWith({
+      where: { outletId: "outlet-1", productId: "product-1", stockQuantity: { gte: expect.any(Object) } },
       data: { stockQuantity: { decrement: expect.any(Object) } },
     });
     expect(mocks.tx.stockMovement.create).toHaveBeenCalledWith({
@@ -1780,5 +1798,14 @@ describe("checkout service", () => {
         }),
       }),
     );
+  });
+
+  it("does not reveal or refund an order outside the current tenant", async () => {
+    mocks.tx.order.findFirst.mockResolvedValueOnce(null);
+    await expect(refundOrder("guessed-order", { reason: "duplicate" }, actor)).rejects.toBeInstanceOf(NotFoundError);
+    expect(mocks.tx.order.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "guessed-order", organizationId: "org-1", outletId: "outlet-1" },
+    }));
+    expect(mocks.tx.refund.create).not.toHaveBeenCalled();
   });
 });

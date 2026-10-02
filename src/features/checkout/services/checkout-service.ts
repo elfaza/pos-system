@@ -1,9 +1,11 @@
 import { OrderType, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
-import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
+import type { TenantContext } from "@/features/auth/types";
+import { requireTenantContext } from "@/features/auth/services/session-service";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
 import { getSettings } from "@/features/catalog/repositories/settings-repository";
-import { createSalesAccountingForPaidOrder } from "@/features/accounting/services/accounting-service";
+import { createSalesAccountingForPaidOrder, createSalesAccountingForRefund } from "@/features/accounting/services/accounting-service";
 import {
   getNextQueueNumber,
   getQueueBusinessDate,
@@ -169,13 +171,38 @@ export function parseHoldOrderPayload(payload: Record<string, unknown>) {
 }
 
 async function prepareCheckoutItems(
+  tenant: TenantContext,
   items: CheckoutLineInput[],
   options: { validateStock?: boolean } = {},
 ) {
-  const settings = await getSettings();
+  const settings = await getSettings(tenant);
   const validateStock = options.validateStock ?? settings.inventoryEnabled ?? true;
   const productIds = [...new Set(items.map((item) => item.productId))];
-  const products = await findProductsForCheckout(productIds);
+  const products = (await findProductsForCheckout(tenant, productIds)).map((product) => {
+    const outletProduct = product.outletProducts?.[0];
+    const outletIngredient = (ingredient: (typeof product.ingredients)[number]["ingredient"]) => ({
+      ...ingredient,
+      currentStock: ingredient.outletStocks?.[0]?.currentStock ?? ingredient.currentStock,
+    });
+    return {
+      ...product,
+      isAvailable: outletProduct?.isAvailable ?? product.isAvailable,
+      stockQuantity: outletProduct?.stockQuantity ?? product.stockQuantity,
+      ingredients: (product.ingredients ?? []).map((recipe) => ({ ...recipe, ingredient: outletIngredient(recipe.ingredient) })),
+      optionGroups: (product.optionGroups ?? []).map((group) => ({
+        ...group,
+        values: group.values.map((value) => ({
+          ...value,
+          recipes: (value.recipes ?? []).map((recipe) => ({ ...recipe, ingredient: outletIngredient(recipe.ingredient) })),
+          replacementRules: (value.replacementRules ?? []).map((rule) => ({
+            ...rule,
+            replacedIngredient: outletIngredient(rule.replacedIngredient),
+            replacementIngredient: outletIngredient(rule.replacementIngredient),
+          })),
+        })),
+      })),
+    };
+  });
   const productById = new Map(products.map((product) => [product.id, product]));
 
   const preparedItems = items.map((item, index) => {
@@ -458,7 +485,8 @@ function calculateIngredientDeductions(
 }
 
 export async function finalizeCheckout(input: CheckoutInput, actor: User) {
-  const { preparedItems, totals, settings } = await prepareCheckoutItems(input.items);
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const { preparedItems, totals, settings } = await prepareCheckoutItems(tenant, input.items);
   const paymentLabel = input.paymentMethod === "cash" ? "Cash" : "QRIS";
 
   if (input.paymentMethod === "cash" && settings.cashPaymentEnabled === false) {
@@ -483,7 +511,7 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
   }
 
   const paidAt = new Date();
-  const order = await prisma.$transaction(async (tx) => {
+  const order = await withTenantTransaction(tenant, async (tx) => {
     const kitchenEnabled = settings.kitchenEnabled ?? true;
     const queueEnabled = settings.queueEnabled ?? true;
     const inventoryEnabled = settings.inventoryEnabled ?? true;
@@ -497,7 +525,7 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
         )
       : null;
     const queueNumber = queueBusinessDate
-      ? await getNextQueueNumber(tx, queueBusinessDate)
+      ? await getNextQueueNumber(tx, queueBusinessDate, tenant.outletId)
       : null;
     const ingredientDeductions = inventoryEnabled
       ? calculateIngredientDeductions(preparedItems)
@@ -505,25 +533,30 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
 
     if (inventoryEnabled) {
       for (const deduction of ingredientDeductions) {
-        const ingredient = await tx.ingredient.findUnique({
-          where: { id: deduction.ingredientId },
+        const ingredient = await tx.ingredient.findFirst({
+          where: { id: deduction.ingredientId, organizationId: tenant.organizationId },
         });
         if (!ingredient || !ingredient.isActive) {
           throw new ValidationError("Ingredient is not available for checkout.", {
             items: `${deduction.ingredientName} is unavailable.`,
           });
         }
-        if (Number(ingredient.currentStock) < deduction.quantityRequired) {
-          throw new ValidationError("Insufficient ingredient stock for checkout.", {
-            items: `${deduction.ingredientName} only has ${ingredient.currentStock} ${deduction.unit} available.`,
-          });
-        }
       }
+    }
+
+    if (input.orderType === "dine_in" && input.tableId) {
+      const table = await tx.diningTable.findFirst({
+        where: { id: input.tableId, organizationId: tenant.organizationId, outletId: tenant.outletId, isActive: true },
+        select: { id: true },
+      });
+      if (!table) throw new ValidationError("Table is not available for checkout.", { tableId: "Choose an active table." });
     }
 
     const createdOrder = await tx.order.create({
       data: {
-        orderNumber: createOrderNumber(paidAt),
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
+        orderNumber: createOrderNumber(paidAt, tenant.outletId),
         cashierId: actor.id,
         orderType: input.orderType,
         tableId: input.orderType === "dine_in" ? input.tableId ?? null : null,
@@ -590,18 +623,29 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
 
     if (inventoryEnabled) {
       for (const deduction of ingredientDeductions) {
-        await tx.ingredient.update({
-          where: { id: deduction.ingredientId },
+        const balanceUpdate = await tx.outletIngredientStock.updateMany({
+          where: {
+            outletId: tenant.outletId,
+            ingredientId: deduction.ingredientId,
+            currentStock: { gte: new Prisma.Decimal(deduction.quantityRequired) },
+          },
           data: {
             currentStock: {
               decrement: new Prisma.Decimal(deduction.quantityRequired),
             },
           },
         });
+        if (balanceUpdate.count !== 1) {
+          throw new ValidationError("Insufficient ingredient stock for checkout.", {
+            items: `${deduction.ingredientName} does not have enough stock at this outlet.`,
+          });
+        }
 
         await tx.stockMovement.create({
           data: {
             ingredientId: deduction.ingredientId,
+            organizationId: tenant.organizationId,
+            outletId: tenant.outletId,
             productId: deduction.productId,
             orderId: createdOrder.id,
             type: "sale_deduction",
@@ -613,20 +657,31 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
       }
 
       for (const item of preparedItems) {
-        if (!item.product.trackStock) continue;
+        if (!item.product.trackStock || item.product.stockQuantity === null) continue;
 
-        await tx.product.update({
-          where: { id: item.productId },
+        const balanceUpdate = await tx.outletProduct.updateMany({
+          where: {
+            outletId: tenant.outletId,
+            productId: item.productId,
+            stockQuantity: { gte: new Prisma.Decimal(item.quantity) },
+          },
           data: {
             stockQuantity: {
               decrement: new Prisma.Decimal(item.quantity),
             },
           },
         });
+        if (balanceUpdate.count !== 1) {
+          throw new ValidationError("Insufficient stock for checkout.", {
+            items: `${item.product.name} does not have enough stock at this outlet.`,
+          });
+        }
 
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
+            organizationId: tenant.organizationId,
+            outletId: tenant.outletId,
             orderId: createdOrder.id,
             type: "sale_deduction",
             quantityChange: new Prisma.Decimal(-item.quantity),
@@ -640,6 +695,8 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "order.paid",
         entityType: "order",
         entityId: createdOrder.id,
@@ -658,6 +715,8 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
       await tx.activityLog.create({
         data: {
           userId: actor.id,
+          organizationId: tenant.organizationId,
+          outletId: tenant.outletId,
           action: "queue.assigned",
           entityType: "order",
           entityId: createdOrder.id,
@@ -675,6 +734,8 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
       if (accountingEnabled) {
         await createSalesAccountingForPaidOrder(tx, {
           orderId: createdOrder.id,
+          organizationId: tenant.organizationId,
+          outletId: tenant.outletId,
           orderNumber: createdOrder.orderNumber,
           paymentId: payment.id,
           paymentMethod: input.paymentMethod,
@@ -697,6 +758,8 @@ export async function finalizeCheckout(input: CheckoutInput, actor: User) {
       await tx.activityLog.create({
         data: {
           userId: actor.id,
+          organizationId: tenant.organizationId,
+          outletId: tenant.outletId,
           action: "payment.paid",
           entityType: "payment",
           entityId: payment.id,
@@ -743,7 +806,8 @@ export async function holdOrder(
   },
   actor: User,
 ) {
-  const { preparedItems, totals, settings } = await prepareCheckoutItems(input.items, {
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const { preparedItems, totals, settings } = await prepareCheckoutItems(tenant, input.items, {
     validateStock: false,
   });
   if (input.orderType === "dine_in" && settings.dineInPayLaterEnabled === false) {
@@ -753,10 +817,19 @@ export async function holdOrder(
   }
   const heldAt = new Date();
 
-  const order = await prisma.$transaction(async (tx) => {
+  const order = await withTenantTransaction(tenant, async (tx) => {
+    if (input.orderType === "dine_in" && input.tableId) {
+      const table = await tx.diningTable.findFirst({
+        where: { id: input.tableId, organizationId: tenant.organizationId, outletId: tenant.outletId, isActive: true },
+        select: { id: true },
+      });
+      if (!table) throw new ValidationError("Table is not available for this order.", { tableId: "Choose an active table." });
+    }
     const createdOrder = await tx.order.create({
       data: {
-        orderNumber: createOrderNumber(heldAt),
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
+        orderNumber: createOrderNumber(heldAt, tenant.outletId),
         cashierId: actor.id,
         orderType: input.orderType,
         tableId: input.orderType === "dine_in" ? input.tableId ?? null : null,
@@ -805,6 +878,8 @@ export async function holdOrder(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "order.held",
         entityType: "order",
         entityId: createdOrder.id,
@@ -823,12 +898,14 @@ export async function holdOrder(
 }
 
 export async function getHeldOrders(actor: User) {
-  const orders = await listHeldOrdersForUser(actor);
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const orders = await listHeldOrdersForUser(tenant, actor);
   return orders.map(mapCheckoutOrder);
 }
 
 export async function getHeldOrder(id: string, actor: User) {
-  const order = await findHeldOrderById(id, actor);
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const order = await findHeldOrderById(tenant, id, actor);
   if (!order) {
     throw new NotFoundError("Held order was not found.");
   }
@@ -851,9 +928,11 @@ function requireTrimmedId(
   return value;
 }
 
-function heldDineInOrderWhere(id: string, actor: User) {
+function heldDineInOrderWhere(tenant: TenantContext, id: string, actor: User) {
   return {
     id,
+    organizationId: tenant.organizationId,
+    outletId: tenant.outletId,
     status: "held" as const,
     orderType: "dine_in" as const,
     ...(actor.role === "admin" ? {} : { cashierId: actor.id }),
@@ -865,16 +944,17 @@ export async function moveHeldDineInOrderTable(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
   const tableId = requireTrimmedId(payload, "tableId", "Choose an active table.");
 
-  const order = await prisma.$transaction(async (tx) => {
+  const order = await withTenantTransaction(tenant, async (tx) => {
     const [existingOrder, table] = await Promise.all([
       tx.order.findFirst({
-        where: heldDineInOrderWhere(orderId, actor),
+        where: heldDineInOrderWhere(tenant, orderId, actor),
         select: { id: true },
       }),
       tx.diningTable.findFirst({
-        where: { id: tableId, isActive: true },
+        where: { id: tableId, organizationId: tenant.organizationId, outletId: tenant.outletId, isActive: true },
       }),
     ]);
 
@@ -888,7 +968,7 @@ export async function moveHeldDineInOrderTable(
     }
 
     const updatedOrder = await tx.order.update({
-      where: { id: orderId },
+      where: { id: orderId, organizationId: tenant.organizationId, outletId: tenant.outletId },
       data: { tableId },
       include: checkoutOrderInclude,
     });
@@ -896,6 +976,8 @@ export async function moveHeldDineInOrderTable(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "order.table_moved",
         entityType: "order",
         entityId: orderId,
@@ -929,10 +1011,11 @@ export async function mergeHeldDineInOrders(
     });
   }
 
-  const order = await prisma.$transaction(async (tx) => {
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const order = await withTenantTransaction(tenant, async (tx) => {
     const [targetOrder, sourceOrder] = await Promise.all([
       tx.order.findFirst({
-        where: heldDineInOrderWhere(targetOrderId, actor),
+        where: heldDineInOrderWhere(tenant, targetOrderId, actor),
         select: {
           id: true,
           orderNumber: true,
@@ -944,7 +1027,7 @@ export async function mergeHeldDineInOrders(
         },
       }),
       tx.order.findFirst({
-        where: heldDineInOrderWhere(sourceOrderId, actor),
+        where: heldDineInOrderWhere(tenant, sourceOrderId, actor),
         select: {
           id: true,
           orderNumber: true,
@@ -962,12 +1045,12 @@ export async function mergeHeldDineInOrders(
     }
 
     await tx.orderItem.updateMany({
-      where: { orderId: sourceOrderId },
+      where: { orderId: sourceOrderId, order: { organizationId: tenant.organizationId, outletId: tenant.outletId } },
       data: { orderId: targetOrderId },
     });
 
     await tx.order.update({
-      where: { id: targetOrderId },
+      where: { id: targetOrderId, organizationId: tenant.organizationId, outletId: tenant.outletId },
       data: {
         subtotalAmount: new Prisma.Decimal(
           Number(targetOrder.subtotalAmount) + Number(sourceOrder.subtotalAmount),
@@ -989,7 +1072,7 @@ export async function mergeHeldDineInOrders(
     });
 
     await tx.order.update({
-      where: { id: sourceOrderId },
+      where: { id: sourceOrderId, organizationId: tenant.organizationId, outletId: tenant.outletId },
       data: {
         status: "cancelled",
         tableId: null,
@@ -998,7 +1081,7 @@ export async function mergeHeldDineInOrders(
     });
 
     const updatedOrder = await tx.order.findUnique({
-      where: { id: targetOrderId },
+      where: { id: targetOrderId, organizationId: tenant.organizationId, outletId: tenant.outletId },
       include: checkoutOrderInclude,
     });
     if (!updatedOrder) {
@@ -1008,6 +1091,8 @@ export async function mergeHeldDineInOrders(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "order.merged",
         entityType: "order",
         entityId: targetOrderId,
@@ -1093,12 +1178,14 @@ export async function getOrders(
     paidTo?: Date;
   } = {},
 ) {
-  const orders = await listOrdersForUser(actor, filters);
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const orders = await listOrdersForUser(tenant, actor, filters);
   return orders.map(mapCheckoutOrder);
 }
 
 export async function getOrder(id: string, actor: User) {
-  const order = await findOrderByIdForUser(id, actor);
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const order = await findOrderByIdForUser(tenant, id, actor);
   if (!order) {
     throw new NotFoundError("Order was not found.");
   }
@@ -1107,7 +1194,8 @@ export async function getOrder(id: string, actor: User) {
 }
 
 export async function cancelOrder(id: string, actor: User) {
-  const existing = await findOrderByIdForUser(id, actor);
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const existing = await findOrderByIdForUser(tenant, id, actor);
   if (!existing) {
     throw new NotFoundError("Order was not found.");
   }
@@ -1119,9 +1207,9 @@ export async function cancelOrder(id: string, actor: User) {
   }
 
   const cancelledAt = new Date();
-  const order = await prisma.$transaction(async (tx) => {
+  const order = await withTenantTransaction(tenant, async (tx) => {
     const cancelledOrder = await tx.order.update({
-      where: { id },
+      where: { id, organizationId: tenant.organizationId, outletId: tenant.outletId },
       data: {
         status: "cancelled",
         cancelledAt,
@@ -1132,6 +1220,8 @@ export async function cancelOrder(id: string, actor: User) {
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "order.cancelled",
         entityType: "order",
         entityId: id,
@@ -1145,5 +1235,83 @@ export async function cancelOrder(id: string, actor: User) {
     return cancelledOrder;
   });
 
+  return mapCheckoutOrder(order);
+}
+
+export async function refundOrder(id: string, payload: Record<string, unknown>, actor: User) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
+  const reason = optionalString(payload.reason);
+  if (!reason) throw new ValidationError("Refund validation failed.", { reason: "A refund reason is required." });
+  const settings = await getSettings(tenant);
+  const refundedAt = new Date();
+
+  const order = await withTenantTransaction(tenant, async (tx) => {
+    const existing = await tx.order.findFirst({
+      where: { id, organizationId: tenant.organizationId, outletId: tenant.outletId },
+      include: { payments: { where: { status: "paid" }, take: 1 }, stockMovements: { where: { type: "sale_deduction" } } },
+    });
+    const payment = existing?.payments[0];
+    if (!existing || existing.status !== "paid" || !payment) throw new NotFoundError("Paid order was not found.");
+    if (settings.refundWindowHours !== null && existing.paidAt &&
+      refundedAt.getTime() - existing.paidAt.getTime() > settings.refundWindowHours * 60 * 60 * 1000) {
+      throw new ValidationError("Refund window has expired.", { orderId: "This order is outside the refund window." });
+    }
+
+    const stockRestored = settings.autoRestoreStockOnRefund;
+    const refund = await tx.refund.create({
+      data: { orderId: existing.id, paymentId: payment.id, approvedByUserId: actor.id,
+        amount: payment.amount, reason, stockRestored },
+    });
+    if (settings.accountingEnabled) {
+      await createSalesAccountingForRefund(tx, {
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
+        actorId: actor.id,
+        refundId: refund.id,
+        orderNumber: existing.orderNumber,
+        paymentMethod: payment.method,
+        businessDate: existing.queueBusinessDate ?? getQueueBusinessDate(refundedAt, settings.timeZone ?? "Asia/Jakarta", settings.businessDayStartTime ?? "00:00"),
+        subtotalAmount: Number(existing.subtotalAmount),
+        discountAmount: Number(existing.discountAmount),
+        taxAmount: Number(existing.taxAmount),
+        serviceChargeAmount: Number(existing.serviceChargeAmount),
+        totalAmount: Number(refund.amount),
+      });
+    }
+    await tx.payment.update({ where: { id: payment.id }, data: { status: "refunded" } });
+    const updatedOrder = await tx.order.update({
+      where: { id: existing.id, organizationId: tenant.organizationId, outletId: tenant.outletId },
+      data: { status: "refunded", refundedAt },
+      include: checkoutOrderInclude,
+    });
+
+    if (stockRestored) {
+      for (const movement of existing.stockMovements) {
+        const restoreAmount = new Prisma.Decimal(movement.quantityChange).abs();
+        if (movement.ingredientId) {
+          await tx.outletIngredientStock.update({
+            where: { outletId_ingredientId: { outletId: tenant.outletId, ingredientId: movement.ingredientId } },
+            data: { currentStock: { increment: restoreAmount } },
+          });
+        } else if (movement.productId) {
+          await tx.outletProduct.update({
+            where: { outletId_productId: { outletId: tenant.outletId, productId: movement.productId } },
+            data: { stockQuantity: { increment: restoreAmount } },
+          });
+        }
+        await tx.stockMovement.create({
+          data: { organizationId: tenant.organizationId, outletId: tenant.outletId,
+            ingredientId: movement.ingredientId, productId: movement.productId, orderId: existing.id,
+            type: "refund_restore", quantityChange: restoreAmount,
+            reason: `Refund ${refund.id}: ${reason}`, createdByUserId: actor.id },
+        });
+      }
+    }
+
+    await tx.activityLog.create({ data: { userId: actor.id, organizationId: tenant.organizationId, outletId: tenant.outletId,
+      action: "order.refunded", entityType: "order", entityId: existing.id,
+      metadata: { refundId: refund.id, amount: Number(refund.amount), stockRestored } } });
+    return updatedOrder;
+  });
   return mapCheckoutOrder(order);
 }

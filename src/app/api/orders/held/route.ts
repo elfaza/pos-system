@@ -8,7 +8,7 @@ import {
 
 export async function GET() {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const user = await requireUser();
 
     return jsonOk({ orders: await getHeldOrders(user) });
   } catch (error) {
@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const user = await requireUser();
     const payload = await readJsonObject(request);
     const input = parseHoldOrderPayload(payload);
 

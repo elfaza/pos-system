@@ -10,7 +10,7 @@ import {
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const status = parseOrderStatusFilter(searchParams.get("status"));
     const paymentMethod = parsePaymentMethodFilter(searchParams.get("paymentMethod"));

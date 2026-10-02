@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const user = await requireUser();
     const { id } = await params;
 
     return jsonOk({ order: await getHeldOrder(id, user) });

@@ -470,7 +470,7 @@ model Order {
   id                    String              @id @default(cuid())
   organizationId        String?             @map("organization_id")
   outletId              String?             @map("outlet_id")
-  orderNumber           String              @unique @map("order_number")
+  orderNumber           String              @map("order_number")
   cashierId             String              @map("cashier_id")
   orderType             OrderType           @default(takeaway) @map("order_type")
   tableId               String?             @map("table_id")
@@ -505,7 +505,8 @@ model Order {
   refunds        Refund[]
   stockMovements StockMovement[]
 
-  @@unique([queueBusinessDate, queueNumber])
+  @@unique([outletId, orderNumber])
+  @@unique([outletId, queueBusinessDate, queueNumber])
   @@index([cashierId])
   @@index([tableId])
   @@index([status])
@@ -523,7 +524,7 @@ model DiningTable {
   id             String   @id @default(cuid())
   organizationId String?  @map("organization_id")
   outletId       String?  @map("outlet_id")
-  name           String   @unique
+  name           String
   sortOrder      Int      @default(0) @map("sort_order")
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -533,6 +534,7 @@ model DiningTable {
 
   @@index([isActive])
   @@index([organizationId, outletId, isActive])
+  @@unique([outletId, name])
   @@map("dining_tables")
 }
 
@@ -668,7 +670,7 @@ model ActivityLog {
 model Account {
   id             String      @id @default(cuid())
   organizationId String?     @map("organization_id")
-  code           String      @unique
+  code           String
   name           String
   type           AccountType
   isActive       Boolean     @default(true) @map("is_active")
@@ -681,6 +683,7 @@ model Account {
   @@index([type])
   @@index([isActive])
   @@index([organizationId, type])
+  @@unique([organizationId, code])
   @@map("accounts")
 }
 
@@ -688,7 +691,7 @@ model JournalEntry {
   id              String            @id @default(cuid())
   organizationId  String?           @map("organization_id")
   outletId        String?           @map("outlet_id")
-  entryNumber     String            @unique @map("entry_number")
+  entryNumber     String            @map("entry_number")
   sourceType      JournalSourceType @map("source_type")
   sourceId        String            @map("source_id")
   businessDate    String            @map("business_date") @db.VarChar(10)
@@ -699,7 +702,8 @@ model JournalEntry {
   createdBy User?              @relation("JournalEntryCreator", fields: [createdByUserId], references: [id])
   lines     JournalEntryLine[]
 
-  @@unique([sourceType, sourceId])
+  @@unique([outletId, entryNumber])
+  @@unique([outletId, sourceType, sourceId])
   @@index([businessDate])
   @@index([createdByUserId])
   @@index([organizationId, outletId, businessDate])
@@ -725,7 +729,7 @@ model JournalEntryLine {
 model ExpenseCategory {
   id             String   @id @default(cuid())
   organizationId String?  @map("organization_id")
-  name           String   @unique
+  name           String
   accountId      String   @map("account_id")
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -737,6 +741,7 @@ model ExpenseCategory {
   @@index([accountId])
   @@index([isActive])
   @@index([organizationId, isActive])
+  @@unique([organizationId, name])
   @@map("expense_categories")
 }
 
@@ -793,7 +798,7 @@ model CashLedgerEntry {
   description    String
   createdAt      DateTime          @default(now()) @map("created_at")
 
-  @@unique([sourceType, sourceId])
+  @@unique([outletId, sourceType, sourceId])
   @@index([businessDate])
   @@index([organizationId, outletId, businessDate])
   @@map("cash_ledger_entries")
@@ -803,7 +808,7 @@ model DailyClose {
   id                 String   @id @default(cuid())
   organizationId     String?  @map("organization_id")
   outletId           String?  @map("outlet_id")
-  businessDate       String   @unique @map("business_date") @db.VarChar(10)
+  businessDate       String   @map("business_date") @db.VarChar(10)
   expectedCashAmount Decimal  @map("expected_cash_amount") @db.Decimal(12, 2)
   countedCashAmount  Decimal  @map("counted_cash_amount") @db.Decimal(12, 2)
   differenceAmount   Decimal  @map("difference_amount") @db.Decimal(12, 2)
@@ -814,6 +819,7 @@ model DailyClose {
 
   @@index([closedByUserId])
   @@index([organizationId, outletId, businessDate])
+  @@unique([outletId, businessDate])
   @@map("daily_closes")
 }
 

@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(["admin", "cashier"]);
+    const user = await requireUser();
     const { id } = await params;
 
     return jsonOk({ order: await cancelOrder(id, user) });

@@ -1,4 +1,4 @@
-export function createOrderNumber(now = new Date()): string {
+export function createOrderNumber(now = new Date(), outletId?: string): string {
   const date = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
     year: "numeric",
@@ -18,5 +18,6 @@ export function createOrderNumber(now = new Date()): string {
     .replaceAll(":", "");
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
 
-  return `POS-${date}-${time}-${suffix}`;
+  const outletTag = outletId ? `-${outletId.replace(/[^a-z0-9]/gi, "").slice(-4).toUpperCase()}` : "";
+  return `POS-${date}-${time}${outletTag}-${suffix}`;
 }

@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
 import type { User } from "@/features/auth/types";
+import { requireTenantContext } from "@/features/auth/services/session-service";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
 import type { DiningTableRecord } from "../types";
 
 function optionalString(value: unknown): string | null {
@@ -45,10 +46,11 @@ function parseTablePayload(payload: Record<string, unknown>) {
 }
 
 export async function getTables(includeInactive = false) {
-  const tables = await prisma.diningTable.findMany({
-    where: includeInactive ? {} : { isActive: true },
+  const tenant = await requireTenantContext(["owner", "admin", "cashier"]);
+  const tables = await withTenantTransaction(tenant, (tx) => tx.diningTable.findMany({
+    where: { organizationId: tenant.organizationId, outletId: tenant.outletId, ...(includeInactive ? {} : { isActive: true }) },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
+  }));
   return tables.map(mapTable);
 }
 
@@ -56,17 +58,23 @@ export async function createTableFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   try {
-    const table = await prisma.diningTable.create({
-      data: parseTablePayload(payload),
-    });
-    await prisma.activityLog.create({
+    const table = await withTenantTransaction(tenant, async (tx) => {
+      const created = await tx.diningTable.create({
+        data: { ...parseTablePayload(payload), organizationId: tenant.organizationId, outletId: tenant.outletId },
+      });
+      await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "table.created",
         entityType: "dining_table",
-        entityId: table.id,
+        entityId: created.id,
       },
+      });
+      return created;
     });
     return mapTable(table);
   } catch (error) {
@@ -87,18 +95,24 @@ export async function updateTableFromPayload(
   payload: Record<string, unknown>,
   actor: User,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin"]);
   try {
-    const table = await prisma.diningTable.update({
-      where: { id },
-      data: parseTablePayload(payload),
-    });
-    await prisma.activityLog.create({
+    const table = await withTenantTransaction(tenant, async (tx) => {
+      const updated = await tx.diningTable.update({
+        where: { id, organizationId: tenant.organizationId, outletId: tenant.outletId },
+        data: parseTablePayload(payload),
+      });
+      await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "table.updated",
         entityType: "dining_table",
-        entityId: table.id,
+        entityId: updated.id,
       },
+      });
+      return updated;
     });
     return mapTable(table);
   } catch (error) {

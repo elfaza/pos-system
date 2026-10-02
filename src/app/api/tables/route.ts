@@ -7,7 +7,7 @@ import {
 
 export async function GET(request: Request) {
   try {
-    await requireUser(["admin", "cashier"]);
+    await requireUser();
     const url = new URL(request.url);
     const includeInactive = url.searchParams.get("includeInactive") === "true";
 
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(["admin"]);
+    const user = await requireUser();
     const payload = await readJsonObject(request);
 
     return jsonOk(
