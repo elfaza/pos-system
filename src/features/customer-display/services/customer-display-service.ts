@@ -137,7 +137,7 @@ function mapRecord(state: {
 
 export async function getCustomerDisplay(context: TenantContext): Promise<CustomerDisplayRecord> {
   const settings = await getSettings(context);
-  const state = await findCustomerDisplayState();
+  const state = await findCustomerDisplayState(context);
 
   if (!state) {
     return defaultIdleRecord(settings.storeName);
@@ -214,13 +214,13 @@ function validateUpdateInput(payload: Record<string, unknown>): CustomerDisplayU
 
 export async function updateCustomerDisplayFromPayload(
   payload: Record<string, unknown>,
-  _context: TenantContext,
+  context: TenantContext,
 ): Promise<CustomerDisplayRecord> {
-  void _context; // Display-state persistence becomes outlet-scoped in Phase 4.
   const input = validateUpdateInput(payload);
   const paidAt = input.status === "paid" ? new Date() : null;
 
   const state = await upsertCustomerDisplayState({
+    context,
     status: input.status,
     storeName: input.storeName,
     payload: {

@@ -65,9 +65,13 @@ export function getQueueBusinessDate(
 export async function getNextQueueNumber(
   tx: Prisma.TransactionClient,
   queueBusinessDate: string,
+  outletId: string,
 ) {
+  await tx.$queryRaw`
+    SELECT pg_advisory_xact_lock(hashtext(${outletId}), hashtext(${queueBusinessDate}))::text
+  `;
   const result = await tx.order.aggregate({
-    where: { queueBusinessDate },
+    where: { outletId, queueBusinessDate },
     _max: { queueNumber: true },
   });
 

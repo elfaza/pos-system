@@ -1,28 +1,34 @@
-import { prisma } from "@/lib/prisma";
 import type { CustomerDisplayStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
+import type { TenantContext } from "@/features/auth/types";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
 
-const DEFAULT_SCOPE_KEY = "default";
+function makeScopeKey(context: TenantContext) {
+  return `${context.organizationId}:${context.outletId}`;
+}
 
-export async function findCustomerDisplayState(scopeKey = DEFAULT_SCOPE_KEY) {
-  return prisma.customerDisplayState.findUnique({
-    where: { scopeKey },
-  });
+export async function findCustomerDisplayState(context: TenantContext) {
+  const scopeKey = makeScopeKey(context);
+  return withTenantTransaction(context, (tx) => tx.customerDisplayState.findFirst({
+    where: { scopeKey, organizationId: context.organizationId, outletId: context.outletId },
+  }));
 }
 
 export async function upsertCustomerDisplayState(data: {
-  scopeKey?: string;
+  context: TenantContext;
   status: CustomerDisplayStatus;
   storeName: string;
   payload: Prisma.InputJsonValue;
   paidOrderNumber: string | null;
   paidAt: Date | null;
 }) {
-  const scopeKey = data.scopeKey ?? DEFAULT_SCOPE_KEY;
+  const scopeKey = makeScopeKey(data.context);
 
-  return prisma.customerDisplayState.upsert({
+  return withTenantTransaction(data.context, (tx) => tx.customerDisplayState.upsert({
     where: { scopeKey },
     create: {
+      organizationId: data.context.organizationId,
+      outletId: data.context.outletId,
       scopeKey,
       status: data.status,
       storeName: data.storeName,
@@ -37,5 +43,5 @@ export async function upsertCustomerDisplayState(data: {
       paidOrderNumber: data.paidOrderNumber,
       paidAt: data.paidAt,
     },
-  });
+  }));
 }

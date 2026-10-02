@@ -27,14 +27,15 @@ describe("queue number service", () => {
 
   it("increments from the latest queue number for the business date", async () => {
     const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ pg_advisory_xact_lock: "" }]),
       order: {
         aggregate: vi.fn().mockResolvedValue({ _max: { queueNumber: 12 } }),
       },
     };
 
-    await expect(getNextQueueNumber(tx as never, "2026-04-29")).resolves.toBe(13);
+    await expect(getNextQueueNumber(tx as never, "2026-04-29", "outlet-1")).resolves.toBe(13);
     expect(tx.order.aggregate).toHaveBeenCalledWith({
-      where: { queueBusinessDate: "2026-04-29" },
+      where: { outletId: "outlet-1", queueBusinessDate: "2026-04-29" },
       _max: { queueNumber: true },
     });
   });

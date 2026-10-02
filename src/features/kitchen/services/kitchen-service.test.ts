@@ -10,11 +10,16 @@ import {
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   tx: {
+    $queryRaw: vi.fn(),
     activityLog: { create: vi.fn() },
     order: { findFirst: vi.fn(), update: vi.fn() },
   },
   listActiveKitchenOrders: vi.fn(),
   requireModuleEnabled: vi.fn(),
+}));
+
+vi.mock("@/features/auth/services/session-service", () => ({
+  requireTenantContext: vi.fn().mockResolvedValue({ userId: "user-1", organizationId: "org-1", outletId: "outlet-1", role: "admin" }),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -24,16 +29,17 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("../repositories/kitchen-repository", () => ({
-  findKitchenOrderById: (id: string, tx: typeof mocks.tx = mocks.tx) =>
-    tx.order.findFirst({ where: { id } }),
+  findKitchenOrderById: (id: string, tenant: { organizationId: string; outletId: string }, tx: typeof mocks.tx = mocks.tx) =>
+    tx.order.findFirst({ where: { id, organizationId: tenant.organizationId, outletId: tenant.outletId } }),
   kitchenStatuses: ["received", "preparing", "ready", "completed"],
   listActiveKitchenOrders: mocks.listActiveKitchenOrders,
   listReadyQueueOrders: vi.fn(),
   updateKitchenOrderStatus: (
     id: string,
+    tenant: { organizationId: string; outletId: string },
     data: Record<string, unknown>,
     tx: typeof mocks.tx,
-  ) => tx.order.update({ where: { id }, data, include: {} }),
+  ) => tx.order.update({ where: { id, organizationId: tenant.organizationId, outletId: tenant.outletId }, data, include: {} }),
 }));
 
 vi.mock("@/features/catalog/services/module-config", () => ({

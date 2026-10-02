@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { NotFoundError, ValidationError } from "@/lib/api-response";
-import { prisma } from "@/lib/prisma";
 import type { User } from "@/features/auth/types";
+import { requireTenantContext } from "@/features/auth/services/session-service";
+import { withTenantTransaction } from "@/lib/tenant-prisma";
 import { requireModuleEnabled } from "@/features/catalog/services/module-config";
 import {
   findKitchenOrderById,
@@ -61,20 +62,23 @@ function buildStatusTimestampPatch(
 }
 
 export async function getKitchenBoard() {
+  const tenant = await requireTenantContext(["owner", "admin", "kitchen"]);
   await requireModuleEnabled("kitchenEnabled");
-  const orders = await listActiveKitchenOrders();
+  const orders = await listActiveKitchenOrders(tenant);
   return buildKitchenBoard(orders.map(mapKitchenOrder));
 }
 
 export async function getQueueDisplay() {
+  const tenant = await requireTenantContext(["owner", "admin", "queue"]);
   await requireModuleEnabled("queueEnabled");
-  const orders = await listReadyQueueOrders();
+  const orders = await listReadyQueueOrders(tenant);
   return buildQueueDisplay(orders.map(mapKitchenOrder));
 }
 
 export async function getKitchenTicket(orderId: string) {
+  const tenant = await requireTenantContext(["owner", "admin", "kitchen"]);
   await requireModuleEnabled("kitchenEnabled");
-  const order = await findKitchenOrderById(orderId);
+  const order = await findKitchenOrderById(orderId, tenant);
 
   if (!order) {
     throw new NotFoundError("Kitchen order was not found.");
@@ -88,9 +92,10 @@ export async function changeKitchenStatus(
   nextStatus: KitchenStatus,
   actor: User,
 ) {
+  const tenant = await requireTenantContext(["owner", "admin", "kitchen"]);
   await requireModuleEnabled("kitchenEnabled");
-  const updatedOrder = await prisma.$transaction(async (tx) => {
-    const order = await findKitchenOrderById(orderId, tx);
+  const updatedOrder = await withTenantTransaction(tenant, async (tx) => {
+    const order = await findKitchenOrderById(orderId, tenant, tx);
 
     if (!order) {
       throw new NotFoundError("Kitchen order was not found.");
@@ -122,6 +127,7 @@ export async function changeKitchenStatus(
     const changedAt = new Date();
     const changedOrder = await updateKitchenOrderStatus(
       order.id,
+      tenant,
       buildStatusTimestampPatch(currentStatus, nextStatus, changedAt),
       tx,
     );
@@ -129,6 +135,8 @@ export async function changeKitchenStatus(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
+        organizationId: tenant.organizationId,
+        outletId: tenant.outletId,
         action: "kitchen.status_changed",
         entityType: "order",
         entityId: order.id,
