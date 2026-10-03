@@ -5,7 +5,6 @@ import RoleGuard from "@/features/auth/components/role-guard";
 import { CUSTOMER_DISPLAY_ACCESS_ROLES } from "@/features/auth/utils/role-routes";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
-import { getNextCategoryIndex } from "@/features/customer-display/services/menu-rotation";
 import type {
   CustomerDisplayMenuRecord,
   CustomerDisplayRecord,
@@ -104,18 +103,6 @@ function CustomerDisplayContent() {
     const interval = window.setInterval(refreshMenuSilently, 30_000);
     return () => window.clearInterval(interval);
   }, [loadMenu]);
-
-  useEffect(() => {
-    if (menu.categories.length <= 1) return;
-
-    const interval = window.setInterval(() => {
-      setActiveCategoryIndex((current) =>
-        getNextCategoryIndex(current, menu.categories.length),
-      );
-    }, 10_000);
-
-    return () => window.clearInterval(interval);
-  }, [menu.categories.length]);
 
   const orderTypeLabel = useMemo(() => formatOrderType(display?.orderType ?? null), [display?.orderType]);
   const showSummary = display?.status === "active" && (display.items.length > 0 || display.totals.totalAmount > 0);
