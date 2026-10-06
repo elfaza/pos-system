@@ -10,6 +10,7 @@ import {
   adjustIngredientStock,
   countLowStockIngredients,
   createIngredient,
+  deleteUnusedIngredient,
   findIngredientById,
   listIngredients,
   listStockMovements,
@@ -138,6 +139,20 @@ export async function updateIngredientFromPayload(
   if (!ingredient) throw new NotFoundError("Ingredient was not found.");
 
   return mapIngredient(ingredient);
+}
+
+export async function deleteIngredientById(id: string, context: TenantContext) {
+  await requireModuleEnabled("inventoryEnabled");
+  const result = await deleteUnusedIngredient(context, id);
+  if (result === "not_found") {
+    throw new NotFoundError("Ingredient was not found.");
+  }
+  if (result === "in_use") {
+    throw new ValidationError(
+      "This ingredient has stock, recipe references, or stock history and cannot be deleted. " +
+      "Use Edit to mark it inactive, then select Active in the inventory filter to hide inactive items.",
+    );
+  }
 }
 
 export async function adjustIngredientFromPayload(

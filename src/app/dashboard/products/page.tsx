@@ -286,7 +286,22 @@ export default function ProductsPage() {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Unable to save product.");
+      if (!response.ok) {
+        const details = Object.entries(
+          (data.fieldErrors ?? {}) as Record<string, string>,
+        ).map(([field, message]) => {
+          const match = /^optionGroups\.(\d+)(?:\.values\.(\d+))?/.exec(field);
+          const group = match ? form.optionGroups[Number(match[1])] : undefined;
+          const value = group && match?.[2] ? group.values[Number(match[2])] : undefined;
+          const label = group
+            ? `Option "${group.name}"${value ? ` / "${value.name}"` : ""}`
+            : field;
+          return `${label}: ${message}`;
+        });
+        throw new Error(
+          [data.error ?? "Unable to save product.", ...details].join(" "),
+        );
+      }
       setForm({
         ...emptyForm,
         categoryId: categories[0]?.id ?? "",

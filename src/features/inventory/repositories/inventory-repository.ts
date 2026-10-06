@@ -154,6 +154,44 @@ export async function updateIngredient(context: TenantContext, id: string, data:
   });
 }
 
+export async function deleteUnusedIngredient(context: TenantContext, id: string) {
+  return withTenantTransaction(context, async (tx) => {
+    await tx.$queryRaw`SELECT id FROM ingredients WHERE id = ${id} AND organization_id = ${context.organizationId} FOR UPDATE`;
+
+    const result = await tx.ingredient.deleteMany({
+      where: {
+        id,
+        organizationId: context.organizationId,
+        outletStocks: { none: { currentStock: { not: 0 } } },
+        productIngredients: { none: {} },
+        optionValueIngredients: { none: {} },
+        optionValueReplacementSources: { none: {} },
+        optionValueReplacementTargets: { none: {} },
+        stockMovements: { none: {} },
+      },
+    });
+    if (result.count === 0) {
+      const existing = await tx.ingredient.findFirst({
+        where: { id, organizationId: context.organizationId },
+        select: { id: true },
+      });
+      return existing ? "in_use" as const : "not_found" as const;
+    }
+
+    await tx.activityLog.create({
+      data: {
+        userId: context.userId,
+        organizationId: context.organizationId,
+        outletId: context.outletId,
+        action: "ingredient.deleted",
+        entityType: "ingredient",
+        entityId: id,
+      },
+    });
+    return "deleted" as const;
+  });
+}
+
 export async function listStockMovements(context: TenantContext, filters: {
   ingredientId?: string;
   type?: "sale_deduction" | "adjustment" | "waste" | "refund_restore";

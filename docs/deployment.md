@@ -27,7 +27,7 @@ npm run build
 npm run start
 ```
 
-For Vercel-style builds, `npm run vercel-build` generates Prisma Client and builds Next.js. Apply migrations as a separate release step with `MIGRATION_DATABASE_URL` before deploying the matching application artifact.
+For Vercel builds, `npm run vercel-build` generates Prisma Client and builds Next.js. Production builds are restricted to `master`, and schema migrations run as a separate release step with `MIGRATION_DATABASE_URL` before the matching application artifact is deployed. Preview deployments should use a separate database branch and be prepared explicitly; never point Preview or Development at the production database.
 
 ## Database Notes
 

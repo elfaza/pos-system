@@ -160,6 +160,7 @@ function parseOptionGroups(value: unknown) {
         ? (rawGroup as Record<string, unknown>)
         : {};
     const name = optionalString(group.name) ?? "";
+    const isActive = toBoolean(group.isActive, true);
     const rawValues = Array.isArray(group.values) ? group.values : [];
     const values = rawValues.map((rawValue, valueIndex) => {
       const optionValue =
@@ -208,7 +209,7 @@ function parseOptionGroups(value: unknown) {
     if (!name) {
       fieldErrors[`optionGroups.${groupIndex}.name`] = "Option group name is required.";
     }
-    if (!values.some((optionValue) => optionValue.isActive)) {
+    if (isActive && !values.some((optionValue) => optionValue.isActive)) {
       fieldErrors[`optionGroups.${groupIndex}.values`] =
         "Add at least one active option value.";
     }
@@ -223,7 +224,7 @@ function parseOptionGroups(value: unknown) {
       selectionType: parseOptionSelectionType(group.selectionType),
       isRequired: toBoolean(group.isRequired, false),
       sortOrder: groupIndex,
-      isActive: toBoolean(group.isActive, true),
+      isActive,
       values,
     };
   });

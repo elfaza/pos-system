@@ -326,6 +326,69 @@ describe("product service", () => {
     expect(mocks.createProduct).not.toHaveBeenCalled();
   });
 
+  it("saves availability with a previously removed option group", async () => {
+    mocks.findProductById.mockResolvedValue(productRecord);
+
+    await updateProductFromPayload(
+      "product-1",
+      {
+        categoryId: "category-1",
+        name: "Lemon Tea",
+        price: "10000",
+        isAvailable: false,
+        optionGroups: [
+          {
+            id: "removed-group",
+            name: "Temperature",
+            isActive: false,
+            values: [{ id: "removed-value", name: "Hot", isActive: false }],
+          },
+          { name: "Sugar", values: [{ name: "Normal" }] },
+        ],
+      },
+      actor,
+    );
+
+    expect(mocks.updateProduct).toHaveBeenCalledWith(
+      "product-1",
+      expect.objectContaining({
+        isAvailable: false,
+        optionGroups: [
+          expect.objectContaining({ id: "removed-group", isActive: false }),
+          expect.objectContaining({ name: "Sugar", isActive: true }),
+        ],
+      }),
+    );
+  });
+
+  it("still rejects enabling an option group without active choices", async () => {
+    mocks.findProductById.mockResolvedValue(productRecord);
+
+    await expect(
+      updateProductFromPayload(
+        "product-1",
+        {
+          categoryId: "category-1",
+          name: "Lemon Tea",
+          price: "10000",
+          optionGroups: [
+            {
+              name: "Temperature",
+              isActive: true,
+              values: [{ name: "Hot", isActive: false }],
+            },
+          ],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({
+      fieldErrors: {
+        "optionGroups.0.values": "Add at least one active option value.",
+      },
+    });
+    expect(mocks.updateProduct).not.toHaveBeenCalled();
+  });
+
   it("rejects missing required product fields and negative prices", async () => {
     await expect(
       createProductFromPayload({ categoryId: "", name: "", price: "-1" }, tenant),

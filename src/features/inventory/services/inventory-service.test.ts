@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from "@/lib/api-response";
 import {
   adjustIngredientFromPayload,
   createIngredientFromPayload,
+  deleteIngredientById,
   updateIngredientFromPayload,
 } from "./inventory-service";
 
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   activityLogCreate: vi.fn(),
   adjustIngredientStock: vi.fn(),
   createIngredient: vi.fn(),
+  deleteUnusedIngredient: vi.fn(),
   findIngredientById: vi.fn(),
   listIngredients: vi.fn(),
   listStockMovements: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock("../repositories/inventory-repository", () => ({
   adjustIngredientStock: mocks.adjustIngredientStock,
   countLowStockIngredients: mocks.countLowStockIngredients,
   createIngredient: mocks.createIngredient,
+  deleteUnusedIngredient: mocks.deleteUnusedIngredient,
   findIngredientById: mocks.findIngredientById,
   listIngredients: mocks.listIngredients,
   listStockMovements: mocks.listStockMovements,
@@ -62,6 +65,7 @@ describe("inventory service", () => {
     vi.clearAllMocks();
     mocks.requireModuleEnabled.mockResolvedValue({});
     mocks.createIngredient.mockResolvedValue(ingredientRecord);
+    mocks.deleteUnusedIngredient.mockResolvedValue("deleted");
     mocks.updateIngredient.mockResolvedValue(ingredientRecord);
     mocks.findIngredientById.mockResolvedValue(ingredientRecord);
     mocks.adjustIngredientStock.mockResolvedValue({
@@ -183,5 +187,22 @@ describe("inventory service", () => {
       createIngredientFromPayload({ name: "Milk", unit: "ml" }, tenant),
     ).rejects.toBeInstanceOf(ForbiddenError);
     expect(mocks.createIngredient).not.toHaveBeenCalled();
+  });
+
+  it("deletes an unused ingredient inside the active tenant", async () => {
+    await deleteIngredientById("ingredient-1", tenant);
+    expect(mocks.deleteUnusedIngredient).toHaveBeenCalledWith(tenant, "ingredient-1");
+  });
+
+  it("blocks deleting an ingredient that still has stock or references", async () => {
+    mocks.deleteUnusedIngredient.mockResolvedValueOnce("in_use");
+    await expect(deleteIngredientById("ingredient-1", tenant)).rejects.toThrow(
+      "This ingredient has stock, recipe references, or stock history and cannot be deleted.",
+    );
+  });
+
+  it("returns not found when the ingredient belongs to another tenant", async () => {
+    mocks.deleteUnusedIngredient.mockResolvedValueOnce("not_found");
+    await expect(deleteIngredientById("foreign-ingredient", tenant)).rejects.toBeInstanceOf(NotFoundError);
   });
 });

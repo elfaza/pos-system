@@ -69,6 +69,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
+  const [deletingIngredientId, setDeletingIngredientId] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -182,6 +183,33 @@ export default function InventoryPage() {
       setError(saveError instanceof Error ? saveError.message : "Unable to save ingredient.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteIngredient(ingredient: IngredientRecord) {
+    if (!isOnline || deletingIngredientId) return;
+    if (!window.confirm(`Delete "${ingredient.name}" permanently? This cannot be undone.`)) return;
+
+    setDeletingIngredientId(ingredient.id);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/ingredients/${ingredient.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to delete ingredient.");
+
+      if (form.id === ingredient.id) setForm(emptyIngredientForm);
+      if (selectedIngredientId === ingredient.id) {
+        setSelectedIngredientId("");
+        setAdjustQuantity("");
+        setAdjustReason("");
+      }
+      setMessage(`Ingredient "${ingredient.name}" deleted.`);
+      await loadInventory();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete ingredient.");
+    } finally {
+      setDeletingIngredientId(null);
     }
   }
 
@@ -359,7 +387,7 @@ export default function InventoryPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
                               onClick={() => setForm(toIngredientForm(ingredient))}
                               className="h-10 rounded-md border border-[var(--border)] bg-white px-3 font-medium hover:border-[var(--primary)]/35 hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
@@ -371,6 +399,14 @@ export default function InventoryPage() {
                               className="h-10 rounded-md border border-[var(--border)] bg-white px-3 font-medium hover:border-[var(--primary)]/35 hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                             >
                               Adjust
+                            </button>
+                            <button
+                              onClick={() => void deleteIngredient(ingredient)}
+                              disabled={!isOnline || deletingIngredientId !== null || saving || adjusting}
+                              aria-label={`Delete ${ingredient.name}`}
+                              className="h-10 rounded-md border border-[var(--danger)]/30 bg-white px-3 font-medium text-[var(--danger)] hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingIngredientId === ingredient.id ? "Deleting..." : "Delete"}
                             </button>
                           </div>
                         </td>
