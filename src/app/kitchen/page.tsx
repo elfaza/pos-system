@@ -7,6 +7,7 @@ import AdminShell from "@/features/admin/components/admin-shell";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { getRoleLabel, isDisplayRole, KITCHEN_ACCESS_ROLES } from "@/features/auth/utils/role-routes";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import OutletSwitcher from "@/features/organizations/components/outlet-switcher";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import type {
   KitchenBoardRecord,
@@ -321,6 +322,7 @@ function KitchenContent() {
         <h1 className="text-xl font-semibold">Kitchen Display</h1>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <OutletSwitcher />
         <span className={`rounded-md border px-3 py-2 text-sm font-medium ${isOnline ? "border-[var(--success)]/30 bg-green-50 text-[var(--success)]" : "border-[var(--warning)]/30 bg-orange-50 text-[var(--warning)]"}`}>
           {isOnline ? "Online" : "Offline"}
         </span>

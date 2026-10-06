@@ -6,6 +6,7 @@ import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency";
 import { openThermerPrint } from "@/lib/thermer";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import OutletSwitcher from "@/features/organizations/components/outlet-switcher";
 import type {
   CategoryRecord,
   ProductOptionValueRecord,
@@ -1193,6 +1194,7 @@ function PosContent() {
           <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{storeName}</h1>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <OutletSwitcher />
           <span className="hidden text-sm text-[var(--muted-foreground)] sm:inline">
             {user?.name}
           </span>

@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useState } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import type { EffectiveRole, ModuleAvailability } from "@/features/auth/types";
+import OutletSwitcher from "@/features/organizations/components/outlet-switcher";
 
 type OptionalModuleKey = "kitchen" | "queue" | "inventory" | "accounting";
 
@@ -132,14 +133,13 @@ export default function AdminShell({
       (pathname === item.href || pathname.startsWith(`${item.href}/`)),
   );
   const effectiveRole = tenantResolution.status === "ready" ? tenantResolution.context.role : user?.role;
-  const hasOutletSwitcher = tenantResolution.status === "ready" && tenantResolution.outlets.length > 1;
-  const shellHeightClass = hasOutletSwitcher ? "lg:min-h-[calc(100dvh-125px)]" : "lg:min-h-[calc(100dvh-69px)]";
-  const sidebarPositionClass = hasOutletSwitcher ? "lg:top-[125px] lg:h-[calc(100dvh-125px)]" : "lg:top-[69px] lg:h-[calc(100dvh-69px)]";
+  const shellHeightClass = "lg:min-h-[calc(100dvh-69px)]";
+  const sidebarPositionClass = "lg:top-[69px] lg:h-[calc(100dvh-69px)]";
 
   return (
     <RoleGuard allowedRoles={["owner", "admin"]}>
       <main className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
-        <header className={`sticky ${hasOutletSwitcher ? "top-14" : "top-0"} z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur lg:px-6`}>
+        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/70 bg-white/85 px-4 py-3 shadow-[0_1px_10px_rgba(20,32,51,0.08)] backdrop-blur lg:px-6">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--primary)]">
               {eyebrow}
@@ -147,6 +147,7 @@ export default function AdminShell({
             <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
           </div>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
+            <OutletSwitcher />
             <span className="hidden text-sm text-[var(--muted-foreground)] sm:inline">
               {user?.name}
             </span>

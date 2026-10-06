@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { CUSTOMER_DISPLAY_ACCESS_ROLES } from "@/features/auth/utils/role-routes";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import OutletSwitcher from "@/features/organizations/components/outlet-switcher";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
 import { getNextCategoryIndex } from "@/features/customer-display/services/menu-rotation";
 import type {
@@ -130,6 +131,7 @@ function CustomerDisplayContent() {
           <h1 className="text-2xl font-semibold tracking-tight">{display?.storeName ?? "Order summary"}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <OutletSwitcher />
           <span
             className={`rounded-md border px-3 py-2 text-sm font-medium ${isOnline ? "border-[var(--success)]/30 bg-green-50 text-[var(--success)]" : "border-[var(--warning)]/30 bg-orange-50 text-[var(--warning)]"}`}
           >

@@ -37,15 +37,5 @@ export default function TenantExperience({ children }: { children: ReactNode }) 
     );
   }
 
-  if (!user || tenantResolution.status !== "ready") return children;
-  if (tenantResolution.outlets.length < 2) return children;
-
-  return (
-    <>
-      <div className="sticky top-0 z-20 flex min-h-14 items-center justify-end border-b border-[var(--border)] bg-[var(--surface)]/95 px-4 py-2 backdrop-blur sm:px-6">
-        <OutletSwitcher />
-      </div>
-      {children}
-    </>
-  );
+  return children;
 }

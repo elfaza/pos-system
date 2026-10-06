@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { QUEUE_ACCESS_ROLES } from "@/features/auth/utils/role-routes";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import OutletSwitcher from "@/features/organizations/components/outlet-switcher";
 import type { KitchenQueueRecord, QueueDisplayRecord } from "@/features/kitchen/types";
 
 function formatOrderType(orderType: KitchenQueueRecord["orderType"]) {
@@ -167,6 +168,7 @@ function QueueContent() {
           {formattedDateTime}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <OutletSwitcher />
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${isOnline ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400 animate-pulse"}`}>
             {isOnline ? "CONNECTED" : "OFFLINE"}
           </span>
@@ -340,5 +342,4 @@ export default function QueuePage() {
     </RoleGuard>
   );
 }
-
 

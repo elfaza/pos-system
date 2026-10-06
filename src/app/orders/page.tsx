@@ -6,6 +6,7 @@ import { openThermerPrint } from "@/lib/thermer";
 import AdminShell from "@/features/admin/components/admin-shell";
 import RoleGuard from "@/features/auth/components/role-guard";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import OutletSwitcher from "@/features/organizations/components/outlet-switcher";
 import type { SettingsRecord } from "@/features/catalog/types";
 import ReceiptPreview from "@/features/checkout/components/receipt-preview";
 import { formatRupiah } from "@/features/checkout/services/checkout-calculations";
@@ -281,6 +282,7 @@ function OrderHistoryContent() {
           <h1 className="text-xl font-semibold">Order History</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <OutletSwitcher />
           <span
             className={`rounded-md border px-3 py-2 text-sm font-medium ${
               isOnline
